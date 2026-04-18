@@ -172,6 +172,8 @@ _MIGRATIONS = [
     "ALTER TABLE api_keys ADD COLUMN pending_restore TEXT DEFAULT NULL",
     "ALTER TABLE tg_accounts ADD COLUMN tg_username TEXT",
     "ALTER TABLE tg_accounts ADD COLUMN tg_first_name TEXT",
+    "ALTER TABLE reviews ADD COLUMN images TEXT DEFAULT '[]'",
+    "ALTER TABLE reviews ADD COLUMN admin_images TEXT DEFAULT '[]'",
 ]
 
 
