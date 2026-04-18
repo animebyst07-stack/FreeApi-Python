@@ -188,20 +188,22 @@ def get_log_codes():
 
 # ─────────── REVIEWS ───────────
 
-def create_review(user_id, score, text, status='pending'):
+def create_review(user_id, score, text, status='pending', images=None):
+    import json as _json
     review_id = uuid4()
     now = msk_now()
+    images_json = _json.dumps(images or [])
     with db() as conn:
         existing = conn.execute('SELECT id FROM reviews WHERE user_id = ?', (user_id,)).fetchone()
         if existing:
             conn.execute(
-                'UPDATE reviews SET score=?, text=?, status=?, ai_response=NULL, updated_at=? WHERE user_id=?',
-                (score, text, status, now, user_id)
+                'UPDATE reviews SET score=?, text=?, status=?, ai_response=NULL, images=?, updated_at=? WHERE user_id=?',
+                (score, text, status, images_json, now, user_id)
             )
             return row(conn.execute('SELECT * FROM reviews WHERE user_id = ?', (user_id,)).fetchone())
         conn.execute(
-            'INSERT INTO reviews(id, user_id, score, text, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (review_id, user_id, score, text, status, now, now)
+            'INSERT INTO reviews(id, user_id, score, text, status, images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (review_id, user_id, score, text, status, images_json, now, now)
         )
         return row(conn.execute('SELECT * FROM reviews WHERE id = ?', (review_id,)).fetchone())
 
@@ -218,7 +220,7 @@ def get_approved_reviews(limit=10, offset=0):
         ).fetchone()
         total = total_row['cnt'] if total_row else 0
         items = rows(conn.execute(
-            'SELECT r.id, r.score, r.text, r.ai_response, r.created_at, r.updated_at, r.status, u.username '
+            'SELECT r.id, r.score, r.text, r.ai_response, r.images, r.admin_images, r.created_at, r.updated_at, r.status, u.username '
             'FROM reviews r JOIN users u ON r.user_id = u.id '
             "WHERE r.status IN ('approved', 'flagged') ORDER BY r.updated_at DESC LIMIT ? OFFSET ?",
             (limit, offset)
@@ -245,13 +247,21 @@ def get_all_reviews_admin(limit=10, offset=0):
         return items, total
 
 
-def update_review_status(review_id, status, ai_response=None):
+def update_review_status(review_id, status, ai_response=None, admin_images=None):
+    import json as _json
     now = msk_now()
     with db() as conn:
-        conn.execute(
-            'UPDATE reviews SET status=?, ai_response=?, updated_at=? WHERE id=?',
-            (status, ai_response, now, review_id)
-        )
+        if admin_images is not None:
+            admin_images_json = _json.dumps(admin_images)
+            conn.execute(
+                'UPDATE reviews SET status=?, ai_response=?, admin_images=?, updated_at=? WHERE id=?',
+                (status, ai_response, admin_images_json, now, review_id)
+            )
+        else:
+            conn.execute(
+                'UPDATE reviews SET status=?, ai_response=?, updated_at=? WHERE id=?',
+                (status, ai_response, now, review_id)
+            )
         return row(conn.execute('SELECT * FROM reviews WHERE id=?', (review_id,)).fetchone())
 
 
