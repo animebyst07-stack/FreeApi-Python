@@ -493,6 +493,49 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 /* ─── REVIEW CARD improved ─── */
 .review-meta .review-author{font-weight:600;color:#bbb}
 
+/* ─── REVIEW IMAGES ─── */
+.review-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.review-img-thumb{width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid #1e1e1e;cursor:pointer;position:relative;flex-shrink:0;background:#0a0a0a;transition:border-color .15s}
+.review-img-thumb:hover{border-color:#444}
+.review-img-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.review-img-more{width:72px;height:72px;border-radius:8px;border:1px solid #1e1e1e;background:#0d0d0d;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#666;cursor:pointer;flex-shrink:0;transition:all .15s}
+.review-img-more:hover{border-color:#444;color:#aaa}
+
+/* ─── REVIEW WRITE MODAL ─── */
+.review-score-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.score-btn{width:36px;height:36px;border-radius:8px;border:1px solid #1e1e1e;background:#0d0d0d;font-size:13px;font-weight:600;color:#666;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.score-btn:hover{border-color:#555;color:#aaa}
+.score-btn.selected{background:#fff;border-color:#fff;color:#000}
+
+/* ─── IMAGE UPLOAD ─── */
+.img-upload-zone{border:1px dashed #1e1e1e;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#070707;margin-top:6px}
+.img-upload-zone:hover{border-color:#444;background:#0a0a0a}
+.img-upload-zone p{font-size:12px;color:#555;margin-top:5px}
+.img-upload-zone svg{color:#333}
+.img-upload-preview{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.img-upload-item{width:60px;height:60px;border-radius:7px;overflow:hidden;border:1px solid #1e1e1e;position:relative;flex-shrink:0;background:#0a0a0a}
+.img-upload-item img{width:100%;height:100%;object-fit:cover;display:block}
+.img-upload-remove{position:absolute;top:2px;right:2px;width:16px;height:16px;background:rgba(0,0,0,.85);border:1px solid #333;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aaa;cursor:pointer;font-size:9px;line-height:1;transition:all .15s}
+.img-upload-remove:hover{background:#222;color:#fff}
+.img-upload-count{font-size:10px;color:#555;margin-top:5px;text-align:center}
+
+/* ─── LIGHTBOX ─── */
+.lightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s}
+.lightbox.open{opacity:1;pointer-events:auto}
+.lightbox-img{max-width:100%;max-height:90vh;border-radius:10px;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,.8)}
+.lightbox-close{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:9px;background:#111;border:1px solid #222;color:#888;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.lightbox-close:hover{background:#1e1e1e;color:#fff;border-color:#444}
+.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:9px;background:rgba(0,0,0,.6);border:1px solid #222;color:#888;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.lightbox-nav:hover{background:#111;color:#fff;border-color:#444}
+.lightbox-prev{left:16px}
+.lightbox-next{right:58px}
+.lightbox-download{position:absolute;top:16px;right:60px;width:36px;height:36px;border-radius:9px;background:#111;border:1px solid #222;color:#888;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;text-decoration:none}
+.lightbox-download:hover{background:#1e1e1e;color:#fff;border-color:#444}
+.lightbox-counter{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:12px;color:#666;background:rgba(0,0,0,.6);padding:4px 12px;border-radius:20px}
+
+/* ─── ADMIN CHAT COPY BTN ─── */
+#chatAdminCopyBtn{display:none}
+
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -976,9 +1019,9 @@ body.view-no-scroll{overflow:hidden}
       <h2>Отзывы о сайте</h2>
       <p>Публичная лента с автономной AI-модерацией</p>
     </div>
-    <button class="btn btn-outline btn-sm" onclick="user?goView('cabinet'):openModal('loginModal')" style="flex-shrink:0">
+    <button class="btn btn-outline btn-sm" onclick="user?openWriteReviewModal():openModal('loginModal')" style="flex-shrink:0">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Мой отзыв
+      Написать отзыв
     </button>
   </div>
   <div id="reviewsList"><div class="review-empty">Загрузка отзывов...</div></div>
@@ -1288,6 +1331,10 @@ body.view-no-scroll{overflow:hidden}
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Сбросить
       </button>
+      <button class="btn btn-ghost btn-xs" id="chatAdminCopyBtn" onclick="copyChatFull(event)" title="Скопировать чат + все логи для отладки" style="display:none;align-items:center;gap:4px;font-size:10px;padding:0 7px;height:26px">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Логи
+      </button>
     </div>
   </div>
 
@@ -1342,10 +1389,6 @@ body.view-no-scroll{overflow:hidden}
         API Логи <span id="chatLogsCount" style="color:#666">(0)</span>
       </div>
       <div class="chat-logs-hdr-right">
-        <button class="btn btn-ghost btn-xs" onclick="copyChatLogs(event)" style="font-size:10px">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Копировать
-        </button>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="chatLogsChevron" style="color:#666;transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
     </div>
@@ -1951,6 +1994,48 @@ Rules:
     Перейти к дашборду
   </button>
 </div>
+</div>
+
+<!-- Write Review Modal -->
+<div class="overlay" id="writeReviewModal" onclick="overlayClick(event,this)">
+<div class="modal">
+  <button class="modal-close" onclick="closeModal('writeReviewModal')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <h2 id="writeReviewTitle">Написать отзыв</h2>
+  <p class="modal-sub">Ваш отзыв будет отправлен на модерацию</p>
+  <div class="fgroup" style="margin-bottom:12px">
+    <label>Оценка</label>
+    <div class="review-score-row" id="reviewScoreBtns"></div>
+  </div>
+  <div class="fgroup">
+    <label>Текст отзыва</label>
+    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000"></textarea>
+    <div style="font-size:10px;color:#444;margin-top:4px;text-align:right"><span id="writeReviewTextCount">0</span>/1000</div>
+  </div>
+  <div class="fgroup">
+    <label>Фото <span style="color:#555;font-size:10px">(до 10 изображений)</span></label>
+    <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="display:none" onchange="onWriteReviewFilesSelected(this)">
+    <div class="img-upload-zone" id="writeReviewUploadZone" onclick="q('writeReviewFileInput').click()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <p>Нажмите чтобы выбрать фото</p>
+    </div>
+    <div class="img-upload-preview" id="writeReviewImgPreview"></div>
+    <div class="img-upload-count" id="writeReviewImgCount"></div>
+  </div>
+  <button class="btn btn-primary" style="width:100%;height:42px;margin-top:4px" onclick="submitWriteReview()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    Отправить отзыв
+  </button>
+</div>
+</div>
+
+<!-- Image Lightbox -->
+<div class="lightbox" id="imageLightbox" onclick="lightboxBgClick(event)">
+  <button class="lightbox-close" onclick="closeLightbox()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <a class="lightbox-download" id="lightboxDownload" download="photo.jpg" href="#" title="Скачать"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>
+  <button class="lightbox-nav lightbox-prev" id="lightboxPrev" onclick="navLightbox(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <img class="lightbox-img" id="lightboxImg" src="" alt="">
+  <button class="lightbox-nav lightbox-next" id="lightboxNext" onclick="navLightbox(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+  <div class="lightbox-counter" id="lightboxCounter"></div>
 </div>
 
 <!-- Key Settings -->
@@ -3022,12 +3107,29 @@ window.changeReviewsPage=function(delta){
   var sec=q('reviews-section');
   if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
 };
+function renderReviewImgs(imgs,baseId){
+  if(!imgs||!imgs.length) return '';
+  var show=imgs.slice(0,4),more=imgs.length-4;
+  var html='<div class="review-imgs">';
+  show.forEach(function(src,i){
+    html+='<div class="review-img-thumb" onclick="openLightbox('+JSON.stringify(imgs)+','+i+')"><img src="'+src+'" alt="фото" loading="lazy"></div>';
+  });
+  if(more>0) html+='<div class="review-img-more" onclick="openLightbox('+JSON.stringify(imgs)+',4)">+'+more+'</div>';
+  html+='</div>';
+  return html;
+}
 function renderReviews(items){
   var list=q('reviewsList');
   if(!items.length){list.innerHTML='<div class="review-empty">Пока нет опубликованных отзывов. Станьте первым — оставьте отзыв в разделе «Отзывы» после авторизации.</div>';return;}
   list.innerHTML=items.map(function(r){
     var authorBadge=r.username==='ReZero'?'<span class="badge-owner">Владелец</span>':'';
-    return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+(r.ai_response?'<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span><br>'+esc(r.ai_response)+'</div></div>':'')+'</div>';
+    var imgs=[];try{imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);}catch(e){}
+    var adminImgs=[];try{adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]);}catch(e){}
+    var adminBlock='';
+    if(r.ai_response||adminImgs.length){
+      adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>'+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
+    }
+    return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+'</div>';
   }).join('');
 }
 window.goToReviews=function(){
@@ -3054,9 +3156,6 @@ window.deleteUserNotification=function(id){
   api('/api/notifications/'+id,'DELETE').then(function(){ loadUserNotifications(); });
 };
 
-/* legacy submitReview compat (landing button "Мой отзыв" теперь ведёт в кабинет) */
-window.reviewScoreChanged=function(){};
-window.submitReview=function(e){ if(e) e.preventDefault(); };
 function loadAdmin(){
   if(!user||user.username!=='ReZero')return;
   api('/api/admin/settings').then(function(d){
@@ -3110,11 +3209,64 @@ function renderAdminNotifications(items){
   if(!items.length){list.innerHTML='<div class="review-empty">Уведомлений нет</div>';return;}
   list.innerHTML=items.map(function(n){return '<div class="admin-item"><div class="admin-item-head"><span>'+esc(n.review_author||'user')+' · '+esc(n.review_score)+'/10</span><button class="btn btn-ghost btn-xs" onclick="deleteAdminNotification(\''+esc(n.id)+'\')">Удалить</button></div><div class="admin-mini">'+formatDate(n.created_at)+'</div><div class="admin-item-body"><b>Отзыв:</b> '+esc(n.review_text||'')+'\n\n<b>Ответ агента:</b> '+esc(n.ai_response||'')+'\n\n<b>Совет админу:</b> '+esc(n.ai_advice||'')+'</div></div>';}).join('');
 }
+var _adminReviewImgs={};
 function renderAdminReviews(items){
   var list=q('adminReviewsList');
   if(!items.length){list.innerHTML='<div class="review-empty">Отзывов нет</div>';return;}
-  list.innerHTML=items.map(function(r){return '<div class="admin-item"><div class="admin-item-head"><span>'+esc(r.username)+' · '+esc(r.score)+'/10 · '+esc(r.status)+'</span><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-xs" onclick="setReviewStatus(\''+esc(r.id)+'\',\'approved\')">Одобрить</button><button class="btn btn-ghost btn-xs btn-danger" onclick="deleteAdminReview(\''+esc(r.id)+'\')">Удалить</button></div></div><div class="admin-mini">'+formatDate(r.updated_at||r.created_at)+'</div><div class="admin-item-body">'+esc(r.text||'')+(r.ai_response?'\n\nFavorite AI Agent: '+esc(r.ai_response):'')+'</div></div>';}).join('');
+  _adminReviewImgs={};
+  list.innerHTML=items.map(function(r){
+    var imgs=[];try{imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);}catch(e){}
+    var adminImgs=[];try{adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]);}catch(e){}
+    _adminReviewImgs[r.id]=adminImgs.slice();
+    var imgsHtml=imgs.length?'<div style="margin:6px 0">'+renderReviewImgs(imgs)+'</div>':'';
+    var adminImgsPreviewId='adminRImgPreview_'+r.id;
+    var adminImgsHtml='<div class="img-upload-preview" id="'+adminImgsPreviewId+'">'+adminImgs.map(function(src,i){return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeAdminReviewImg(\''+esc(r.id)+'\','+i+',\''+adminImgsPreviewId+'\')">×</div></div>';}).join('')+'</div>';
+    return '<div class="admin-item">'+
+      '<div class="admin-item-head"><span>'+esc(r.username)+' · '+esc(r.score)+'/10 · '+esc(r.status)+'</span>'+
+      '<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-xs" onclick="setReviewStatus(\''+esc(r.id)+'\',\'approved\')">Одобрить</button><button class="btn btn-ghost btn-xs btn-danger" onclick="deleteAdminReview(\''+esc(r.id)+'\')">Удалить</button></div></div>'+
+      '<div class="admin-mini">'+formatDate(r.updated_at||r.created_at)+'</div>'+
+      '<div class="admin-item-body">'+esc(r.text||'')+'</div>'+imgsHtml+
+      '<div style="margin-top:8px;font-size:11px;color:#555;margin-bottom:4px">Ответ (ai_response):</div>'+
+      '<textarea id="adminResp_'+esc(r.id)+'" rows="2" style="width:100%;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:7px 10px;font-size:12px;color:#aaa;resize:vertical;font-family:inherit" placeholder="Введите ответ..." onchange="">'+esc(r.ai_response||'')+'</textarea>'+
+      '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+      '<label style="font-size:11px;color:#555;cursor:pointer;border:1px dashed #1e1e1e;border-radius:6px;padding:4px 10px;background:#070707;transition:all .15s" onmouseover="this.style.borderColor=\'#444\'" onmouseout="this.style.borderColor=\'#1e1e1e\'">'+
+      '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
+      ' Фото к ответу<input type="file" accept="image/*" multiple style="display:none" onchange="onAdminReviewFilesSelected(this,\''+esc(r.id)+'\',\''+adminImgsPreviewId+'\')"></label>'+
+      '<button class="btn btn-ghost btn-xs" onclick="saveAdminReviewResp(\''+esc(r.id)+'\',\'approved\')">Сохранить и одобрить</button>'+
+      '</div>'+adminImgsHtml+
+      '</div>';
+  }).join('');
 }
+window.removeAdminReviewImg=function(rid,idx,previewId){
+  if(!_adminReviewImgs[rid]) return;
+  _adminReviewImgs[rid].splice(idx,1);
+  var el=q(previewId);
+  if(el) el.innerHTML=_adminReviewImgs[rid].map(function(src,i){return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeAdminReviewImg(\''+esc(rid)+'\','+i+',\''+esc(previewId)+'\')">×</div></div>';}).join('');
+};
+window.onAdminReviewFilesSelected=function(input,rid,previewId){
+  var current=_adminReviewImgs[rid]||[];
+  var files=Array.from(input.files);
+  var remaining=10-current.length;
+  if(remaining<=0){showToast('Максимум 10 фото','err');return;}
+  files.slice(0,remaining).forEach(function(f){
+    compressImage(f,function(b64){
+      if(!_adminReviewImgs[rid]) _adminReviewImgs[rid]=[];
+      _adminReviewImgs[rid].push(b64);
+      var el=q(previewId);
+      if(el) el.innerHTML=_adminReviewImgs[rid].map(function(src,i){return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeAdminReviewImg(\''+esc(rid)+'\','+i+',\''+esc(previewId)+'\')">×</div></div>';}).join('');
+    });
+  });
+  input.value='';
+};
+window.saveAdminReviewResp=function(rid,status){
+  var ta=document.getElementById('adminResp_'+rid);
+  var aiResp=ta?ta.value.trim():'';
+  var adminImgs=_adminReviewImgs[rid]||[];
+  api('/api/reviews/'+rid+'/status','PUT',{status:status,ai_response:aiResp||null,admin_images:adminImgs}).then(function(d){
+    if(d.error){showToast(d.message||'Ошибка','err');return;}
+    loadAdmin();loadReviews();showToast('Отзыв обновлён','ok');
+  });
+};
 window.deleteAdminNotification=function(id){api('/api/admin/notifications/'+id,'DELETE').then(function(){loadAdmin();showToast('Уведомление удалено','ok');});};
 window.deleteAdminReview=function(id){customConfirm('Удаление отзыва','Удалить этот отзыв?').then(function(ok){if(!ok)return;api('/api/reviews/'+id,'DELETE').then(function(){loadAdmin();loadReviews();showToast('Отзыв удалён','ok');});});};
 window.setReviewStatus=function(id,status){api('/api/reviews/'+id+'/status','PUT',{status:status}).then(function(){loadAdmin();loadReviews();showToast('Статус обновлён','ok');});};
@@ -3904,6 +4056,72 @@ window.copyChatLogs=function(ev){
   }).catch(function(){showToast('Не удалось скопировать','err');});
 };
 
+window.copyChatFull=function(ev){
+  ev.stopPropagation();
+  var sections=[];
+  var now=new Date().toISOString();
+
+  /* ── 1. Заголовок / контекст сессии ── */
+  var header='=== СНИМОК ТЕСТОВОГО ЧАТА FavoriteAPI ===\n';
+  header+='Дата/время: '+now+'\n';
+  header+='Ключ: '+(_chatKeyName||'—')+(_chatKeyMasked?' ('+maskShort(_chatKeyMasked)+')':'')+'\n';
+  header+='Модель: '+(_chatModelId||'—')+'\n';
+  header+='Сообщений в контексте: '+(_chatMessages?_chatMessages.length:0)+'\n';
+  header+='API-запросов в логах: '+(_chatLogs?_chatLogs.length:0);
+  sections.push(header);
+
+  /* ── 2. Полная переписка ── */
+  if(_chatMessages&&_chatMessages.length>0){
+    var chatLines=['--- ПЕРЕПИСКА ---'];
+    _chatMessages.forEach(function(m,i){
+      var role=m.role==='user'?'[USER]':'[ASSISTANT]';
+      var content=m.content;
+      if(Array.isArray(content)){
+        content=content.map(function(c){
+          if(c.type==='text') return c.text;
+          if(c.type==='image_url') return '[ИЗОБРАЖЕНИЕ]';
+          return '['+c.type+']';
+        }).join(' ');
+      }
+      chatLines.push(role+' '+(content||''));
+    });
+    sections.push(chatLines.join('\n'));
+  } else {
+    sections.push('--- ПЕРЕПИСКА ---\n(нет сообщений)');
+  }
+
+  /* ── 3. Все API-логи ── */
+  if(_chatLogs&&_chatLogs.length>0){
+    var logLines=['--- API ЛОГИ (все запросы) ---'];
+    _chatLogs.forEach(function(e,i){
+      logLines.push('\n['+( i+1)+'] время: '+e.ts);
+      if(e.isReset){
+        logLines.push('  endpoint: POST /api/chat/reset');
+        logLines.push('  действие: Сброс контекста');
+        return;
+      }
+      logLines.push('  endpoint: POST /api/v1/chat');
+      logLines.push('  модель: '+(e.model||'—'));
+      logLines.push('  статус: '+(e.ok?(e.status||200)+' OK':(e.status||'?')+' ERR'));
+      logLines.push('  время_ответа: '+(e.ms!=null?formatMs(e.ms):'—'));
+      if(_chatKeyMasked) logLines.push('  auth: Bearer '+maskShort(_chatKeyMasked));
+      if(e.code) logLines.push('  код_ошибки: '+e.code);
+      if(e.q) logLines.push('  запрос: '+e.q);
+      if(e.a) logLines.push('  ответ: '+e.a);
+    });
+    sections.push(logLines.join('\n'));
+  } else {
+    sections.push('--- API ЛОГИ ---\n(запросов не было)');
+  }
+
+  sections.push('=== КОНЕЦ СНИМКА ===');
+
+  var fullText=sections.join('\n\n');
+  navigator.clipboard.writeText(fullText).then(function(){
+    showToast('Чат и все логи скопированы!','ok');
+  }).catch(function(){showToast('Не удалось скопировать — попробуйте ещё раз','err');});
+};
+
 /* ───────────── TEXTAREA AUTO-RESIZE (no-jank) ───────────── */
 function autoResizeTextarea(el,maxH){
   maxH=maxH||130;
@@ -3952,6 +4170,8 @@ function updateSidebar(){
   });
   var sbAdmin=document.getElementById('sbAdmin');
   if(sbAdmin) sbAdmin.style.display=isAdmin?'':'none';
+  var copyBtn=document.getElementById('chatAdminCopyBtn');
+  if(copyBtn) copyBtn.style.display=isAdmin?'flex':'none';
   var authSec=document.getElementById('sbAuthSection');
   var logSec=document.getElementById('sbLogoutSection');
   if(authSec) authSec.style.display=authed?'none':'';
@@ -4311,6 +4531,170 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
 })();
 
 })();
+
+/* ═══════════════════════════════════════
+   WRITE REVIEW MODAL
+═══════════════════════════════════════ */
+var _writeReviewScore=0;
+var _writeReviewImgs=[];
+
+window.openWriteReviewModal=function(){
+  _writeReviewScore=0;
+  _writeReviewImgs=[];
+  var ta=q('writeReviewText');
+  if(ta){ta.value='';ta.oninput=function(){q('writeReviewTextCount').textContent=ta.value.length;};}
+  q('writeReviewTextCount').textContent='0';
+  q('writeReviewImgPreview').innerHTML='';
+  q('writeReviewImgCount').textContent='';
+  /* Score buttons */
+  var sb=q('reviewScoreBtns');
+  sb.innerHTML='';
+  for(var i=1;i<=10;i++){
+    var btn=document.createElement('button');
+    btn.className='score-btn';
+    btn.textContent=i;
+    btn.dataset.score=i;
+    btn.onclick=(function(score){return function(){
+      _writeReviewScore=score;
+      document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===score);});
+    };})(i);
+    sb.appendChild(btn);
+  }
+  /* Pre-fill if user already has a review */
+  api('/api/reviews/mine').then(function(d){
+    if(d.review){
+      var r=d.review;
+      if(r.score){
+        _writeReviewScore=r.score;
+        document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===r.score);});
+      }
+      if(r.text&&ta) ta.value=r.text;
+      q('writeReviewTextCount').textContent=(r.text||'').length;
+      try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_writeReviewImgs=imgs.slice();renderWriteReviewPreview();}catch(e){}
+      q('writeReviewTitle').textContent='Редактировать отзыв';
+    } else {
+      q('writeReviewTitle').textContent='Написать отзыв';
+    }
+  }).catch(function(){q('writeReviewTitle').textContent='Написать отзыв';});
+  openModal('writeReviewModal');
+};
+
+window.onWriteReviewFilesSelected=function(input){
+  var files=Array.from(input.files);
+  var remaining=10-_writeReviewImgs.length;
+  if(remaining<=0){showToast('Максимум 10 фото','err');return;}
+  files.slice(0,remaining).forEach(function(f){
+    compressImage(f,function(b64){
+      _writeReviewImgs.push(b64);
+      renderWriteReviewPreview();
+    });
+  });
+  input.value='';
+};
+
+function renderWriteReviewPreview(){
+  var el=q('writeReviewImgPreview');
+  var cnt=q('writeReviewImgCount');
+  if(!el) return;
+  el.innerHTML=_writeReviewImgs.map(function(src,i){
+    return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeWriteReviewImg('+i+')">×</div></div>';
+  }).join('');
+  if(cnt) cnt.textContent=_writeReviewImgs.length?_writeReviewImgs.length+'/10 фото':'';
+}
+
+window.removeWriteReviewImg=function(idx){
+  _writeReviewImgs.splice(idx,1);
+  renderWriteReviewPreview();
+};
+
+window.submitWriteReview=function(){
+  if(!_writeReviewScore){showToast('Выберите оценку от 1 до 10','err');return;}
+  var ta=q('writeReviewText');
+  var text=(ta?ta.value:'').trim();
+  if(text.length<10){showToast('Текст слишком короткий (минимум 10 символов)','err');return;}
+  if(text.length>1000){showToast('Текст слишком длинный (максимум 1000 символов)','err');return;}
+  api('/api/reviews','POST',{score:_writeReviewScore,text:text,images:_writeReviewImgs}).then(function(d){
+    if(d.error){showToast(d.message||'Ошибка','err');return;}
+    closeModal('writeReviewModal');
+    var status=d.review&&d.review.status;
+    if(status==='pending') showToast('Отзыв отправлен на модерацию','ok');
+    else showToast('Отзыв опубликован','ok');
+    loadReviews();
+  });
+};
+
+/* ═══════════════════════════════════════
+   IMAGE COMPRESS UTIL
+═══════════════════════════════════════ */
+function compressImage(file,cb){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var maxW=800,maxH=800;
+      var w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+      if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
+      var canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      cb(canvas.toDataURL('image/jpeg',0.62));
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ═══════════════════════════════════════
+   LIGHTBOX
+═══════════════════════════════════════ */
+var _lbImgs=[],_lbIdx=0;
+
+window.openLightbox=function(imgs,idx){
+  _lbImgs=imgs;
+  _lbIdx=Math.min(idx,imgs.length-1);
+  updateLightbox();
+  q('imageLightbox').classList.add('open');
+  document.addEventListener('keydown',_lbKeyHandler);
+};
+
+function updateLightbox(){
+  var lb=q('imageLightbox');
+  if(!lb) return;
+  var src=_lbImgs[_lbIdx]||'';
+  q('lightboxImg').src=src;
+  q('lightboxDownload').href=src;
+  q('lightboxCounter').textContent=(_lbIdx+1)+' / '+_lbImgs.length;
+  q('lightboxPrev').style.display=_lbIdx>0?'flex':'none';
+  q('lightboxNext').style.display=_lbIdx<_lbImgs.length-1?'flex':'none';
+}
+
+window.closeLightbox=function(){
+  var lb=q('imageLightbox');
+  if(lb) lb.classList.remove('open');
+  document.removeEventListener('keydown',_lbKeyHandler);
+};
+
+window.navLightbox=function(d){
+  _lbIdx=Math.max(0,Math.min(_lbImgs.length-1,_lbIdx+d));
+  updateLightbox();
+};
+
+window.lightboxBgClick=function(e){
+  if(e.target===q('imageLightbox')) closeLightbox();
+};
+
+function _lbKeyHandler(e){
+  if(e.key==='Escape') closeLightbox();
+  else if(e.key==='ArrowLeft') navLightbox(-1);
+  else if(e.key==='ArrowRight') navLightbox(1);
+}
+
+/* ═══════════════════════════════════════
+   LEGACY COMPAT
+═══════════════════════════════════════ */
+window.reviewScoreChanged=function(){};
+window.submitReview=function(e){ if(e) e.preventDefault(); };
 </script>
 
 </div><!-- /main-content -->
