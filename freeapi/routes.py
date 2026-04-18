@@ -1026,11 +1026,15 @@ def register_routes(app):
             return error('Текст отзыва слишком короткий (минимум 10 символов)', 400)
         if len(text) > 1000:
             return error('Текст отзыва слишком длинный (максимум 1000 символов)', 400)
+        images = data.get('images') or []
+        if not isinstance(images, list):
+            images = []
+        images = images[:10]
         agent_ready = repo.get_admin_setting('agent_enabled', '0') == '1' and bool(repo.get_admin_setting('agent_key_id', ''))
         if is_admin:
-            review = repo.create_review(uid, score, text, 'approved')
+            review = repo.create_review(uid, score, text, 'approved', images=images)
         else:
-            review = repo.create_review(uid, score, text, 'pending' if agent_ready else 'approved')
+            review = repo.create_review(uid, score, text, 'pending' if agent_ready else 'approved', images=images)
         if agent_ready and not is_admin:
             try:
                 from freeapi.agent import start_agent, trigger_agent
@@ -1064,7 +1068,12 @@ def register_routes(app):
         if status not in ('approved', 'deleted', 'pending'):
             return error('Некорректный статус', 400)
         ai_response = data.get('ai_response')
-        review = repo.update_review_status(review_id, status, ai_response=ai_response)
+        admin_images = data.get('admin_images')
+        if admin_images is not None:
+            if not isinstance(admin_images, list):
+                admin_images = []
+            admin_images = admin_images[:10]
+        review = repo.update_review_status(review_id, status, ai_response=ai_response, admin_images=admin_images)
         return jsonify({'review': review})
 
     # ═══════════════════════════════════════════════
