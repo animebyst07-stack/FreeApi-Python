@@ -1,0 +1,19 @@
+plan3.txt — Терминальный/брутальный редизайн чата
+
+Ориентир: дизайн Gemini (HTML от пользователя) — чёрный фон, сетка-нити,
+граница #333→#fff→#333, стеклянные монохромные баблы, минималистичный ввод.
+
+Изменения:
+1. .chat-layout: background:#000, border:1px solid #333, border-radius:6px,
+   chatBorderGlow: #2a2a2a → #666 → #2a2a2a (без цвета!)
+2. .chat-bg: добавлена CSS сетка 40x40px (rgba(255,255,255,0.025)),
+   canvas нити поверх — лёгкие, opacity 0.06-0.11
+3. .chat-bubble (все типы): rgba(255,255,255,0.05) + backdrop-filter:blur(2px),
+   border rgba(255,255,255,0.08) — монохромные, без синего/фиолетового
+4. .chat-input-wrap: ОДНО правило, background:#111, border:#333,
+   animation:inputBorderGlow (тот же #333→#777 стиль), overflow:hidden
+   Кнопки встроены в обёртку через border-right/left
+5. .chat-textarea: без рамки, прозрачный фон — рамка у враппера
+6. Убраны ВСЕ фиолетовые/синие tint'ы
+7. border-radius всё 2px (квадратный терминальный стиль)
+8. .chat-empty-state: uppercase текст в рамке #222

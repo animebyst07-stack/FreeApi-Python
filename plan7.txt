@@ -1,0 +1,95 @@
+ПЛАН ИЗМЕНЕНИЙ v7 — 6 багов/улучшений
+=======================================
+Дата: 2026-04-18
+
+ЗАДАЧА 1: Новый диалог поддержки без перезагрузки страницы
+-----------------------------------------------------------
+Проблема: после закрытия чата поддержки ввод заблокирован,
+нет кнопки начать новый диалог — нужна перезагрузка.
+
+Решение (index.html):
+- В HTML support-header добавить кнопку <button id="supportNewChatBtn">
+  "Новый диалог" (изначально display:none)
+- В _doCloseSupportChat() после успешного закрытия показать эту кнопку
+- Добавить функцию startNewSupportDialog():
+  * Очистить все сообщения из supportMessages (кроме supportEmptyState)
+  * Показать supportEmptyState
+  * Разблокировать supportInput и supportSendBtn
+  * Скрыть supportNewChatBtn и supportCloseBtn
+  * Сбросить supportChatStatus текст
+  * Сбросить _supportPending = false
+  * Очистить вложение (clearSupportAttachment)
+
+ЗАДАЧА 2: Массивное расширение DEFAULT_SUPPORT_PROMPT
+-----------------------------------------------------
+Проблема: промпт слишком краткий (54 строки), ИИ не знает
+детали сервиса, API, настроек, распространённых проблем.
+
+Решение (freeapi/routes.py):
+- Полностью переписать DEFAULT_SUPPORT_PROMPT (~200 строк):
+  §1. Что такое FavoriteAPI (архитектура, принцип работы)
+  §2. Принцип работы (как данные идут через Telegram-ботов)
+  §3. Все модели с таблицей: ID, контекст, Vision, описание
+  §4. Полная документация API (все 8 эндпоинтов с примерами JSON)
+  §5. Коды ошибок с причинами и решениями (таблица)
+  §6. Пошаговая инструкция подключения TG-аккаунта
+  §7. Функции личного кабинета (дашборд, чат, настройки ключа, история)
+  §8. Dual-режим подробно (принцип, экономия, требования)
+  §9. Распространённые проблемы и решения (9 сценариев)
+  §10. Правила работы агента поддержки
+
+ЗАДАЧА 3: Логин пользователя prominently в диалоге поддержки
+-------------------------------------------------------------
+Проблема: username передаётся только в системный промпт,
+но не в каждое сообщение — ИИ может путать пользователей.
+
+Решение (freeapi/routes.py):
+- _format_support_dialog_for_ai(messages) → добавить параметр username
+  Метку "Пользователь" заменить на "Пользователь (@username)"
+  В финальной инструкции упоминать username явно
+- В support_send_message() извлечь username и передать в функцию
+
+ЗАДАЧА 4: Баг создания второго ключа (пустая страница)
+------------------------------------------------------
+Проблема: createKey() просто показывает setupSection (форма
+подключения TG), но loadDashboard() её сразу скрывает если
+есть ключи. Кнопка "Новый ключ" ничего не делает видимого.
+
+Решение (index.html):
+- Изменить createKey(): если accountState.has_tg_account — сразу
+  вызвать POST /api/keys через API, показать rawKeyModal с ключом
+  (как при setupCompleted) вместо показа setupSection
+- Если нет TG-аккаунта — прежнее поведение (показать setupSection)
+- Установить правильный заголовок rawKeyModal: "Ключ создан!"
+
+ЗАДАЧА 5: Ширина селектора модели в чате слишком мала (170px)
+-------------------------------------------------------------
+Проблема: длинные имена моделей обрезаются в триггере,
+в выпадающем списке тоже не видно полного имени.
+
+Решение (index.html):
+- chatModelSelectWrap: заменить width:170px на flex:1;min-width:180px;max-width:280px
+- Добавить CSS для #chatModelDropdown .custom-select-option:
+  white-space:normal; word-break:break-word; → полные имена видны в списке
+
+ЗАДАЧА 6: Нативный <select> аккаунта-переводчика → кастомный
+-------------------------------------------------------------
+Проблема: <select id="ksDualTranslator"> не соответствует стилю
+остальных кастомных дропдаунов (custom-select-wrap).
+
+Решение (index.html):
+- Заменить <select id="ksDualTranslator"> на:
+  <div class="custom-select-wrap" id="ksDualTranslatorSelect">
+    <div class="custom-select-trigger"> ... </div>
+    <div class="custom-select-dropdown"></div>
+    <input type="hidden" id="ksDualTranslatorVal" value="">
+  </div>
+- В openKeySettings: заменить прямую запись tsel.innerHTML=...
+  на вызов buildCustomSelect('ksDualTranslatorSelect', opts, selectedVal)
+- В saveKeySettings: читать document.getElementById('ksDualTranslatorVal').value
+
+ФАЙЛЫ:
+- /static/index.html — задачи 1, 4, 5, 6
+- /freeapi/routes.py — задачи 2, 3
+
+КОММИТ: plan7.txt + все 6 исправлений одним пушем через GitHub API

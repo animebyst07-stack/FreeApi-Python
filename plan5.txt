@@ -1,0 +1,10 @@
+plan5.txt — фикс шапки, фона и логов
+
+1. Шапка (chat-hdr): flex-wrap:nowrap + overflow:hidden — всё в одну строку
+   Дропдауны уменьшены: ключ 140px, модель 170px (flex-shrink:1)
+   Убрана медиа-правило width:100% у chat-hdr-right
+   
+2. Фон чата: убраны .chat-bg::before (сетка) и ::after (перспективный градиент)
+   Canvas: палки → 18 круглых серых точек (#555), op 0.08-0.18, r 1.5-3.5px, скорость 0.18
+   
+3. Логи: background:#0e0e0e вместо transparent, добавлена рамка border rgba(71,71,71,0.12)

@@ -1,0 +1,20 @@
+plan2.txt — Полная перезапись CSS секции чата
+
+Проблемы (по скриншоту пользователя):
+1. .chat-layout не имеет background → основной фон сайта (bg-wrap mesh) просвечивает сквозь чат
+2. Два правила .chat-input-wrap: первое (строка 577) с animation:neonPulse, второе (строка 590) с layout flex — конфликт
+3. chatBorderPulse на .chat-layout + neonPulse на .chat-input-wrap = два конкурирующих glow-эффекта
+4. .chat-bottom с background:transparent → тоже пропускает основной фон
+5. Общий вид: неструктурированный, элементы "плавают"
+
+Решение — полная перезапись блока /* CHAT VIEW */ (строки 524-612):
+- .chat-layout: background:#000 (solid black) + тонкая статичная граница rgba(70,70,110,0.45) без анимации
+- .chat-bg canvas: рисует нити прямо на чёрном фоне (не конкурирует с основным bg)
+- .chat-hdr: background:rgba(0,0,0,0.85) — немного тускнее, чтобы хэдер отделялся
+- .chat-messages: background:transparent — нити просвечивают
+- .chat-bottom: background:rgba(2,2,8,0.92) — тёмный непрозрачный низ, чтобы ввод не мешался с нитями
+- .chat-input-wrap: ОДНО правило — только flex layout, без анимации
+- .chat-textarea: border:1px solid rgba(70,70,120,0.4) + при фокусе border-color rgba(100,100,190,0.7) с glow — единственный neon-эффект
+- Убрать chatBorderPulse и neonPulse анимации
+
+Нити canvas: сделать чуть ярче (op 0.07..0.13) чтобы были видны на чёрном

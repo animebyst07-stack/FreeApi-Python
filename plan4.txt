@@ -1,0 +1,25 @@
+plan4.txt — Применение дизайна Gemini "MONOLITH.AI"
+
+Два фикса + полный редизайн:
+
+1. FIX EDGES: .chat-view получает background:#0e0e0e, .chat-layout border-radius:0
+   (раньше bg сайта просвечивал в скруглённых углах)
+
+2. BACKGROUND: перспективная сетка CSS (perspective grid) через .chat-bg::before
+   с transform:perspective(800px) rotateX(55deg) + фейд-градиент сверху
+
+3. СООБЩЕНИЯ:
+   - User: bg:#353535, border subtle, border-radius:12px 12px 0 12px (квадрат у правого нижнего угла)
+   - Assistant: БЕЗ фона, border-left:2px solid #fff, padding-left:24px (как в дизайне)
+   - Error: bg:rgba(239,68,68,.05), border красный
+
+4. ПУСТОЕ СОСТОЯНИЕ: крупный текст "AWAITING INPUT." uppercase, border-l-2 описание
+
+5. ВВОД:
+   - .chat-bottom: bg:#0e0e0e/80, backdrop-blur, border-top rgba(71,71,71,0.15)
+   - .chat-input-wrap: bg:#1f1f1f, border-bottom:#474747/30 (только снизу, без всех сторон)
+     фокус: focus-glow box-shadow 0 0 20px 2px rgba(255,255,255,0.15)
+   - .chat-textarea: border:none, крупный шрифт
+   - кнопки flat, прозрачные
+
+6. Все кнопки и ID сохранены — JS не трогаем

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+database.db
+*.session
+*.log
+.pythonlibs/
+.cache/
+node_modules/
+.replit
+replit.nix
+.upm/
