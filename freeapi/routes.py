@@ -626,25 +626,36 @@ def register_routes(app):
         new_kb = round(current_kb + tokens_to_kb(new_tokens), 1)
         req = repo.create_request(key_id, model, 'REQ_START_002', has_images, images_count)
         started = time.time()
+        trace = {
+            'dual_mode': bool(key.get('dual_mode') and key.get('translator_account_id')),
+            'key_name': key.get('name') or '—',
+            'model': model,
+            'user_text': text_content,
+        }
         try:
             if key.get('dual_mode') and key.get('translator_account_id'):
                 logger.info('[Dual] /api/chat/test — key_id=%s model=%s translator=%s', key_id, model, key.get('translator_account_id'))
-                answer = run_dual_chat(key, model, messages)
+                answer = run_dual_chat(key, model, messages, trace=trace)
                 log_code = 'DUAL_OK_801'
             else:
-                answer = run_chat(key, model, messages)
+                answer = run_chat(key, model, messages, trace=trace)
                 log_code = 'REQ_OK_001'
             elapsed = int((time.time() - started) * 1000)
             logger.info('[INFO] /api/chat/test — ответ за %d мс, log_code=%s', elapsed, log_code)
             repo.finish_request(req['id'], 'ok', log_code, elapsed)
             repo.update_model_stats(model, elapsed, True)
             repo.increment_context_tokens(key_id, new_tokens)
+            trace['status'] = 'ok'
+            trace['log_code'] = log_code
+            trace['elapsed_ms'] = elapsed
+            trace['answer'] = answer
             return jsonify({
                 'answer': answer,
                 'model': model,
                 'responseMs': elapsed,
                 'context_kb': round(new_kb, 1),
                 'context_warn': new_kb >= CONTEXT_WARN_KB,
+                'trace': trace,
             })
         except Exception as exc:
             elapsed = int((time.time() - started) * 1000)
