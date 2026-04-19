@@ -445,7 +445,7 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .review-form-card{background:#080808;border:1px solid #141414;border-radius:13px;padding:16px;position:sticky;top:72px}
 .review-form-card h3{font-size:14px;margin-bottom:5px;display:flex;align-items:center;gap:8px}
 .review-form-card h3 svg{color:#555}
-.review-empty{border:1px dashed #161616;border-radius:13px;padding:30px 18px;text-align:center;color:#666;font-size:13px}
+.review-empty{border:1px dashed #2a2a2a;border-radius:13px;padding:30px 18px;text-align:center;color:#999;font-size:13px}
 .review-status{font-size:11px;color:#777;margin-top:8px}
 .note-list{display:grid;gap:8px}
 .note-row{border:1px solid #141414;background:#080808;border-radius:11px;padding:13px 14px;display:grid;gap:6px}
@@ -1988,7 +1988,7 @@ Rules:
     <h2>Все отзывы</h2>
     <span class="rv-total" id="rvTotal"></span>
   </div>
-  <div id="rvList"></div>
+  <div id="rvList"><div class="review-empty">Загрузка отзывов...</div></div>
   <div id="rvPagination" style="display:none;align-items:center;justify-content:center;gap:8px;margin-top:20px">
     <button class="page-btn" id="rvPrev" onclick="rvChangePage(-1)" disabled>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
@@ -4682,7 +4682,7 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
 
   function initReviewsView(){
     _rvScore=0; _rvImgs=[];
-    rvRenderWriteSection();
+    try{ rvRenderWriteSection(); }catch(e){ console.warn('[Reviews] rvRenderWriteSection error:', e); }
     rvLoadPage(1);
   }
 
@@ -4797,7 +4797,7 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
       var listEl=document.getElementById('rvList');
       if(!listEl) return;
       if(err||!d){
-        listEl.innerHTML='<div class="review-empty">Не удалось загрузить отзывы.<br><small style="color:#444">Проверьте соединение с сервером</small></div>';
+        listEl.innerHTML='<div class="review-empty">Не удалось загрузить отзывы.<br><small style="color:#777">Проверьте соединение с сервером</small></div>';
         return;
       }
       var items=d.reviews||[];
