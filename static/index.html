@@ -1045,11 +1045,9 @@ body.view-no-scroll{overflow:hidden}
 <section class="land reveal" id="reviews-section">
 <div class="container">
   <div class="sec-head" style="margin-bottom:20px">
-    <div>
-      <h2>Отзывы о сайте</h2>
-      <p>Публичная лента с автономной AI-модерацией</p>
-    </div>
-    <button class="btn btn-outline btn-sm" onclick="goView('reviews')" style="flex-shrink:0">
+    <h2>Отзывы о сайте</h2>
+    <p>Публичная лента с автономной AI-модерацией</p>
+    <button class="btn btn-outline btn-sm" onclick="goView('reviews')" style="margin-top:14px">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       Все отзывы
     </button>
@@ -1976,7 +1974,7 @@ Rules:
 
   <!-- Шапка -->
   <div class="rv-page-hdr">
-    <button class="rv-back" onclick="history.length>1?history.back():goView('landing')" title="Назад">
+    <button class="rv-back" onclick="goView('landing')" title="Назад">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
     <div>
@@ -4656,10 +4654,12 @@ var _rvPage=1,_rvPages=1,_rvTotal=0;
 var _rvScore=0,_rvImgs=[];
 
 function initReviewsView(){
-  _rvScore=0;
-  _rvImgs=[];
-  renderRvWriteSection();
-  loadRvPage(1);
+  try{
+    _rvScore=0;
+    _rvImgs=[];
+    renderRvWriteSection();
+    loadRvPage(1);
+  }catch(e){ console.error('initReviewsView error',e); }
 }
 
 function renderRvWriteSection(){
@@ -4667,8 +4667,8 @@ function renderRvWriteSection(){
   if(!sec) return;
   if(!user){
     sec.innerHTML='<div class="rv-auth-cta">'+
-      '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
-      '<p>Чтобы написать отзыв, необходимо <strong>войти в аккаунт</strong></p>'+
+      '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+      '<p style="color:#aaa">Чтобы написать отзыв, необходимо <strong style="color:#ddd">войти в аккаунт</strong></p>'+
       '<button class="btn btn-primary" style="height:40px;padding:0 22px" onclick="openModal(\'loginModal\')">Войти</button>'+
       '</div>';
     return;
@@ -4765,22 +4765,32 @@ window.submitRvReview=function(){
 
 function loadRvPage(page){
   _rvPage=page||1;
-  q('rvList').innerHTML='<div class="review-empty">Загрузка...</div>';
-  api('/api/reviews?page='+_rvPage+'&limit=5').then(function(d){
-    var items=d.reviews||[];
-    _rvPages=d.pages||1;
-    _rvTotal=d.total||0;
-    var tot=q('rvTotal');
-    if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
-    renderRvList(items);
-    var pag=q('rvPagination');
-    if(pag){
-      pag.style.display=_rvPages>1?'flex':'none';
-      q('rvPageInfo').textContent=_rvPage+' / '+_rvPages;
-      q('rvPrev').disabled=_rvPage<=1;
-      q('rvNext').disabled=_rvPage>=_rvPages;
-    }
-  }).catch(function(){q('rvList').innerHTML='<div class="review-empty">Ошибка загрузки отзывов</div>';});
+  var listEl=q('rvList');
+  if(!listEl) return;
+  listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
+  var ctrl=new AbortController();
+  var timer=setTimeout(function(){ctrl.abort();},12000);
+  fetch('/api/reviews?page='+_rvPage+'&limit=5',{credentials:'include',signal:ctrl.signal})
+    .then(function(r){clearTimeout(timer);return r.json();})
+    .then(function(d){
+      var items=d.reviews||[];
+      _rvPages=d.pages||1;
+      _rvTotal=d.total||0;
+      var tot=q('rvTotal');
+      if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
+      renderRvList(items);
+      var pag=q('rvPagination');
+      if(pag){
+        pag.style.display=_rvPages>1?'flex':'none';
+        var pi=q('rvPageInfo');if(pi) pi.textContent=_rvPage+' / '+_rvPages;
+        var prv=q('rvPrev');if(prv) prv.disabled=_rvPage<=1;
+        var nxt=q('rvNext');if(nxt) nxt.disabled=_rvPage>=_rvPages;
+      }
+    }).catch(function(){
+      clearTimeout(timer);
+      var el=q('rvList');
+      if(el) el.innerHTML='<div class="review-empty">Не удалось загрузить отзывы. Обновите страницу.</div>';
+    });
 }
 
 function renderRvList(items){
