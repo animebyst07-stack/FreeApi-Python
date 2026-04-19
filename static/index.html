@@ -502,7 +502,9 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .review-img-more:hover{border-color:#444;color:#aaa}
 
 /* ─── REVIEW WRITE MODAL ─── */
-.review-score-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.review-score-row{display:flex;gap:2px;flex-wrap:nowrap;margin-bottom:12px;align-items:center}
+.star-btn{background:none;border:none;padding:2px;cursor:pointer;line-height:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.star-btn svg{display:block;transition:fill .12s,stroke .12s}
 .score-btn{width:36px;height:36px;border-radius:8px;border:1px solid #1e1e1e;background:#0d0d0d;font-size:13px;font-weight:600;color:#666;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
 .score-btn:hover{border-color:#555;color:#aaa}
 .score-btn.selected{background:#fff;border-color:#fff;color:#000}
@@ -2078,10 +2080,10 @@ Rules:
   <div class="fgroup">
     <label>Фото <span style="color:#555;font-size:10px">(до 10 изображений)</span></label>
     <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="display:none" onchange="onWriteReviewFilesSelected(this)">
-    <div class="img-upload-zone" id="writeReviewUploadZone" onclick="q('writeReviewFileInput').click()">
+    <label class="img-upload-zone" id="writeReviewUploadZone" for="writeReviewFileInput" style="display:block">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <p>Нажмите чтобы выбрать фото</p>
-    </div>
+    </label>
     <div class="img-upload-preview" id="writeReviewImgPreview"></div>
     <div class="img-upload-count" id="writeReviewImgCount"></div>
   </div>
@@ -5000,19 +5002,35 @@ window.openWriteReviewModal=function(){
     var cc=q('writeReviewTextCount'); if(cc) cc.textContent='0';
     var ip=q('writeReviewImgPreview'); if(ip) ip.innerHTML='';
     var ic=q('writeReviewImgCount'); if(ic) ic.textContent='';
-    /* Score buttons */
+    /* Star score buttons */
     var sb=q('reviewScoreBtns');
+    window._rvStarUpdate=function(score){
+      _writeReviewScore=score;
+      if(!sb) return;
+      sb.querySelectorAll('.star-btn').forEach(function(b){
+        var s=parseInt(b.dataset.score);
+        var filled=s<=score;
+        b.querySelector('svg').setAttribute('fill',filled?'#fff':'none');
+        b.querySelector('svg').setAttribute('stroke',filled?'#fff':'#555');
+      });
+    };
     if(sb){
       sb.innerHTML='';
       for(var i=1;i<=10;i++){
         var btn=document.createElement('button');
-        btn.className='score-btn';
-        btn.textContent=i;
+        btn.className='star-btn';
+        btn.type='button';
         btn.dataset.score=i;
-        btn.onclick=(function(score){return function(){
-          _writeReviewScore=score;
-          document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===score);});
-        };})(i);
+        var svgEl=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svgEl.setAttribute('width','28');svgEl.setAttribute('height','28');
+        svgEl.setAttribute('viewBox','0 0 24 24');
+        svgEl.setAttribute('fill','none');svgEl.setAttribute('stroke','#555');
+        svgEl.setAttribute('stroke-width','1.5');svgEl.setAttribute('stroke-linejoin','round');
+        var poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+        poly.setAttribute('points','12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2');
+        svgEl.appendChild(poly);
+        btn.appendChild(svgEl);
+        btn.onclick=(function(score){return function(){ window._rvStarUpdate(score); };})(i);
         sb.appendChild(btn);
       }
     }
@@ -5021,10 +5039,7 @@ window.openWriteReviewModal=function(){
       api('/api/reviews/mine').then(function(d){
         if(d&&d.review){
           var r=d.review;
-          if(r.score){
-            _writeReviewScore=r.score;
-            document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===r.score);});
-          }
+          if(r.score){ window._rvStarUpdate(r.score); }
           if(r.text&&ta) ta.value=r.text;
           var cc2=q('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length;
           try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_writeReviewImgs=imgs.slice();if(window.renderWriteReviewPreview)renderWriteReviewPreview();}catch(e){}
