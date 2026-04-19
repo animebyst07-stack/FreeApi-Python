@@ -4353,6 +4353,7 @@ window.goView=function(v){
     setTimeout(function(){ setDocsSection('logcodes',document.getElementById('docsNavLogcodes')); },50);
     return;
   }
+  if(window.innerWidth<900) closeSidebar();
   views.forEach(function(n){
     var el=document.getElementById('view-'+n);
     if(el) el.classList.remove('active');
@@ -4775,17 +4776,39 @@ function loadRvPage(page){
   var listEl=q('rvList');
   if(!listEl) return;
   listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
-  var ctrl=new AbortController();
-  var timer=setTimeout(function(){ctrl.abort();},12000);
+  var _done=false;
+  function _setDone(html){
+    if(_done) return;
+    _done=true;
+    clearTimeout(_abort);
+    clearTimeout(_watchdog);
+    if(html!==undefined){ var el=q('rvList'); if(el) el.innerHTML=html; }
+  }
+  var _abort=setTimeout(function(){
+    try{ ctrl.abort(); }catch(e){}
+  },12000);
+  var _watchdog=setTimeout(function(){
+    if(!_done){
+      _done=true;
+      var el=q('rvList');
+      if(el) el.innerHTML='<div class="review-empty">Не удалось загрузить отзывы. Обновите страницу.</div>';
+    }
+  },15000);
+  var ctrl;
+  try{ ctrl=new AbortController(); }catch(e){ ctrl={signal:undefined,abort:function(){}}; }
   fetch('/api/reviews?page='+_rvPage+'&limit=5',{credentials:'include',signal:ctrl.signal})
-    .then(function(r){clearTimeout(timer);return r.json();})
+    .then(function(r){ return r.json(); })
     .then(function(d){
+      _setDone();
       var items=d.reviews||[];
       _rvPages=d.pages||1;
       _rvTotal=d.total||0;
       var tot=q('rvTotal');
       if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
-      renderRvList(items);
+      try{ renderRvList(items); }catch(e){
+        var el=q('rvList');
+        if(el) el.innerHTML='<div class="review-empty">Не удалось отобразить отзывы.</div>';
+      }
       var pag=q('rvPagination');
       if(pag){
         pag.style.display=_rvPages>1?'flex':'none';
@@ -4793,10 +4816,8 @@ function loadRvPage(page){
         var prv=q('rvPrev');if(prv) prv.disabled=_rvPage<=1;
         var nxt=q('rvNext');if(nxt) nxt.disabled=_rvPage>=_rvPages;
       }
-    }).catch(function(){
-      clearTimeout(timer);
-      var el=q('rvList');
-      if(el) el.innerHTML='<div class="review-empty">Не удалось загрузить отзывы. Обновите страницу.</div>';
+    }).catch(function(err){
+      _setDone('<div class="review-empty">Не удалось загрузить отзывы. Обновите страницу.</div>');
     });
 }
 
