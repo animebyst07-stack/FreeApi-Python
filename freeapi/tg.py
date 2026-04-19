@@ -640,7 +640,7 @@ def key_lock(key_id):
         return _key_locks[key_id]
 
 
-def run_chat(key, model, messages):
+def run_chat(key, model, messages, trace=None):
     lock = key_lock(key['id'])
     if not lock.acquire(blocking=False):
         raise RuntimeError('KEY_BUSY_301')
@@ -650,24 +650,35 @@ def run_chat(key, model, messages):
         account = repo.get_tg_account(key['tg_account_id'])
         if not account or not account.get('setup_done'):
             raise RuntimeError('KEY_NO_TG_303')
+        if trace is not None:
+            trace['main_account_id'] = account.get('id', '')
+            trace['main_account_username'] = account.get('tg_username') or account.get('tg_first_name') or 'N/A'
         async def job():
             async with TgSession(account) as tg:
                 sponsors = SponsorHandler(tg)
                 return await ChatHandler(tg, sponsors).process(key, model, messages)
         result = asyncio.run(job())
         logger.info('[INFO] run_chat: ответ получен успешно')
+        if trace is not None:
+            trace['main_answer_raw'] = result
         return result
     finally:
         repo.update_api_key(key['id'], is_busy=0)
         lock.release()
 
 
-def run_translate(key, text, direction='en'):
+def run_translate(key, text, direction='en', trace=None, trace_key=None):
     translator_account_id = key.get('translator_account_id') or key['tg_account_id']
     account = repo.get_tg_account(translator_account_id)
     if not account or not account.get('setup_done'):
         logger.warning('[DUAL] Аккаунт-переводчик не найден или не настроен')
+        if trace is not None and trace_key:
+            trace[trace_key] = text
+            trace['translator_error'] = 'Аккаунт-переводчик не найден или не настроен'
         return text
+    if trace is not None:
+        trace['translator_account_id'] = account.get('id', '')
+        trace['translator_account_username'] = account.get('tg_username') or account.get('tg_first_name') or 'N/A'
     if direction == 'en':
         prompt = (
             'Translate the following text to English. '
@@ -681,6 +692,9 @@ def run_translate(key, text, direction='en'):
     lock = key_lock(translator_account_id)
     if not lock.acquire(blocking=True, timeout=60):
         logger.warning('[DUAL] Таймаут ожидания lock для аккаунта-переводчика')
+        if trace is not None and trace_key:
+            trace[trace_key] = text
+            trace['translator_error'] = 'Таймаут ожидания lock переводчика'
         return text
     try:
         async def job():
@@ -701,6 +715,8 @@ def run_translate(key, text, direction='en'):
                 return await collect_answer(tg, bot, final_id, True, timeout=TRANSLATE_TIMEOUT)
         result = asyncio.run(job())
         logger.info('[DUAL] Перевод (%s→%s): %d символов', 'ru' if direction == 'en' else 'en', direction, len(result))
+        if trace is not None and trace_key:
+            trace[trace_key] = result
         return result
     except RuntimeError as exc:
         if 'CTX_LIMIT_180' in str(exc):
@@ -711,15 +727,21 @@ def run_translate(key, text, direction='en'):
                 run_control(fake_key, '/reset')
             except Exception:
                 pass
+        if trace is not None and trace_key:
+            trace[trace_key] = text
+            trace['translator_error'] = str(exc)
         return text
     except Exception as exc:
         logger.warning('[DUAL] Ошибка перевода: %s — возвращаю оригинал', exc)
+        if trace is not None and trace_key:
+            trace[trace_key] = text
+            trace['translator_error'] = str(exc)
         return text
     finally:
         lock.release()
 
 
-def run_dual_chat(key, model, messages):
+def run_dual_chat(key, model, messages, trace=None):
     from freeapi.memory import contains_cyrillic
     has_translator = (
         bool(key.get('translator_account_id')) and
@@ -730,9 +752,17 @@ def run_dual_chat(key, model, messages):
     is_ru = contains_cyrillic(text) and has_translator
     logger.info('[DUAL] key_id=%s main_account=%s translator_account=%s has_translator=%s cyrillic=%s model=%s', key.get('id'), key.get('tg_account_id'), key.get('translator_account_id'), has_translator, contains_cyrillic(text), model)
 
+    if trace is not None:
+        trace['dual_mode'] = True
+        trace['has_translator'] = has_translator
+        trace['is_ru'] = is_ru
+        trace['original_text'] = text
+
     if is_ru:
         logger.info('[DUAL] Запрос на русском — переводим EN для основного аккаунта')
-        text_en = run_translate(key, text, direction='en')
+        text_en = run_translate(key, text, direction='en', trace=trace, trace_key='text_translated_to_en')
+        if trace is not None:
+            trace['sent_to_main'] = text_en
         modified = [dict(m) for m in messages]
         for i in range(len(modified) - 1, -1, -1):
             if modified[i].get('role') == 'user':
@@ -748,13 +778,16 @@ def run_dual_chat(key, model, messages):
                 break
         messages_to_send = modified
     else:
+        if trace is not None:
+            trace['sent_to_main'] = text
         messages_to_send = messages
 
-    answer = run_chat(key, model, messages_to_send)
+    answer = run_chat(key, model, messages_to_send, trace=trace)
 
     if is_ru and has_translator:
         logger.info('[DUAL] Переводим ответ обратно на RU')
-        return run_translate(key, answer, direction='ru')
+        result = run_translate(key, answer, direction='ru', trace=trace, trace_key='answer_translated_to_ru')
+        return result
 
     return answer
 
