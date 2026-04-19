@@ -5049,19 +5049,17 @@ window.onWriteReviewFilesSelected=function(input){
   if(!files.length) return;
   var remaining=10-_writeReviewImgs.length;
   if(remaining<=0){showToast('Максимум 10 фото','err');input.value='';return;}
-  var zone=document.getElementById('writeReviewUploadZone');
-  if(zone) zone.style.borderColor='#555';
   var toProcess=files.slice(0,remaining);
-  var done=0;
   toProcess.forEach(function(f){
-    compressImage(f,function(b64){
-      _writeReviewImgs.push(b64);
-      done++;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var data=ev.target.result;
+      if(!data) return;
+      _writeReviewImgs.push(data);
       renderWriteReviewPreview();
-      if(done===toProcess.length){
-        if(zone){zone.style.borderColor='';}
-      }
-    });
+    };
+    reader.onerror=function(){showToast('Не удалось прочитать файл','err');};
+    reader.readAsDataURL(f);
   });
   input.value='';
 };
