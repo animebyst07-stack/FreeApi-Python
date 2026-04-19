@@ -1980,7 +1980,7 @@ Rules:
     </div>
   </div>
 
-  <!-- Форма написания (для авторизованных) / CTA (для гостей) -->
+  <!-- Форма написания / CTA -->
   <div id="rvWriteSection"></div>
 
   <!-- Лента отзывов -->
@@ -1988,13 +1988,13 @@ Rules:
     <h2>Все отзывы</h2>
     <span class="rv-total" id="rvTotal"></span>
   </div>
-  <div id="rvList"><div class="review-empty">Загрузка...</div></div>
-  <div class="pagination" id="rvPagination" style="display:none;margin-top:20px">
-    <button class="page-btn" id="rvPrev" onclick="changeRvPage(-1)" disabled>
+  <div id="rvList"></div>
+  <div id="rvPagination" style="display:none;align-items:center;justify-content:center;gap:8px;margin-top:20px">
+    <button class="page-btn" id="rvPrev" onclick="rvChangePage(-1)" disabled>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
     <span class="page-info" id="rvPageInfo">1 / 1</span>
-    <button class="page-btn" id="rvNext" onclick="changeRvPage(1)">
+    <button class="page-btn" id="rvNext" onclick="rvChangePage(1)">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
   </div>
@@ -4658,199 +4658,189 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
 })();
 
 /* ═══════════════════════════════════════
-   REVIEWS VIEW PAGE
-═══════════════════════════════════════ */
-var _rvPage=1,_rvPages=1,_rvTotal=0;
-var _rvScore=0,_rvImgs=[];
+     REVIEWS VIEW PAGE  (XHR-based rewrite)
+  ═══════════════════════════════════════ */
+  var _rvPage=1,_rvPages=1,_rvTotal=0,_rvScore=0,_rvImgs=[];
 
-function initReviewsView(){
-  _rvScore=0;
-  _rvImgs=[];
-  try{ renderRvWriteSection(); }catch(e){ console.error('initReviewsView:renderRvWriteSection',e); }
-  loadRvPage(1);
-}
-
-function renderRvWriteSection(){
-  var sec=q('rvWriteSection');
-  if(!sec) return;
-  if(!user){
-    sec.innerHTML='<div class="rv-auth-cta">'+
-      '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
-      '<p style="color:#aaa">Чтобы написать отзыв, необходимо <strong style="color:#ddd">войти в аккаунт</strong></p>'+
-      '<button class="btn btn-primary" style="height:40px;padding:0 22px" onclick="openModal(\'loginModal\')">Войти</button>'+
-      '</div>';
-    return;
+  /* Универсальный XHR — работает на всех Android WebView */
+  function rvXhr(method,url,body,cb){
+    var xhr=new XMLHttpRequest();
+    xhr.open(method,url,true);
+    xhr.withCredentials=true;
+    xhr.timeout=12000;
+    if(body){ xhr.setRequestHeader('Content-Type','application/json'); }
+    xhr.ontimeout=function(){ cb(null,'timeout'); };
+    xhr.onerror=function(){ cb(null,'network'); };
+    xhr.onload=function(){
+      var d=null;
+      try{ d=JSON.parse(xhr.responseText); }catch(e){}
+      if(xhr.status>=200&&xhr.status<300){ cb(d,null); }
+      else{ cb(d,xhr.status); }
+    };
+    xhr.send(body?JSON.stringify(body):null);
   }
-  sec.innerHTML='<div class="rv-write-card">'+
-    '<h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Написать отзыв</h3>'+
-    '<div style="margin-bottom:8px;font-size:12px;color:#555">Оценка сервиса</div>'+
-    '<div class="rv-score-grid" id="rvScoreGrid"></div>'+
-    '<div style="margin-bottom:8px;font-size:12px;color:#555">Ваш отзыв</div>'+
-    '<textarea class="rv-textarea" id="rvText" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="q(\'rvCharCount\').textContent=this.value.length"></textarea>'+
-    '<div class="rv-char-count"><span id="rvCharCount">0</span> / 1000</div>'+
-    '<div style="margin-top:14px;margin-bottom:8px;font-size:12px;color:#555">Фото <span style="color:#333">(до 10)</span></div>'+
-    '<input type="file" id="rvFileInput" accept="image/*" multiple style="display:none" onchange="onRvFilesSelected(this)">'+
-    '<div class="img-upload-zone" onclick="q(\'rvFileInput\').click()" style="padding:10px;margin-top:0">'+
-    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
-    '<p style="margin:4px 0 0">Выбрать фото</p></div>'+
-    '<div class="img-upload-preview" id="rvImgPreview"></div>'+
-    '<div class="rv-submit-row">'+
-    '<button class="btn btn-primary" onclick="submitRvReview()">'+
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'+
-    ' Отправить</button>'+
-    '<div class="rv-user-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
-    (user?esc(user.username):'')+'</div>'+
-    '</div></div>';
-  buildRvScoreGrid();
-  /* Подгружаем существующий отзыв */
-  api('/api/reviews/mine').then(function(d){
-    if(!d.review) return;
-    var r=d.review;
-    var ta=q('rvText');
-    if(r.text&&ta){ta.value=r.text;q('rvCharCount').textContent=r.text.length;}
-    if(r.score){
-      _rvScore=r.score;
-      document.querySelectorAll('.rv-score-btn').forEach(function(b){b.classList.toggle('sel',parseInt(b.dataset.s)===r.score);});
+
+  function initReviewsView(){
+    _rvScore=0; _rvImgs=[];
+    rvRenderWriteSection();
+    rvLoadPage(1);
+  }
+
+  function rvRenderWriteSection(){
+    var sec=document.getElementById('rvWriteSection');
+    if(!sec) return;
+    if(!user){
+      sec.innerHTML=
+        '<div class="rv-auth-cta">'+
+        '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5" style="margin-bottom:10px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+        '<p>Чтобы написать отзыв, необходимо <strong>войти в аккаунт</strong></p>'+
+        '<button class="btn btn-primary" style="height:40px;padding:0 22px" onclick="openModal('loginModal')">Войти</button>'+
+        '</div>';
+      return;
     }
-    try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_rvImgs=imgs.slice();renderRvImgPreview();}catch(e){}
-    var h=q('rvWriteSection').querySelector('h3');
-    if(h) h.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Редактировать отзыв';
-  }).catch(function(){});
-}
-
-function buildRvScoreGrid(){
-  var g=q('rvScoreGrid');
-  if(!g) return;
-  g.innerHTML='';
-  for(var i=1;i<=10;i++){
-    var b=document.createElement('button');
-    b.className='rv-score-btn';
-    b.textContent=i;
-    b.dataset.s=i;
-    b.onclick=(function(s){return function(){
-      _rvScore=s;
-      document.querySelectorAll('.rv-score-btn').forEach(function(x){x.classList.toggle('sel',parseInt(x.dataset.s)===s);});
-    };})(i);
-    g.appendChild(b);
-  }
-}
-
-window.onRvFilesSelected=function(inp){
-  var files=Array.from(inp.files);
-  var rem=10-_rvImgs.length;
-  if(rem<=0){showToast('Максимум 10 фото','err');return;}
-  files.slice(0,rem).forEach(function(f){
-    compressImage(f,function(b64){_rvImgs.push(b64);renderRvImgPreview();});
-  });
-  inp.value='';
-};
-
-function renderRvImgPreview(){
-  var el=q('rvImgPreview');
-  if(!el) return;
-  el.innerHTML=_rvImgs.map(function(src,i){
-    return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeRvImg('+i+')">×</div></div>';
-  }).join('');
-}
-
-window.removeRvImg=function(idx){_rvImgs.splice(idx,1);renderRvImgPreview();};
-
-window.submitRvReview=function(){
-  if(!_rvScore){showToast('Выберите оценку от 1 до 10','err');return;}
-  var ta=q('rvText');
-  var text=(ta?ta.value:'').trim();
-  if(text.length<10){showToast('Текст слишком короткий (минимум 10 символов)','err');return;}
-  if(text.length>1000){showToast('Текст слишком длинный (максимум 1000 символов)','err');return;}
-  api('/api/reviews','POST',{score:_rvScore,text:text,images:_rvImgs}).then(function(d){
-    if(d.error){showToast(d.message||'Ошибка','err');return;}
-    var status=d.review&&d.review.status;
-    showToast(status==='pending'?'Отзыв отправлен на модерацию':'Отзыв опубликован','ok');
-    loadRvPage(1);
-    loadReviews();
-    renderRvWriteSection();
-  });
-};
-
-function loadRvPage(page){
-  _rvPage=page||1;
-  var listEl=q('rvList');
-  if(!listEl) return;
-  listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
-  var _done=false;
-  function _setDone(html){
-    if(_done) return;
-    _done=true;
-    clearTimeout(_abort);
-    clearTimeout(_watchdog);
-    if(html!==undefined){ var el=q('rvList'); if(el) el.innerHTML=html; }
-  }
-  var _abort=setTimeout(function(){
-    try{ ctrl.abort(); }catch(e){}
-  },12000);
-  var _watchdog=setTimeout(function(){
-    if(!_done){
-      _done=true;
-      var el=q('rvList');
-      if(el) el.innerHTML='<div class="review-empty">Не удалось загрузить отзывы. Обновите страницу.</div>';
-    }
-  },15000);
-  var ctrl;
-  try{ ctrl=new AbortController(); }catch(e){ ctrl={signal:undefined,abort:function(){}}; }
-  fetch('/api/reviews?page='+_rvPage+'&limit=5',{credentials:'include',signal:ctrl.signal})
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      _setDone();
-      var items=d.reviews||[];
-      _rvPages=d.pages||1;
-      _rvTotal=d.total||0;
-      var tot=q('rvTotal');
-      if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
-      try{ renderRvList(items); }catch(e){
-        var el=q('rvList');
-        if(el) el.innerHTML='<div class="review-empty">Не удалось отобразить отзывы.</div>';
+    sec.innerHTML=
+      '<div class="rv-write-card">'+
+      '<h3 id="rvFormTitle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Написать отзыв</h3>'+
+      '<div style="margin-bottom:8px;font-size:12px;color:#555">Оценка сервиса</div>'+
+      '<div class="rv-score-grid" id="rvScoreGrid"></div>'+
+      '<div style="margin-bottom:8px;font-size:12px;color:#555">Ваш отзыв</div>'+
+      '<textarea class="rv-textarea" id="rvText" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="document.getElementById('rvCharCount').textContent=this.value.length"></textarea>'+
+      '<div class="rv-char-count"><span id="rvCharCount">0</span> / 1000</div>'+
+      '<div style="margin-top:14px;margin-bottom:8px;font-size:12px;color:#555">Фото <span style="color:#333">(до 10)</span></div>'+
+      '<input type="file" id="rvFileInput" accept="image/*" multiple style="display:none" onchange="rvOnFiles(this)">'+
+      '<div class="img-upload-zone" onclick="document.getElementById('rvFileInput').click()" style="padding:10px;margin-top:0">'+
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
+      '<p style="margin:4px 0 0">Выбрать фото</p></div>'+
+      '<div class="img-upload-preview" id="rvImgPreview"></div>'+
+      '<div class="rv-submit-row">'+
+      '<button class="btn btn-primary" id="rvSubmitBtn" onclick="rvSubmit()">'+
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'+
+      ' Отправить</button>'+
+      '<div class="rv-user-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+      esc(user.username)+'</div>'+
+      '</div></div>';
+    rvBuildScoreGrid();
+    rvXhr('GET','/api/reviews/mine',null,function(d){
+      if(!d||!d.review) return;
+      var r=d.review;
+      var ta=document.getElementById('rvText');
+      if(r.text&&ta){ ta.value=r.text; var cc=document.getElementById('rvCharCount'); if(cc) cc.textContent=r.text.length; }
+      if(r.score){
+        _rvScore=r.score;
+        document.querySelectorAll('.rv-score-btn').forEach(function(b){ b.classList.toggle('sel',parseInt(b.dataset.s)===r.score); });
       }
-      var pag=q('rvPagination');
+      try{ var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]); _rvImgs=imgs.slice(); rvRenderImgPreview(); }catch(e){}
+      var t=document.getElementById('rvFormTitle');
+      if(t) t.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Редактировать отзыв';
+    });
+  }
+
+  function rvBuildScoreGrid(){
+    var g=document.getElementById('rvScoreGrid');
+    if(!g) return;
+    g.innerHTML='';
+    for(var i=1;i<=10;i++){
+      (function(s){
+        var b=document.createElement('button');
+        b.className='rv-score-btn'; b.textContent=s; b.dataset.s=s;
+        b.onclick=function(){
+          _rvScore=s;
+          document.querySelectorAll('.rv-score-btn').forEach(function(x){ x.classList.toggle('sel',parseInt(x.dataset.s)===s); });
+        };
+        g.appendChild(b);
+      })(i);
+    }
+  }
+
+  function rvRenderImgPreview(){
+    var p=document.getElementById('rvImgPreview');
+    if(!p) return;
+    p.innerHTML=_rvImgs.map(function(src,i){
+      return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="rvRemoveImg('+i+')">×</div></div>';
+    }).join('');
+  }
+  window.rvRemoveImg=function(i){ _rvImgs.splice(i,1); rvRenderImgPreview(); };
+
+  window.rvOnFiles=function(inp){
+    var files=Array.from(inp.files);
+    var rem=10-_rvImgs.length;
+    if(rem<=0){ showToast('Максимум 10 фото','err'); return; }
+    files.slice(0,rem).forEach(function(f){
+      compressImage(f,function(b64){ _rvImgs.push(b64); rvRenderImgPreview(); });
+    });
+    inp.value='';
+  };
+
+  window.rvSubmit=function(){
+    if(!_rvScore){ showToast('Выберите оценку от 1 до 10','err'); return; }
+    var ta=document.getElementById('rvText');
+    var text=(ta?ta.value:'').trim();
+    if(text.length<10){ showToast('Текст слишком короткий (минимум 10 символов)','err'); return; }
+    if(text.length>1000){ showToast('Текст слишком длинный (максимум 1000 символов)','err'); return; }
+    var btn=document.getElementById('rvSubmitBtn');
+    if(btn){ btn.disabled=true; btn.textContent='Отправка...'; }
+    rvXhr('POST','/api/reviews',{score:_rvScore,text:text,images:_rvImgs},function(d,err){
+      if(btn){ btn.disabled=false; btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Отправить'; }
+      if(err){ showToast((d&&d.error)||'Ошибка соединения','err'); return; }
+      var status=d&&d.review&&d.review.status;
+      showToast(status==='pending'?'Отзыв отправлен на модерацию':'Отзыв опубликован','ok');
+      rvLoadPage(1); loadReviews(); rvRenderWriteSection();
+    });
+  };
+
+  function rvLoadPage(page){
+    _rvPage=page||1;
+    var listEl=document.getElementById('rvList');
+    if(!listEl) return;
+    listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
+    rvXhr('GET','/api/reviews?page='+_rvPage,null,function(d,err){
+      var listEl=document.getElementById('rvList');
+      if(!listEl) return;
+      if(err||!d){
+        listEl.innerHTML='<div class="review-empty">Не удалось загрузить отзывы.<br><small style="color:#444">Проверьте соединение с сервером</small></div>';
+        return;
+      }
+      var items=d.reviews||[];
+      _rvPages=d.pages||1; _rvTotal=d.total||0;
+      var tot=document.getElementById('rvTotal');
+      if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
+      rvRenderList(items);
+      var pag=document.getElementById('rvPagination');
       if(pag){
         pag.style.display=_rvPages>1?'flex':'none';
-        var pi=q('rvPageInfo');if(pi) pi.textContent=_rvPage+' / '+_rvPages;
-        var prv=q('rvPrev');if(prv) prv.disabled=_rvPage<=1;
-        var nxt=q('rvNext');if(nxt) nxt.disabled=_rvPage>=_rvPages;
+        var pi=document.getElementById('rvPageInfo'); if(pi) pi.textContent=_rvPage+' / '+_rvPages;
+        var prv=document.getElementById('rvPrev'); if(prv) prv.disabled=_rvPage<=1;
+        var nxt=document.getElementById('rvNext'); if(nxt) nxt.disabled=_rvPage>=_rvPages;
       }
-    }).catch(function(err){
-      _setDone('<div class="review-empty">Не удалось загрузить отзывы. Обновите страницу.</div>');
     });
-}
-
-function renderRvList(items){
-  var list=q('rvList');
-  if(!items.length){
-    list.innerHTML='<div class="review-empty">Пока нет опубликованных отзывов. Станьте первым!</div>';
-    return;
   }
-  list.innerHTML=items.map(function(r){
-    var authorBadge=r.username==='ReZero'?'<span class="badge-owner">Владелец</span>':'';
-    var imgs=[];try{imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);}catch(e){}
-    var adminImgs=[];try{adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]);}catch(e){}
-    var adminBlock='';
-    if(r.ai_response||adminImgs.length){
-      adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>'+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
+
+  function rvRenderList(items){
+    var list=document.getElementById('rvList');
+    if(!list) return;
+    if(!items.length){
+      list.innerHTML='<div class="review-empty">Пока нет опубликованных отзывов. Станьте первым!</div>';
+      return;
     }
-    return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+'</div>';
-  }).join('');
-}
+    list.innerHTML=items.map(function(r){
+      var authorBadge=r.username==='ReZero'?'<span class="badge-owner">Владелец</span>':'';
+      var imgs=[]; try{ imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]); }catch(e){}
+      var adminImgs=[]; try{ adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]); }catch(e){}
+      var adminBlock='';
+      if(r.ai_response||adminImgs.length){
+        adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>'+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
+      }
+      return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+'</div>';
+    }).join('');
+  }
 
-window.changeRvPage=function(delta){
-  var np=_rvPage+delta;
-  if(np<1||np>_rvPages) return;
-  loadRvPage(np);
-  var el=q('view-reviews');
-  if(el) el.scrollTop=0;
-  scrollTo(0,0);
-};
+  window.rvChangePage=function(delta){
+    var np=_rvPage+delta;
+    if(np<1||np>_rvPages) return;
+    rvLoadPage(np); scrollTo(0,0);
+  };
 
-window.goToReviews=function(){
-  goView('reviews');
-};
+  window.goToReviews=function(){ goView('reviews'); };
 
 /* ═══════════════════════════════════════
    WRITE REVIEW MODAL
