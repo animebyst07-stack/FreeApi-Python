@@ -3150,20 +3150,32 @@ function loadLogCodes(){
 
 function loadReviews(page){
   _reviewsPage=page||1;
-  q('reviewsList').innerHTML='<div class="review-empty">Загрузка...</div>';
-  api('/api/reviews?page='+_reviewsPage).then(function(d){
-    renderReviews(d.reviews||[]);
-    _reviewsPages=d.pages||1;
-    var pag=q('reviewsPagination');
-    if(_reviewsPages>1){
-      pag.style.display='';
-      q('reviewsPageInfo').textContent=_reviewsPage+' / '+_reviewsPages;
-      q('reviewsPrev').disabled=_reviewsPage<=1;
-      q('reviewsNext').disabled=_reviewsPage>=_reviewsPages;
-    } else {
-      pag.style.display='none';
-    }
-  }).catch(function(){q('reviewsList').innerHTML='<div class="review-empty">Отзывы временно недоступны</div>';});
+  var listEl=q('reviewsList');
+  if(!listEl) return;
+  listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
+  var ctrl=new AbortController();
+  var timer=setTimeout(function(){ctrl.abort();},12000);
+  fetch('/api/reviews?page='+_reviewsPage,{credentials:'include',signal:ctrl.signal})
+    .then(function(r){clearTimeout(timer);return r.json();})
+    .then(function(d){
+      renderReviews(d.reviews||[]);
+      _reviewsPages=d.pages||1;
+      var pag=q('reviewsPagination');
+      if(pag){
+        if(_reviewsPages>1){
+          pag.style.display='';
+          q('reviewsPageInfo').textContent=_reviewsPage+' / '+_reviewsPages;
+          q('reviewsPrev').disabled=_reviewsPage<=1;
+          q('reviewsNext').disabled=_reviewsPage>=_reviewsPages;
+        } else {
+          pag.style.display='none';
+        }
+      }
+    }).catch(function(){
+      clearTimeout(timer);
+      var el=q('reviewsList');
+      if(el) el.innerHTML='<div class="review-empty">Отзывы временно недоступны</div>';
+    });
 }
 window.changeReviewsPage=function(delta){
   var np=_reviewsPage+delta;
