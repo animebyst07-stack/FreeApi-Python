@@ -4708,40 +4708,53 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
     xhr.send(body?JSON.stringify(body):null);
   }
 
+  function _rvRenderWriteBar(){
+    var sec=document.getElementById('rvWriteSection');
+    if(!sec) return;
+    if(!user){
+      var cta=document.createElement('div');
+      cta.className='rv-auth-cta';
+      var p=document.createElement('p');
+      p.innerHTML='Чтобы оставить отзыв, необходимо <b>войти в аккаунт</b>';
+      var btn=document.createElement('button');
+      btn.className='btn btn-primary';
+      btn.style.cssText='height:40px;padding:0 22px';
+      btn.textContent='Войти';
+      btn.onclick=function(){ openModal('loginModal'); };
+      cta.appendChild(p);
+      cta.appendChild(btn);
+      sec.innerHTML='';
+      sec.appendChild(cta);
+    } else {
+      var bar=document.createElement('div');
+      bar.className='rv-write-bar';
+      var wbtn=document.createElement('button');
+      wbtn.className='btn btn-primary';
+      wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
+      wbtn.textContent='\u270F Написать отзыв';
+      wbtn.onclick=function(){ openWriteReviewModal(); };
+      bar.appendChild(wbtn);
+      sec.innerHTML='';
+      sec.appendChild(bar);
+    }
+  }
+
   function initReviewsView(){
     try {
       _rvScore=0; _rvImgs=[];
-      var sec=document.getElementById('rvWriteSection');
-      if(sec){
-        if(!user){
-          var cta=document.createElement('div');
-          cta.className='rv-auth-cta';
-          var p=document.createElement('p');
-          p.innerHTML='Чтобы оставить отзыв, необходимо <b>войти в аккаунт</b>';
-          var btn=document.createElement('button');
-          btn.className='btn btn-primary';
-          btn.style.cssText='height:40px;padding:0 22px';
-          btn.textContent='Войти';
-          btn.onclick=function(){ openModal('loginModal'); };
-          cta.appendChild(p);
-          cta.appendChild(btn);
-          sec.innerHTML='';
-          sec.appendChild(cta);
-        } else {
-          var bar=document.createElement('div');
-          bar.className='rv-write-bar';
-          var wbtn=document.createElement('button');
-          wbtn.className='btn btn-primary';
-          wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
-          wbtn.textContent='\u270F Написать отзыв';
-          wbtn.onclick=function(){ openWriteReviewModal(); };
-          bar.appendChild(wbtn);
-          sec.innerHTML='';
-          sec.appendChild(bar);
-        }
+      if(user){
+        _rvRenderWriteBar();
+        rvLoadPage(1);
+      } else {
+        var sec=document.getElementById('rvWriteSection');
+        if(sec) sec.innerHTML='';
+        rvXhr('GET','/api/auth/me',null,function(d){
+          if(d&&d.user){ user=d.user; accountState=d; try{updateNav();}catch(e){} try{updateSidebar();}catch(e){} }
+          _rvRenderWriteBar();
+          rvLoadPage(1);
+        });
       }
-    } catch(e){ console.error('[initReviewsView write section]',e); }
-    rvLoadPage(1);
+    } catch(e){ console.error('[initReviewsView write section]',e); rvLoadPage(1); }
   }
 
   function rvRenderWriteSection(){
