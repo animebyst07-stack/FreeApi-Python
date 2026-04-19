@@ -1973,10 +1973,7 @@ Rules:
 <div class="container rv-page">
 
   <!-- Шапка -->
-  <div class="rv-page-hdr">
-    <button class="rv-back" onclick="goView('landing')" title="Назад">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
+  <div class="rv-page-hdr" style="padding-left:0">
     <div>
       <h1>Отзывы о сайте</h1>
       <p>Публичная лента с автономной AI-модерацией</p>
@@ -4666,12 +4663,10 @@ var _rvPage=1,_rvPages=1,_rvTotal=0;
 var _rvScore=0,_rvImgs=[];
 
 function initReviewsView(){
-  try{
-    _rvScore=0;
-    _rvImgs=[];
-    renderRvWriteSection();
-    loadRvPage(1);
-  }catch(e){ console.error('initReviewsView error',e); }
+  _rvScore=0;
+  _rvImgs=[];
+  try{ renderRvWriteSection(); }catch(e){ console.error('initReviewsView:renderRvWriteSection',e); }
+  loadRvPage(1);
 }
 
 function renderRvWriteSection(){
