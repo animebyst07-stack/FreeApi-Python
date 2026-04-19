@@ -2075,7 +2075,7 @@ Rules:
   </div>
   <div class="fgroup">
     <label>Текст отзыва</label>
-    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000"></textarea>
+    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="var e=document.getElementById('writeReviewTextCount');if(e)e.textContent=this.value.length"></textarea>
     <div style="font-size:10px;color:#444;margin-top:4px;text-align:right"><span id="writeReviewTextCount">0</span>/1000</div>
   </div>
   <div class="fgroup">
@@ -4996,10 +4996,14 @@ var _writeReviewImgs=[];
 
 window._rvStarUpdate=function(score){
   _writeReviewScore=score;
-  var sb=q('reviewScoreBtns');
+  var sb=document.getElementById('reviewScoreBtns');
   if(!sb) return;
   sb.querySelectorAll('.star-btn').forEach(function(b){
-    b.classList.toggle('sel', parseInt(b.dataset.score)<=score);
+    var svg=b.querySelector('svg');
+    if(!svg) return;
+    var filled=(parseInt(b.dataset.score)||0)<=score;
+    svg.style.fill=filled?'#ffffff':'none';
+    svg.style.stroke=filled?'#ffffff':'#555555';
   });
 };
 
@@ -5007,11 +5011,19 @@ window.openWriteReviewModal=function(){
   try {
     _writeReviewScore=0;
     _writeReviewImgs=[];
-    var ta=q('writeReviewText');
-    if(ta){ta.value='';ta.oninput=function(){var cc=q('writeReviewTextCount');if(cc)cc.textContent=ta.value.length;};}
-    var cc=q('writeReviewTextCount'); if(cc) cc.textContent='0';
-    var ip=q('writeReviewImgPreview'); if(ip) ip.innerHTML='';
-    var ic=q('writeReviewImgCount'); if(ic) ic.textContent='';
+    var ta=document.getElementById('writeReviewText');
+    if(ta){ta.value='';}
+    var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent='0';
+    var ip=document.getElementById('writeReviewImgPreview'); if(ip) ip.innerHTML='';
+    var ic=document.getElementById('writeReviewImgCount'); if(ic) ic.textContent='';
+    /* Re-bind file input change (надёжнее onchange атрибута) */
+    var fi=document.getElementById('writeReviewFileInput');
+    if(fi){
+      fi.value='';
+      if(fi._wrHandler) fi.removeEventListener('change',fi._wrHandler,false);
+      fi._wrHandler=function(){if(window.onWriteReviewFilesSelected)window.onWriteReviewFilesSelected(fi);};
+      fi.addEventListener('change',fi._wrHandler,false);
+    }
     window._rvStarUpdate(0);
     /* Pre-fill if user already has a review */
     try{
