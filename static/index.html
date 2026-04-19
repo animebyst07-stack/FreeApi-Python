@@ -504,7 +504,8 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 /* ─── REVIEW WRITE MODAL ─── */
 .review-score-row{display:flex;gap:2px;flex-wrap:nowrap;margin-bottom:12px;align-items:center}
 .star-btn{background:none;border:none;padding:2px;cursor:pointer;line-height:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-.star-btn svg{display:block;transition:fill .12s,stroke .12s}
+.star-icon{display:block;fill:none;stroke:#555;stroke-width:1.5;stroke-linejoin:round;transition:fill .12s,stroke .12s}
+.star-btn.sel .star-icon{fill:#fff;stroke:#fff}
 .score-btn{width:36px;height:36px;border-radius:8px;border:1px solid #1e1e1e;background:#0d0d0d;font-size:13px;font-weight:600;color:#666;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
 .score-btn:hover{border-color:#555;color:#aaa}
 .score-btn.selected{background:#fff;border-color:#fff;color:#000}
@@ -2070,7 +2071,7 @@ Rules:
   <p class="modal-sub">Ваш отзыв будет отправлен на модерацию</p>
   <div class="fgroup" style="margin-bottom:12px">
     <label>Оценка</label>
-    <div class="review-score-row" id="reviewScoreBtns"></div>
+    <div class="review-score-row" id="reviewScoreBtns"><button type="button" class="star-btn" data-score="1" onclick="window._rvStarUpdate(1)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="2" onclick="window._rvStarUpdate(2)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="3" onclick="window._rvStarUpdate(3)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="4" onclick="window._rvStarUpdate(4)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="5" onclick="window._rvStarUpdate(5)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="6" onclick="window._rvStarUpdate(6)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="7" onclick="window._rvStarUpdate(7)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="8" onclick="window._rvStarUpdate(8)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="9" onclick="window._rvStarUpdate(9)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="10" onclick="window._rvStarUpdate(10)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>
   </div>
   <div class="fgroup">
     <label>Текст отзыва</label>
@@ -4993,6 +4994,15 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
 var _writeReviewScore=0;
 var _writeReviewImgs=[];
 
+window._rvStarUpdate=function(score){
+  _writeReviewScore=score;
+  var sb=q('reviewScoreBtns');
+  if(!sb) return;
+  sb.querySelectorAll('.star-btn').forEach(function(b){
+    b.classList.toggle('sel', parseInt(b.dataset.score)<=score);
+  });
+};
+
 window.openWriteReviewModal=function(){
   try {
     _writeReviewScore=0;
@@ -5002,38 +5012,7 @@ window.openWriteReviewModal=function(){
     var cc=q('writeReviewTextCount'); if(cc) cc.textContent='0';
     var ip=q('writeReviewImgPreview'); if(ip) ip.innerHTML='';
     var ic=q('writeReviewImgCount'); if(ic) ic.textContent='';
-    /* Star score buttons */
-    var sb=q('reviewScoreBtns');
-    window._rvStarUpdate=function(score){
-      _writeReviewScore=score;
-      if(!sb) return;
-      sb.querySelectorAll('.star-btn').forEach(function(b){
-        var s=parseInt(b.dataset.score);
-        var filled=s<=score;
-        b.querySelector('svg').setAttribute('fill',filled?'#fff':'none');
-        b.querySelector('svg').setAttribute('stroke',filled?'#fff':'#555');
-      });
-    };
-    if(sb){
-      sb.innerHTML='';
-      for(var i=1;i<=10;i++){
-        var btn=document.createElement('button');
-        btn.className='star-btn';
-        btn.type='button';
-        btn.dataset.score=i;
-        var svgEl=document.createElementNS('http://www.w3.org/2000/svg','svg');
-        svgEl.setAttribute('width','28');svgEl.setAttribute('height','28');
-        svgEl.setAttribute('viewBox','0 0 24 24');
-        svgEl.setAttribute('fill','none');svgEl.setAttribute('stroke','#555');
-        svgEl.setAttribute('stroke-width','1.5');svgEl.setAttribute('stroke-linejoin','round');
-        var poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
-        poly.setAttribute('points','12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2');
-        svgEl.appendChild(poly);
-        btn.appendChild(svgEl);
-        btn.onclick=(function(score){return function(){ window._rvStarUpdate(score); };})(i);
-        sb.appendChild(btn);
-      }
-    }
+    window._rvStarUpdate(0);
     /* Pre-fill if user already has a review */
     try{
       api('/api/reviews/mine').then(function(d){
@@ -5104,19 +5083,28 @@ window.submitWriteReview=function(){
 function compressImage(file,cb){
   var reader=new FileReader();
   reader.onload=function(e){
-    var img=new Image();
-    img.onload=function(){
-      var maxW=800,maxH=800;
-      var w=img.width,h=img.height;
-      if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
-      if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
-      var canvas=document.createElement('canvas');
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      cb(canvas.toDataURL('image/jpeg',0.62));
-    };
-    img.src=e.target.result;
+    var orig=e.target.result;
+    try{
+      var img=new Image();
+      img.onload=function(){
+        try{
+          var maxW=800,maxH=800;
+          var w=img.width,h=img.height;
+          if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+          if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
+          var canvas=document.createElement('canvas');
+          canvas.width=w;canvas.height=h;
+          var ctx=canvas.getContext('2d');
+          if(!ctx){cb(orig);return;}
+          ctx.drawImage(img,0,0,w,h);
+          cb(canvas.toDataURL('image/jpeg',0.62));
+        }catch(e2){cb(orig);}
+      };
+      img.onerror=function(){cb(orig);};
+      img.src=orig;
+    }catch(e3){cb(orig);}
   };
+  reader.onerror=function(){};
   reader.readAsDataURL(file);
 }
 
