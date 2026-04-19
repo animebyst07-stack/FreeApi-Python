@@ -4709,26 +4709,38 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
   }
 
   function initReviewsView(){
-    _rvScore=0; _rvImgs=[];
-    var sec=document.getElementById('rvWriteSection');
-    if(sec){
-      if(!user){
-        sec.innerHTML='<div class="rv-auth-cta">'
-          +'<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5" style="margin-bottom:12px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-          +'<p>Чтобы оставить отзыв, необходимо <b>войти в аккаунт</b></p>'
-          +'<button id="rvLoginCta" class="btn btn-primary" style="height:40px;padding:0 22px">Войти</button>'
-          +'</div>';
-        var lb=document.getElementById('rvLoginCta');
-        if(lb) lb.onclick=function(){ openModal('loginModal'); };
-      } else {
-        sec.innerHTML='<div class="rv-write-bar">'
-          +'<button id="rvWriteBtn" class="btn btn-primary" style="height:40px;padding:0 22px;gap:8px">'
-          +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
-          +' Написать отзыв</button></div>';
-        var wb=document.getElementById('rvWriteBtn');
-        if(wb) wb.onclick=function(){ openWriteReviewModal(); };
+    try {
+      _rvScore=0; _rvImgs=[];
+      var sec=document.getElementById('rvWriteSection');
+      if(sec){
+        if(!user){
+          var cta=document.createElement('div');
+          cta.className='rv-auth-cta';
+          var p=document.createElement('p');
+          p.innerHTML='Чтобы оставить отзыв, необходимо <b>войти в аккаунт</b>';
+          var btn=document.createElement('button');
+          btn.className='btn btn-primary';
+          btn.style.cssText='height:40px;padding:0 22px';
+          btn.textContent='Войти';
+          btn.onclick=function(){ openModal('loginModal'); };
+          cta.appendChild(p);
+          cta.appendChild(btn);
+          sec.innerHTML='';
+          sec.appendChild(cta);
+        } else {
+          var bar=document.createElement('div');
+          bar.className='rv-write-bar';
+          var wbtn=document.createElement('button');
+          wbtn.className='btn btn-primary';
+          wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
+          wbtn.textContent='\u270F Написать отзыв';
+          wbtn.onclick=function(){ openWriteReviewModal(); };
+          bar.appendChild(wbtn);
+          sec.innerHTML='';
+          sec.appendChild(bar);
+        }
       }
-    }
+    } catch(e){ console.error('[initReviewsView write section]',e); }
     rvLoadPage(1);
   }
 
@@ -4837,20 +4849,30 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
   function rvLoadPage(page){
     _rvPage=page||1;
     var listEl=document.getElementById('rvList');
-    if(!listEl) return;
-    listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
+    if(!listEl){ console.error('[rvLoadPage] rvList not found'); return; }
+    listEl.innerHTML='<div class="review-empty" id="rvLoadingMsg">Загрузка...</div>';
+    var _done=false;
+    var _fallback=setTimeout(function(){
+      if(_done) return;
+      _done=true;
+      var el=document.getElementById('rvList');
+      if(el) el.innerHTML='<div class="review-empty">Не удалось загрузить отзывы.<br><small style="color:#777">Проверьте сервер и обновите страницу</small></div>';
+    },13000);
     rvXhr('GET','/api/reviews?page='+_rvPage,null,function(d,err){
+      if(_done) return;
+      _done=true;
+      clearTimeout(_fallback);
       var listEl=document.getElementById('rvList');
       if(!listEl) return;
       if(err||!d){
-        listEl.innerHTML='<div class="review-empty">Не удалось загрузить отзывы.<br><small style="color:#777">Проверьте соединение с сервером</small></div>';
+        listEl.innerHTML='<div class="review-empty">Не удалось загрузить отзывы.<br><small style="color:#777">'+( err||'нет данных')+'</small></div>';
         return;
       }
       var items=d.reviews||[];
       _rvPages=d.pages||1; _rvTotal=d.total||0;
       var tot=document.getElementById('rvTotal');
       if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
-      rvRenderList(items);
+      try{ rvRenderList(items); }catch(e){ console.error('[rvRenderList]',e); listEl.innerHTML='<div class="review-empty">Ошибка отображения отзывов</div>'; }
       var pag=document.getElementById('rvPagination');
       if(pag){
         pag.style.display=_rvPages>1?'flex':'none';
