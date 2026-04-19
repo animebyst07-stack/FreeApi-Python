@@ -502,8 +502,8 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .review-img-more:hover{border-color:#444;color:#aaa}
 
 /* ─── REVIEW WRITE MODAL ─── */
-.review-score-row{display:flex;gap:2px;flex-wrap:nowrap;margin-bottom:12px;align-items:center}
-.star-btn{background:none;border:none;padding:2px;cursor:pointer;line-height:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.review-score-row{display:flex;gap:1px;flex-wrap:nowrap;margin-bottom:12px;align-items:center;overflow:hidden}
+.star-btn{background:none;border:none;padding:1px;cursor:pointer;line-height:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;flex-shrink:0}
 .star-icon{display:block;fill:none;stroke:#555;stroke-width:1.5;stroke-linejoin:round;transition:fill .12s,stroke .12s}
 .star-btn.sel .star-icon{fill:#fff;stroke:#fff}
 .score-btn{width:36px;height:36px;border-radius:8px;border:1px solid #1e1e1e;background:#0d0d0d;font-size:13px;font-weight:600;color:#666;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
@@ -2071,7 +2071,7 @@ Rules:
   <p class="modal-sub">Ваш отзыв будет отправлен на модерацию</p>
   <div class="fgroup" style="margin-bottom:12px">
     <label>Оценка</label>
-    <div class="review-score-row" id="reviewScoreBtns"><button type="button" class="star-btn" data-score="1" onclick="window._rvStarUpdate(1)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="2" onclick="window._rvStarUpdate(2)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="3" onclick="window._rvStarUpdate(3)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="4" onclick="window._rvStarUpdate(4)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="5" onclick="window._rvStarUpdate(5)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="6" onclick="window._rvStarUpdate(6)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="7" onclick="window._rvStarUpdate(7)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="8" onclick="window._rvStarUpdate(8)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="9" onclick="window._rvStarUpdate(9)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="10" onclick="window._rvStarUpdate(10)"><svg width="28" height="28" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>
+    <div class="review-score-row" id="reviewScoreBtns"><button type="button" class="star-btn" data-score="1" onclick="window._rvStarUpdate(1)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="2" onclick="window._rvStarUpdate(2)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="3" onclick="window._rvStarUpdate(3)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="4" onclick="window._rvStarUpdate(4)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="5" onclick="window._rvStarUpdate(5)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="6" onclick="window._rvStarUpdate(6)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="7" onclick="window._rvStarUpdate(7)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="8" onclick="window._rvStarUpdate(8)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="9" onclick="window._rvStarUpdate(9)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="10" onclick="window._rvStarUpdate(10)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>
   </div>
   <div class="fgroup">
     <label>Текст отзыва</label>
@@ -2080,11 +2080,11 @@ Rules:
   </div>
   <div class="fgroup">
     <label>Фото <span style="color:#555;font-size:10px">(до 10 изображений)</span></label>
-    <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="display:none" onchange="onWriteReviewFilesSelected(this)">
-    <label class="img-upload-zone" id="writeReviewUploadZone" for="writeReviewFileInput" style="display:block">
+    <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="onWriteReviewFilesSelected(this)">
+    <div class="img-upload-zone" id="writeReviewUploadZone" style="display:block;cursor:pointer" onclick="document.getElementById('writeReviewFileInput').click()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <p>Нажмите чтобы выбрать фото</p>
-    </label>
+    </div>
     <div class="img-upload-preview" id="writeReviewImgPreview"></div>
     <div class="img-upload-count" id="writeReviewImgCount"></div>
   </div>
@@ -5045,13 +5045,22 @@ window.openWriteReviewModal=function(){
 };
 
 window.onWriteReviewFilesSelected=function(input){
-  var files=Array.from(input.files);
+  var files=Array.from(input.files||[]);
+  if(!files.length) return;
   var remaining=10-_writeReviewImgs.length;
-  if(remaining<=0){showToast('Максимум 10 фото','err');return;}
-  files.slice(0,remaining).forEach(function(f){
+  if(remaining<=0){showToast('Максимум 10 фото','err');input.value='';return;}
+  var zone=document.getElementById('writeReviewUploadZone');
+  if(zone) zone.style.borderColor='#555';
+  var toProcess=files.slice(0,remaining);
+  var done=0;
+  toProcess.forEach(function(f){
     compressImage(f,function(b64){
       _writeReviewImgs.push(b64);
+      done++;
       renderWriteReviewPreview();
+      if(done===toProcess.length){
+        if(zone){zone.style.borderColor='';}
+      }
     });
   });
   input.value='';
