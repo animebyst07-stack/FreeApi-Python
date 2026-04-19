@@ -3412,6 +3412,7 @@ var _chatModelId='';
 var _chatMessages=[];
 var _chatPending=false;
 var _chatLogs=[];
+var _lastTrace=null;
 var _chatLoaded=false;
 var _chatAllKeys=[];
 var _chatAllModels=[];
@@ -3689,6 +3690,7 @@ window.sendChatMessage=function(){
       saveChatHistory();
       appendChatMsg('assistant',answer,d.model||_chatModelId,elapsed);
       addChatLog({ok:true,status:200,ms:d.responseMs||elapsed,q:logQ,a:answer,model:d.model||_chatModelId});
+      if(d.trace) _lastTrace=d.trace;
       if(d.context_kb!=null) updateChatCtxBar(d.context_kb);
       if(d.context_warn) showToast('Контекст близок к лимиту: '+parseFloat(d.context_kb).toFixed(1)+' KB','warn');
     }
@@ -4061,18 +4063,74 @@ window.copyChatFull=function(ev){
   var sections=[];
   var now=new Date().toISOString();
 
-  /* ── 1. Заголовок / контекст сессии ── */
-  var header='=== СНИМОК ТЕСТОВОГО ЧАТА FavoriteAPI ===\n';
-  header+='Дата/время: '+now+'\n';
-  header+='Ключ: '+(_chatKeyName||'—')+(_chatKeyMasked?' ('+maskShort(_chatKeyMasked)+')':'')+'\n';
-  header+='Модель: '+(_chatModelId||'—')+'\n';
-  header+='Сообщений в контексте: '+(_chatMessages?_chatMessages.length:0)+'\n';
-  header+='API-запросов в логах: '+(_chatLogs?_chatLogs.length:0);
+  /* ── 1. Заголовок ── */
+  var header='╔══════════════════════════════════════════╗\n';
+  header+='║   ДИАГНОСТИЧЕСКИЙ ОТЧЁТ FavoriteAPI     ║\n';
+  header+='╚══════════════════════════════════════════╝\n';
+  header+='Дата/время : '+now+'\n';
+  header+='Ключ       : '+(_chatKeyName||'—')+(_chatKeyMasked?' ['+maskShort(_chatKeyMasked)+']':'')+'\n';
+  header+='Модель     : '+(_chatModelId||'—')+'\n';
+  header+='Сообщений  : '+(_chatMessages?_chatMessages.length:0)+'\n';
+  header+='Запросов   : '+(_chatLogs?_chatLogs.length:0);
   sections.push(header);
 
-  /* ── 2. Полная переписка ── */
+  /* ── 2. Трассировка последнего запроса ── */
+  var t=_lastTrace;
+  if(t){
+    var tLines=['━━━ ТРАССИРОВКА ПОСЛЕДНЕГО ЗАПРОСА ━━━'];
+    tLines.push('Статус        : '+(t.status==='ok'?'✓ OK':'✗ ОШИБКА'));
+    tLines.push('log_code      : '+(t.log_code||'—'));
+    tLines.push('Время ответа  : '+(t.elapsed_ms!=null?t.elapsed_ms+' мс':'—'));
+    tLines.push('Модель        : '+(t.model||'—'));
+    tLines.push('Ключ          : '+(t.key_name||'—'));
+    tLines.push('');
+    tLines.push('Основной аккаунт   : '+(t.main_account_username||'N/A'));
+    tLines.push('Dual-режим         : '+(t.dual_mode?'ВКЛ':'ВЫКЛ'));
+    if(t.dual_mode){
+      tLines.push('Аккаунт-переводчик : '+(t.translator_account_username||'N/A'));
+      tLines.push('Запрос кириллицей  : '+(t.is_ru?'да':'нет'));
+      tLines.push('');
+      tLines.push('┌─ ЭТАПЫ DUAL-РЕЖИМА ─────────────────────');
+      tLines.push('│ [1] Оригинальный текст (RU):');
+      tLines.push('│     '+(t.original_text||'—').replace(/\n/g,'\n│     '));
+      if(t.is_ru){
+        tLines.push('│');
+        tLines.push('│ [2] Текст отправленный переводчику → EN:');
+        tLines.push('│     '+(t.text_translated_to_en||'—').replace(/\n/g,'\n│     '));
+        tLines.push('│');
+        tLines.push('│ [3] EN-текст отправленный основному аккаунту:');
+        tLines.push('│     '+(t.sent_to_main||'—').replace(/\n/g,'\n│     '));
+        tLines.push('│');
+        tLines.push('│ [4] Сырой ответ основного аккаунта (EN):');
+        tLines.push('│     '+(t.main_answer_raw||'—').replace(/\n/g,'\n│     '));
+        tLines.push('│');
+        tLines.push('│ [5] Перевод ответа обратно → RU:');
+        tLines.push('│     '+(t.answer_translated_to_ru||t.answer||'—').replace(/\n/g,'\n│     '));
+      } else {
+        tLines.push('│');
+        tLines.push('│ [2] Запрос НЕ кириллица — перевод пропущен');
+        tLines.push('│ [3] Ответ основного аккаунта:');
+        tLines.push('│     '+(t.main_answer_raw||t.answer||'—').replace(/\n/g,'\n│     '));
+      }
+      tLines.push('└─────────────────────────────────────────');
+      if(t.translator_error){
+        tLines.push('');
+        tLines.push('⚠ Ошибка переводчика: '+t.translator_error);
+      }
+    } else {
+      tLines.push('');
+      tLines.push('Запрос:');
+      tLines.push('  '+(t.user_text||'—').replace(/\n/g,'\n  '));
+      tLines.push('');
+      tLines.push('Ответ:');
+      tLines.push('  '+(t.main_answer_raw||t.answer||'—').replace(/\n/g,'\n  '));
+    }
+    sections.push(tLines.join('\n'));
+  }
+
+  /* ── 3. Полная переписка ── */
   if(_chatMessages&&_chatMessages.length>0){
-    var chatLines=['--- ПЕРЕПИСКА ---'];
+    var chatLines=['━━━ ПОЛНАЯ ПЕРЕПИСКА ━━━'];
     _chatMessages.forEach(function(m,i){
       var role=m.role==='user'?'[USER]':'[ASSISTANT]';
       var content=m.content;
@@ -4083,42 +4141,40 @@ window.copyChatFull=function(ev){
           return '['+c.type+']';
         }).join(' ');
       }
-      chatLines.push(role+' '+(content||''));
+      chatLines.push('\n'+role+'\n'+(content||''));
     });
     sections.push(chatLines.join('\n'));
   } else {
-    sections.push('--- ПЕРЕПИСКА ---\n(нет сообщений)');
+    sections.push('━━━ ПЕРЕПИСКА ━━━\n(нет сообщений)');
   }
 
-  /* ── 3. Все API-логи ── */
+  /* ── 4. Все API-логи ── */
   if(_chatLogs&&_chatLogs.length>0){
-    var logLines=['--- API ЛОГИ (все запросы) ---'];
+    var logLines=['━━━ API ЛОГИ (все запросы) ━━━'];
     _chatLogs.forEach(function(e,i){
-      logLines.push('\n['+( i+1)+'] время: '+e.ts);
+      logLines.push('\n['+(i+1)+'] '+(e.ts||''));
       if(e.isReset){
-        logLines.push('  endpoint: POST /api/chat/reset');
-        logLines.push('  действие: Сброс контекста');
+        logLines.push('  Сброс контекста (POST /api/chat/reset)');
         return;
       }
-      logLines.push('  endpoint: POST /api/v1/chat');
-      logLines.push('  модель: '+(e.model||'—'));
-      logLines.push('  статус: '+(e.ok?(e.status||200)+' OK':(e.status||'?')+' ERR'));
-      logLines.push('  время_ответа: '+(e.ms!=null?formatMs(e.ms):'—'));
-      if(_chatKeyMasked) logLines.push('  auth: Bearer '+maskShort(_chatKeyMasked));
-      if(e.code) logLines.push('  код_ошибки: '+e.code);
-      if(e.q) logLines.push('  запрос: '+e.q);
-      if(e.a) logLines.push('  ответ: '+e.a);
+      logLines.push('  Модель       : '+(e.model||'—'));
+      logLines.push('  Статус       : '+(e.ok?(e.status||200)+' OK':(e.status||'?')+' ERR'));
+      logLines.push('  Время        : '+(e.ms!=null?formatMs(e.ms):'—'));
+      if(_chatKeyMasked) logLines.push('  Auth         : Bearer '+maskShort(_chatKeyMasked));
+      if(e.code) logLines.push('  Код ошибки   : '+e.code);
+      if(e.q) logLines.push('  Запрос       : '+String(e.q).slice(0,300)+(e.q.length>300?'…':''));
+      if(e.a) logLines.push('  Ответ        : '+String(e.a).slice(0,400)+(e.a.length>400?'…':''));
     });
     sections.push(logLines.join('\n'));
   } else {
-    sections.push('--- API ЛОГИ ---\n(запросов не было)');
+    sections.push('━━━ API ЛОГИ ━━━\n(запросов не было)');
   }
 
-  sections.push('=== КОНЕЦ СНИМКА ===');
+  sections.push('═══════════════════ КОНЕЦ ОТЧЁТА ═══════════════════');
 
   var fullText=sections.join('\n\n');
   navigator.clipboard.writeText(fullText).then(function(){
-    showToast('Чат и все логи скопированы!','ok');
+    showToast('Диагностический отчёт скопирован!','ok');
   }).catch(function(){showToast('Не удалось скопировать — попробуйте ещё раз','err');});
 };
 
