@@ -4399,7 +4399,7 @@ window.goView=function(v){
   if(v==='landing') loadReviews();
   if(v==='docs') loadDocsModels();
   if(v==='support') initSupportView();
-  if(v==='reviews') initReviewsView();
+  if(v==='reviews'){ if(window.initReviewsView) window.initReviewsView(); else if(typeof initReviewsView==='function') initReviewsView(); }
 };
 
 /* ───────────── SUPPORT CHAT ───────────── */
@@ -4742,20 +4742,22 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
   function initReviewsView(){
     try {
       _rvScore=0; _rvImgs=[];
-      if(user){
+      var sec=document.getElementById('rvWriteSection');
+      if(sec) sec.innerHTML='<div style="height:10px"></div>';
+      rvXhr('GET','/api/auth/me',null,function(d){
+        if(d&&d.user){
+          user=d.user; accountState=d;
+          try{updateNav();}catch(e){}
+          try{updateSidebar();}catch(e){}
+        } else if(!d||!d.authenticated){
+          user=null;
+        }
         _rvRenderWriteBar();
         rvLoadPage(1);
-      } else {
-        var sec=document.getElementById('rvWriteSection');
-        if(sec) sec.innerHTML='';
-        rvXhr('GET','/api/auth/me',null,function(d){
-          if(d&&d.user){ user=d.user; accountState=d; try{updateNav();}catch(e){} try{updateSidebar();}catch(e){} }
-          _rvRenderWriteBar();
-          rvLoadPage(1);
-        });
-      }
-    } catch(e){ console.error('[initReviewsView write section]',e); rvLoadPage(1); }
+      });
+    } catch(e){ console.error('[initReviewsView write section]',e); try{rvLoadPage(1);}catch(e2){} }
   }
+  window.initReviewsView=initReviewsView;
 
   function rvRenderWriteSection(){
     var sec=document.getElementById('rvWriteSection');
