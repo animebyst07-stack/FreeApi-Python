@@ -2080,11 +2080,11 @@ Rules:
   </div>
   <div class="fgroup">
     <label>Фото <span style="color:#555;font-size:10px">(до 10 изображений)</span></label>
-    <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="onWriteReviewFilesSelected(this)">
-    <div class="img-upload-zone" id="writeReviewUploadZone" style="display:block;cursor:pointer" onclick="document.getElementById('writeReviewFileInput').click()">
+    <label class="img-upload-zone" id="writeReviewUploadZone" style="display:block;cursor:pointer">
+      <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="display:none" onchange="onWriteReviewFilesSelected(this)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <p>Нажмите чтобы выбрать фото</p>
-    </div>
+    </label>
     <div class="img-upload-preview" id="writeReviewImgPreview"></div>
     <div class="img-upload-count" id="writeReviewImgCount"></div>
   </div>
@@ -5016,14 +5016,8 @@ window.openWriteReviewModal=function(){
     var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent='0';
     var ip=document.getElementById('writeReviewImgPreview'); if(ip) ip.innerHTML='';
     var ic=document.getElementById('writeReviewImgCount'); if(ic) ic.textContent='';
-    /* Re-bind file input change (надёжнее onchange атрибута) */
     var fi=document.getElementById('writeReviewFileInput');
-    if(fi){
-      fi.value='';
-      if(fi._wrHandler) fi.removeEventListener('change',fi._wrHandler,false);
-      fi._wrHandler=function(){if(window.onWriteReviewFilesSelected)window.onWriteReviewFilesSelected(fi);};
-      fi.addEventListener('change',fi._wrHandler,false);
-    }
+    if(fi){ fi.value=''; }
     window._rvStarUpdate(0);
     /* Pre-fill if user already has a review */
     try{
@@ -5045,20 +5039,28 @@ window.openWriteReviewModal=function(){
 };
 
 window.onWriteReviewFilesSelected=function(input){
+  console.log('[PHOTO] onchange сработал, files.length=', input.files ? input.files.length : 'null');
   var files=Array.from(input.files||[]);
-  if(!files.length) return;
+  if(!files.length){ console.log('[PHOTO] файлы пустые, выход'); return; }
   var remaining=10-_writeReviewImgs.length;
   if(remaining<=0){showToast('Максимум 10 фото','err');input.value='';return;}
   var toProcess=files.slice(0,remaining);
-  toProcess.forEach(function(f){
+  console.log('[PHOTO] обрабатываем '+toProcess.length+' файл(ов)');
+  toProcess.forEach(function(f,idx){
+    console.log('[PHOTO] FileReader запущен для файла '+idx+': '+f.name+' ('+f.size+' байт)');
     var reader=new FileReader();
     reader.onload=function(ev){
       var data=ev.target.result;
-      if(!data) return;
+      console.log('[PHOTO] FileReader.onload idx='+idx+', data длина=', data ? data.length : 'null');
+      if(!data){ console.log('[PHOTO] data пустой!'); return; }
       _writeReviewImgs.push(data);
+      console.log('[PHOTO] _writeReviewImgs теперь '+_writeReviewImgs.length+' шт, вызываем renderWriteReviewPreview');
       renderWriteReviewPreview();
     };
-    reader.onerror=function(){showToast('Не удалось прочитать файл','err');};
+    reader.onerror=function(e){
+      console.error('[PHOTO] FileReader.onerror:', e);
+      showToast('Не удалось прочитать файл','err');
+    };
     reader.readAsDataURL(f);
   });
   input.value='';
@@ -5067,11 +5069,13 @@ window.onWriteReviewFilesSelected=function(input){
 function renderWriteReviewPreview(){
   var el=q('writeReviewImgPreview');
   var cnt=q('writeReviewImgCount');
-  if(!el) return;
+  console.log('[PREVIEW] el=', el?'найден':'НЕ НАЙДЕН', 'imgs='+_writeReviewImgs.length);
+  if(!el){ console.error('[PREVIEW] writeReviewImgPreview не найден в DOM!'); return; }
   el.innerHTML=_writeReviewImgs.map(function(src,i){
     return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeWriteReviewImg('+i+')">×</div></div>';
   }).join('');
   if(cnt) cnt.textContent=_writeReviewImgs.length?_writeReviewImgs.length+'/10 фото':'';
+  console.log('[PREVIEW] innerHTML обновлён');
 }
 
 window.removeWriteReviewImg=function(idx){
@@ -5080,12 +5084,20 @@ window.removeWriteReviewImg=function(idx){
 };
 
 window.submitWriteReview=function(){
-  if(!_writeReviewScore){showToast('Выберите оценку от 1 до 10','err');return;}
+  console.log('[SUBMIT] вызван, score='+_writeReviewScore+', imgs='+_writeReviewImgs.length);
+  if(!_writeReviewScore){
+    console.log('[SUBMIT] нет оценки, показываем toast');
+    showToast('Выберите оценку от 1 до 10','err');
+    return;
+  }
   var ta=q('writeReviewText');
   var text=(ta?ta.value:'').trim();
+  console.log('[SUBMIT] text.length='+text.length);
   if(text.length<10){showToast('Текст слишком короткий (минимум 10 символов)','err');return;}
   if(text.length>1000){showToast('Текст слишком длинный (максимум 1000 символов)','err');return;}
+  console.log('[SUBMIT] отправляем POST /api/reviews...');
   api('/api/reviews','POST',{score:_writeReviewScore,text:text,images:_writeReviewImgs}).then(function(d){
+    console.log('[SUBMIT] ответ сервера:', JSON.stringify(d).substring(0,200));
     if(d.error){showToast(d.message||'Ошибка','err');return;}
     closeModal('writeReviewModal');
     var status=d.review&&d.review.status;
@@ -5093,6 +5105,9 @@ window.submitWriteReview=function(){
     else showToast('Отзыв опубликован','ok');
     loadReviews();
     rvLoadPage(_rvPage||1);
+  }).catch(function(err){
+    console.error('[SUBMIT] ошибка fetch:', err);
+    showToast('Ошибка соединения','err');
   });
 };
 
