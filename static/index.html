@@ -4732,7 +4732,7 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
       wbtn.className='btn btn-primary';
       wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
       wbtn.textContent='\u270F Написать отзыв';
-      wbtn.onclick=function(){ openWriteReviewModal(); };
+      wbtn.onclick=function(e){ e.stopPropagation(); if(window.openWriteReviewModal) window.openWriteReviewModal(); };
       bar.appendChild(wbtn);
       sec.innerHTML='';
       sec.appendChild(bar);
@@ -4992,44 +4992,50 @@ var _writeReviewScore=0;
 var _writeReviewImgs=[];
 
 window.openWriteReviewModal=function(){
-  _writeReviewScore=0;
-  _writeReviewImgs=[];
-  var ta=q('writeReviewText');
-  if(ta){ta.value='';ta.oninput=function(){q('writeReviewTextCount').textContent=ta.value.length;};}
-  q('writeReviewTextCount').textContent='0';
-  q('writeReviewImgPreview').innerHTML='';
-  q('writeReviewImgCount').textContent='';
-  /* Score buttons */
-  var sb=q('reviewScoreBtns');
-  sb.innerHTML='';
-  for(var i=1;i<=10;i++){
-    var btn=document.createElement('button');
-    btn.className='score-btn';
-    btn.textContent=i;
-    btn.dataset.score=i;
-    btn.onclick=(function(score){return function(){
-      _writeReviewScore=score;
-      document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===score);});
-    };})(i);
-    sb.appendChild(btn);
-  }
-  /* Pre-fill if user already has a review */
-  api('/api/reviews/mine').then(function(d){
-    if(d.review){
-      var r=d.review;
-      if(r.score){
-        _writeReviewScore=r.score;
-        document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===r.score);});
+  try {
+    _writeReviewScore=0;
+    _writeReviewImgs=[];
+    var ta=q('writeReviewText');
+    if(ta){ta.value='';ta.oninput=function(){var cc=q('writeReviewTextCount');if(cc)cc.textContent=ta.value.length;};}
+    var cc=q('writeReviewTextCount'); if(cc) cc.textContent='0';
+    var ip=q('writeReviewImgPreview'); if(ip) ip.innerHTML='';
+    var ic=q('writeReviewImgCount'); if(ic) ic.textContent='';
+    /* Score buttons */
+    var sb=q('reviewScoreBtns');
+    if(sb){
+      sb.innerHTML='';
+      for(var i=1;i<=10;i++){
+        var btn=document.createElement('button');
+        btn.className='score-btn';
+        btn.textContent=i;
+        btn.dataset.score=i;
+        btn.onclick=(function(score){return function(){
+          _writeReviewScore=score;
+          document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===score);});
+        };})(i);
+        sb.appendChild(btn);
       }
-      if(r.text&&ta) ta.value=r.text;
-      q('writeReviewTextCount').textContent=(r.text||'').length;
-      try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_writeReviewImgs=imgs.slice();renderWriteReviewPreview();}catch(e){}
-      q('writeReviewTitle').textContent='Редактировать отзыв';
-    } else {
-      q('writeReviewTitle').textContent='Написать отзыв';
     }
-  }).catch(function(){q('writeReviewTitle').textContent='Написать отзыв';});
-  openModal('writeReviewModal');
+    /* Pre-fill if user already has a review */
+    try{
+      api('/api/reviews/mine').then(function(d){
+        if(d&&d.review){
+          var r=d.review;
+          if(r.score){
+            _writeReviewScore=r.score;
+            document.querySelectorAll('.score-btn').forEach(function(b){b.classList.toggle('selected',parseInt(b.dataset.score)===r.score);});
+          }
+          if(r.text&&ta) ta.value=r.text;
+          var cc2=q('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length;
+          try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_writeReviewImgs=imgs.slice();if(window.renderWriteReviewPreview)renderWriteReviewPreview();}catch(e){}
+          var t=q('writeReviewTitle'); if(t) t.textContent='Редактировать отзыв';
+        } else {
+          var t=q('writeReviewTitle'); if(t) t.textContent='Написать отзыв';
+        }
+      }).catch(function(){var t=q('writeReviewTitle');if(t)t.textContent='Написать отзыв';});
+    }catch(e){}
+    openModal('writeReviewModal');
+  } catch(e){ console.error('[openWriteReviewModal]',e); openModal('writeReviewModal'); }
 };
 
 window.onWriteReviewFilesSelected=function(input){
