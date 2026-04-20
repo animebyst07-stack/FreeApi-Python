@@ -11,7 +11,7 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent!important}
 *:focus{outline:none!important;box-shadow:none!important}
-*:focus-visible{outline:1px solid #2a2a2a;outline-offset:2px;border-radius:6px}
+*:focus-visible{outline:1px solid #3a3a3a;outline-offset:2px;border-radius:6px}
 button:active,a:active{opacity:.75}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;background:#0a0e14;overscroll-behavior:none}
 body{font-family:'Inter',system-ui,sans-serif;background:#0a0e14;color:#fff;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
@@ -315,7 +315,7 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .log-cat{margin-bottom:32px}
 .log-cat-title{font-size:12px;font-weight:600;color:#666;letter-spacing:.6px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .log-cat-title svg{color:#666}
-.log-table{background:#080808;border:1px solid #141414;border-radius:12px;overflow:hidden}
+.log-table{background:#080808;border:1px solid #141414;border-radius:12px;overflow:hidden;overflow-x:auto}
 .log-row{display:grid;grid-template-columns:120px 1fr;gap:0;border-bottom:1px solid #0d0d0d}
 .log-row:last-child{border-bottom:none}
 .log-code-cell{padding:13px 16px;border-right:1px solid #0d0d0d;font-family:'JetBrains Mono',monospace;font-size:11px;color:#777;display:flex;align-items:flex-start;padding-top:15px}
@@ -2522,6 +2522,11 @@ window.showToast=function(msg,type){
     ?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
     :'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
   t.innerHTML=icon+esc(msg);
+  /* Ограничение: максимум 4 одновременных тоста (старые удаляем) */
+  while(wrap.children.length>=4){
+    var oldest=wrap.firstChild;
+    if(oldest){ oldest.classList.remove('show'); wrap.removeChild(oldest); }
+  }
   wrap.appendChild(t);
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ t.classList.add('show'); }); });
   setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); },300); },3500);

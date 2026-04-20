@@ -557,7 +557,11 @@ def register_routes(app):
         if 'file' not in request.files:
             return error('Файл не передан', 400)
         f = request.files['file']
-        data = f.read()
+        # Защита от OOM в Termux: ограничиваем размер файла сессии до 5 МБ
+        MAX_SESSION_SIZE = 5 * 1024 * 1024  # 5 МБ
+        data = f.read(MAX_SESSION_SIZE + 1)
+        if len(data) > MAX_SESSION_SIZE:
+            return error('Файл слишком большой (максимум 5 МБ)', 400)
         if not data:
             return error('Файл пустой', 400)
         import io as _io, sqlite3 as _sql, tempfile as _tmp, os as _os
@@ -1047,9 +1051,15 @@ def register_routes(app):
         images = data.get('images') or []
         if not isinstance(images, list):
             images = []
-        # Фильтруем невалидные изображения (max 7MB base64 на файл ≈ 5MB raw)
+        # Фильтруем невалидные изображения (max 7MB base64 ≈ 5MB raw, только изображения)
         MAX_IMG_B64 = 7 * 1024 * 1024  # 7MB base64
-        images = [img for img in images if isinstance(img, str) and len(img) <= MAX_IMG_B64]
+        ALLOWED_IMG_MIME = ('data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/gif;base64,', 'data:image/webp;base64,', 'data:image/heic;base64,', 'data:image/heif;base64,')
+        def _is_valid_img(img):
+            if not isinstance(img, str): return False
+            if len(img) > MAX_IMG_B64: return False
+            lower = img[:40].lower()
+            return any(lower.startswith(m) for m in ALLOWED_IMG_MIME)
+        images = [img for img in images if _is_valid_img(img)]
         images = images[:10]
         agent_ready = repo.get_admin_setting('agent_enabled', '0') == '1' and bool(repo.get_admin_setting('agent_key_id', ''))
         if is_admin:
@@ -1094,7 +1104,8 @@ def register_routes(app):
             if not isinstance(admin_images, list):
                 admin_images = []
             MAX_IMG_B64 = 7 * 1024 * 1024
-            admin_images = [img for img in admin_images if isinstance(img, str) and len(img) <= MAX_IMG_B64]
+            _ALLOWED = ('data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/gif;base64,', 'data:image/webp;base64,', 'data:image/heic;base64,', 'data:image/heif;base64,')
+            admin_images = [img for img in admin_images if isinstance(img, str) and len(img) <= MAX_IMG_B64 and any(img[:40].lower().startswith(m) for m in _ALLOWED)]
             admin_images = admin_images[:10]
         review = repo.update_review_status(review_id, status, ai_response=ai_response, admin_images=admin_images)
         return jsonify({'review': review})
