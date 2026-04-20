@@ -2496,7 +2496,7 @@ window.doRegister=function(e){
   .finally(function(){ btn.disabled=false;btn.textContent='Создать аккаунт'; });
 };
 window._logout=function(){
-  fetch('/api/auth/logout',{method:'POST',credentials:'include'}).finally(function(){ user=null;accountState=null;afterLogout(); });
+  rvXhr('POST','/api/auth/logout',null,function(){ user=null;accountState=null;afterLogout(); });
 };
 
 function afterLogin(){
