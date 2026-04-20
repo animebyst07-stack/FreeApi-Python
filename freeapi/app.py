@@ -72,6 +72,8 @@ def create_app():
         app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
     app.config['SESSION_COOKIE_HTTPONLY'] = True
+    # Максимальный размер запроса: 150MB (base64 изображений в JSON)
+    app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024
 
     @app.before_request
     def security_checks():
