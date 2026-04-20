@@ -2094,8 +2094,8 @@ Rules:
   </div>
   <div class="fgroup">
     <label>Фото <span style="color:#555;font-size:10px">(до 10 изображений)</span></label>
-    <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="position:absolute;opacity:0;width:1px;height:1px;left:-9999px;top:-9999px;pointer-events:none" tabindex="-1">
-    <div class="img-upload-zone" id="writeReviewUploadZone" style="display:block;cursor:pointer" onclick="(function(){var fi=document.getElementById('writeReviewFileInput');if(fi){console.log('[PHOTO] onclick зоны — вызываем fi.click()');fi.click();}else{console.error('[PHOTO] writeReviewFileInput не найден');}})()" role="button" tabindex="0">
+    <div class="img-upload-zone" id="writeReviewUploadZone" style="display:block;cursor:pointer;position:relative;overflow:hidden" role="button" tabindex="0">
+      <input type="file" id="writeReviewFileInput" accept="image/*" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;margin:0;padding:0" tabindex="-1" onchange="onWriteReviewFilesSelected(this)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <p>Нажмите чтобы выбрать фото</p>
     </div>
@@ -4840,8 +4840,8 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
       '<textarea class="rv-textarea" id="rvText" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="document.getElementById(&#39;rvCharCount&#39;).textContent=this.value.length"></textarea>'+
       '<div class="rv-char-count"><span id="rvCharCount">0</span> / 1000</div>'+
       '<div style="margin-top:14px;margin-bottom:8px;font-size:12px;color:#555">Фото <span style="color:#333">(до 10)</span></div>'+
-      '<input type="file" id="rvFileInput" accept="image/*" multiple style="position:absolute;opacity:0;width:1px;height:1px;left:-9999px;top:-9999px;pointer-events:none" tabindex="-1">'+
-      '<div class="img-upload-zone" style="display:block;cursor:pointer;padding:10px;margin-top:0" onclick="(function(){var fi=document.getElementById(\"rvFileInput\");if(fi){console.log(\"[PHOTO-RV] onclick зоны — fi.click()\");fi.click();}else{console.error(\"[PHOTO-RV] rvFileInput не найден\");}})()" role="button">'+
+      '<div class="img-upload-zone" style="display:block;cursor:pointer;padding:10px;margin-top:0;position:relative;overflow:hidden" role="button">'+
+      '<input type="file" id="rvFileInput" accept="image/*" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;margin:0;padding:0" tabindex="-1" onchange="window.rvOnFiles(this)">'+
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
       '<p style="margin:4px 0 0">Выбрать фото</p></div>'+
       '<div class="img-upload-preview" id="rvImgPreview"></div>'+
@@ -4853,16 +4853,7 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
       esc(user.username)+'</div>'+
       '</div></div>';
     rvBuildScoreGrid();
-    /* Для Android/Termux: привязываем addEventListener к динамически созданному rvFileInput */
-    (function(){
-      var rvFi=document.getElementById('rvFileInput');
-      if(rvFi){
-        console.log('[PHOTO-RV] rvFileInput найден, добавляем addEventListener');
-        rvFi.removeEventListener('change',rvFi.__handler);
-        rvFi.__handler=function(){ console.log('[PHOTO-RV] change event:', rvFi.files?rvFi.files.length:'null'); window.rvOnFiles(rvFi); };
-        rvFi.addEventListener('change',rvFi.__handler);
-      } else { console.warn('[PHOTO-RV] rvFileInput не найден после рендера'); }
-    })();
+    /* onchange задан прямо в атрибуте rvFileInput — прямой touch на Android WebView */
     rvXhr('GET','/api/reviews/mine',null,function(d){
       if(!d||!d.review) return;
       var r=d.review;
@@ -5118,16 +5109,8 @@ window.openWriteReviewModal=function(){
     var fi=document.getElementById('writeReviewFileInput');
     if(fi){
       fi.value='';
-      /* Для Android/Termux WebView: addEventListener дублирует onchange на случай если атрибут не сработает */
-      fi.onchange=null;
-      var _rvChangeHandler=function(){
-        console.log('[PHOTO] addEventListener change сработал, files:', fi.files ? fi.files.length : 'null');
-        onWriteReviewFilesSelected(fi);
-      };
-      fi.removeEventListener('change',fi.__rvHandler);
-      fi.__rvHandler=_rvChangeHandler;
-      fi.addEventListener('change',_rvChangeHandler);
-      console.log('[MODAL] writeReviewFileInput найден, addEventListener назначен');
+      /* onchange задан прямо в атрибуте input — работает в Android WebView напрямую */
+      console.log('[MODAL] writeReviewFileInput найден, сброшен');
     }
     window._rvStarUpdate(0);
     /* Pre-fill if user already has a review (XHR — надёжно на Android) */
