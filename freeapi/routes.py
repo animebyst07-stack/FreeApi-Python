@@ -1683,6 +1683,15 @@ Body: {"name": "Название ключа"}
             return error('Сообщение не может быть пустым', 400)
         if len(content) > 4000:
             return error('Сообщение слишком длинное', 400)
+        # Валидация изображения: MIME + размер (защита от OOM в Termux)
+        if image_data is not None:
+            _ALLOWED_MIME = ('data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/gif;base64,', 'data:image/webp;base64,', 'data:image/heic;base64,', 'data:image/heif;base64,')
+            if not isinstance(image_data, str):
+                return error('Некорректный формат изображения', 400)
+            if not any(image_data[:40].lower().startswith(m) for m in _ALLOWED_MIME):
+                return error('Поддерживаются только изображения (JPEG, PNG, GIF, WebP)', 400)
+            if len(image_data) > 14 * 1024 * 1024:  # ~10MB raw → ~14MB base64
+                return error('Изображение слишком большое (максимум 10 МБ)', 400)
 
         chat = repo.get_open_support_chat(uid)
         if not chat:
