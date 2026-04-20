@@ -3195,29 +3195,26 @@ function loadReviews(page){
   var listEl=q('reviewsList');
   if(!listEl) return;
   listEl.innerHTML='<div class="review-empty">Загрузка...</div>';
-  var ctrl=new AbortController();
-  var timer=setTimeout(function(){ctrl.abort();},12000);
-  fetch('/api/reviews?page='+_reviewsPage,{credentials:'include',signal:ctrl.signal})
-    .then(function(r){clearTimeout(timer);return r.json();})
-    .then(function(d){
-      renderReviews(d.reviews||[]);
-      _reviewsPages=d.pages||1;
-      var pag=q('reviewsPagination');
-      if(pag){
-        if(_reviewsPages>1){
-          pag.style.display='';
-          q('reviewsPageInfo').textContent=_reviewsPage+' / '+_reviewsPages;
-          q('reviewsPrev').disabled=_reviewsPage<=1;
-          q('reviewsNext').disabled=_reviewsPage>=_reviewsPages;
-        } else {
-          pag.style.display='none';
-        }
-      }
-    }).catch(function(){
-      clearTimeout(timer);
-      var el=q('reviewsList');
+  rvXhr('GET','/api/reviews?page='+_reviewsPage,null,function(d,err){
+    var el=q('reviewsList');
+    if(err||!d){
       if(el) el.innerHTML='<div class="review-empty">Отзывы временно недоступны</div>';
-    });
+      return;
+    }
+    renderReviews(d.reviews||[]);
+    _reviewsPages=d.pages||1;
+    var pag=q('reviewsPagination');
+    if(pag){
+      if(_reviewsPages>1){
+        pag.style.display='';
+        q('reviewsPageInfo').textContent=_reviewsPage+' / '+_reviewsPages;
+        q('reviewsPrev').disabled=_reviewsPage<=1;
+        q('reviewsNext').disabled=_reviewsPage>=_reviewsPages;
+      } else {
+        pag.style.display='none';
+      }
+    }
+  });
 }
 window.changeReviewsPage=function(delta){
   var np=_reviewsPage+delta;
@@ -4633,7 +4630,8 @@ window.clearSupportAttachment=function(){
 /* ───────────── INIT ───────────── */
 loadModels();
 loadReviews();
-fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
+rvXhr('GET','/api/auth/me',null,function(d,err){
+  if(err||!d){ updateSidebar(); return; }
   accountState=d||null;
   if(d&&d.user){
     user=d.user;
@@ -4644,7 +4642,7 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
   } else {
     updateSidebar();
   }
-}).catch(function(){ updateSidebar(); });
+});
 
 
 /* ─── CHAT CANVAS PARTICLES ─── */
