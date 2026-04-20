@@ -3255,7 +3255,9 @@ function renderReviews(items){
     if(r.ai_response||adminImgs.length){
       adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>'+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
     }
-    return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+'</div>';
+    var sc=r.score||0;
+    var scoreClr=sc>=9?'#4ade80':sc>=7?'#86efac':sc>=4?'#f59e0b':'#ef4444';
+    return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score" style="color:'+scoreClr+';border-color:'+scoreClr+'22">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+'</div>';
   }).join('');
 }
 
@@ -4997,10 +4999,12 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
           +'<button class="btn btn-ghost btn-xs" style="color:#f88;border-color:#3a1a1a" data-rv-del="'+r.id+'">Удалить</button>'
           +'</div>'
         :'';
+      var _sc=r.score||0;
+      var _scoreClr=_sc>=9?'#4ade80':_sc>=7?'#86efac':_sc>=4?'#f59e0b':'#ef4444';
       return '<div class="review-card">'
         +'<div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div>'
         +'<span>'+formatDate(r.updated_at||r.created_at)+'</span>'
-        +'<span class="review-score">'+esc(r.score)+'/10</span></div>'
+        +'<span class="review-score" style="color:'+_scoreClr+';border-color:'+_scoreClr+'22">'+esc(r.score)+'/10</span></div>'
         +'<div class="review-text">'+esc(r.text)+'</div>'
         +renderReviewImgs(imgs)+adminBlock+adminCtrl
         +'</div>';
