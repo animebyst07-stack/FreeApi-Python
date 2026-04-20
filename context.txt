@@ -1,78 +1,76 @@
-=================================================================
- КОНТЕКСТ АВТОНОМНОЙ СЕССИИ
- FreeApi-Python — animebyst07-stack
- Дата: 20 апреля 2026, 02:52 МСК — 10:00 МСК
-=================================================================
+# CONTEXT — Автономная сессия агента
+  Дата/время начала: ~07:00 UTC (10:00 МСК)
+  Дедлайн: 10:00 МСК (07:00 UTC)
+  Автор: animebyst07-stack/FreeApi-Python
+  Языкс общения: строго русский
 
-=== МЫСЛЬ 1 — Анализ проблем (03:00 МСК) ===
+  ## СТАТУС ЗАДАЧ
 
-Пользователь сообщил о двух проблемах:
-1. Звёзды оценки слишком большие (28px × 10 штук не помещаются)
-2. Кнопка "Отправить" не работает + фото не отображаются
+  ### T001 submitWriteReview api()→rvXhr — ВЫПОЛНЕНО
+  - Полностью переписан на XHR (rvXhr) с loading state и timeout 60s
+  - Добавлен blackout-фикс при isLoading
 
-Предыдущими пушами уже сделано:
-- Звёзды 28px → 18px ✅
-- label wrapping input вместо div+onclick ✅
-- FileReader вместо canvas ✅
-- Консольные логи для отладки ✅
+  ### T002 compressImage→FileReader + label wrap — ВЫПОЛНЕНО
+  - Upload zone = label обёртка, onclick не нужен
+  - Весь FileReader path работает без blob URL
 
-НО: проблема с кнопкой сохраняется. Почему?
+  ### T003 Loading state кнопки отправки — ВЫПОЛНЕНО
+  - Кнопка показывает "Отправка..." + disabled при submitе
 
-=== МЫСЛЬ 2 — Ключевое открытие (03:10 МСК) ===
+  ### T004 Счётчик оценки "X/10" — ВЫПОЛНЕНО
+  - Бейдж рядом со "Выберите оценку" отображает выбранный score
 
-НАЙДЕНА КОРНЕВАЯ ПРИЧИНА:
-Автор кода написал специальную функцию `rvXhr` (XMLHttpRequest)
-с комментарием "Универсальный XHR — работает на всех Android WebView".
+  ### T005 Modal scroll fix — ЧАСТИЧНО
+  - Добавлены mobile CSS улучшения: padding, border-radius, touch targets
+  - keyboard viewport (env()) не добавлен
 
-Это прямое указание: fetch() НЕ РАБОТАЕТ стабильно на Termux/Android WebView.
+  ### T006 Lightbox touch swipe — ВЫПОЛНЕНО
+  - Порог 40px для свайпа влево/вправо
 
-НО: модальная форма (writeReviewModal) использует api() = fetch()!
-А inline форма в reviews view уже использует rvXhr — работает корректно.
+  ### T007 localStorage draft — ВЫПОЛНЕНО
+  - Сохранение при вводе, восстановление при открытии, очистка после сабмита
 
-ВЫВОД: Переключить submitWriteReview с api()/fetch на rvXhr.
+  ### T008 5MB лимит файлов — ВЫПОЛНЕНО
+  - Проверка в compressImage
 
-=== МЫСЛЬ 3 — Дополнительные проблемы (03:15 МСК) ===
+  ### T009 UPSERT проверен — ВЫПОЛНЕНО (OK)
 
-Нашёл дополнительные проблемы:
-1. rvOnFiles (inline форма) тоже использовала compressImage [canvas] — заменено на FileReader
-2. onAdminReviewFilesSelected тоже использовала compressImage — заменено на FileReader
-3. openWriteReviewModal prefill использовал api()/fetch — заменено на rvXhr
-4. Нет ограничения размера файла → большие фото могут убить память на Android
+  ### T010 Context file — ВЫПОЛНЕНО (этот файл)
 
-=== ДЕЙСТВИЯ (03:20 МСК) ===
+  ## ДОПОЛНИТЕЛЬНЫЕ ИЗМЕНЕНИЯ (сверх плана)
 
-Внесённые изменения в static/index.html:
+  ### Backend:
+  - MAX_CONTENT_LENGTH = 150*1024*1024 в app.py
+  - Server-side валидация base64 изображений (7MB max) в submit_review и admin reply
+  - Таймаут rvXhr: 20s для обычных запросов, 60s для submit
 
-A. КРИТИЧЕСКИЕ БАГИ (основные исправления):
-  1. submitWriteReview: api()/fetch → rvXhr + loading state кнопки
-  2. openWriteReviewModal prefill: api()/fetch → rvXhr
-  3. rvOnFiles (inline): compressImage → FileReader + 5MB limit
-  4. onAdminReviewFilesSelected: compressImage → FileReader
-  5. inline upload zone: div+onclick → <label> wrapping (как в modal)
-  6. rvXhr: добавлен параметр timeout (default 12s)
-  7. rvSubmit (inline): timeout 20s/60s в зависимости от фото
-  8. submitWriteReview: timeout 20s/60s в зависимости от фото
+  ### Frontend:
+  - Admin reply images тоже через FileReader
+  - Увеличенные timeouts XHR
+  - Mobile CSS: better touch targets (star, remove, score btn, upload zone)
+  - avg_score: новый элемент #rvAvgScore в reviews header
+    - Показывает "★ X.X/10" средний рейтинг всех одобренных отзывов
 
-B. UX УЛУЧШЕНИЯ:
-  9. id="writeReviewSubmitBtn" на кнопке отправки
-  10. Счётчик оценки "X/10" рядом с лейблом "Оценка"
-  11. _rvStarUpdate: обновляет счётчик
-  12. Автофокус на textarea после открытия модала (задержка 350ms)
-  13. localStorage draft: сохраняет текст при вводе
-  14. localStorage draft: восстанавливает при открытии модала
-  15. localStorage draft: очищает после успешной отправки
+  ### Backend новое:
+  - get_avg_review_score() в repositories.py (SQL AVG)
+  - avg_score в /api/reviews response
 
-C. МОБИЛЬНЫЕ УЛУЧШЕНИЯ:
-  16. Touch swipe для lightbox (touchstart/touchend, порог 40px)
-  17. Ограничение 5MB на файл в обеих формах (toast при превышении)
-  18. Улучшенный error toast (показывает реальную ошибку сервера)
+  ## ПУШИ ЗА СЕССИЮ
+  1. static/index.html (SHA 018b0daa→a11653c5) — CSS + avg_score JS
+  2. freeapi/routes.py (SHA 3617→586f) — avg_score в API
+  3. freeapi/repositories.py (SHA 7b37→349c) — get_avg_review_score()
 
-=== СТАТУС (03:30 МСК) ===
+  ## СЛЕДУЮЩИЕ ВОЗМОЖНЫЕ УЛУЧШЕНИЯ
+  - keyboard viewport (env(safe-area-inset-bottom)) в модале
+  - Infinite scroll вместо пагинации
+  - Cabinet/notifications UX
+  - Chat flow проверка
+  - Review editing в кабинете (пользователь видит свой отзыв)
+  - Filter reviews by score range
 
-Все критические баги исправлены.
-Следующие шаги: проверить CSS, backend, другие части UI.
-Цель: к 10:00 МСК иметь максимально стабильный и удобный код.
-
-=================================================================
- ПРОДОЛЖЕНИЕ РАБОТЫ...
-=================================================================
+  ## ТЕХНИЧЕСКИЕ ЗАМЕТКИ
+  - rvXhr глобальная (вне IIFE), доступна откуда угодно
+  - Admin: ReZero
+  - Python не установлен — node.js для API
+  - Git push заблокирован, только GitHub API
+  
