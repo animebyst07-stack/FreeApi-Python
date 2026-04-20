@@ -829,7 +829,18 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .clt{color:#2e2e2e}.clm{color:#555}.cls-ok{color:#22c55e}.cls-err{color:#ef4444}.clms{color:#3a3a3a}.clq{color:#555;display:block;white-space:pre-wrap;word-break:break-all}.cla{color:#666;display:block;white-space:pre-wrap;word-break:break-all;padding-top:2px}
 .chat-logs-empty{padding:18px 14px;text-align:center;font-size:10px;color:#222;font-family:'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase}
 
-@media(max-width:640px){.container{padding:0 14px}.hero{padding-top:42px}.card-head{padding:14px 16px}.card-body{padding:16px}.chat-layout{height:calc(100dvh - 53px);min-height:420px}.chat-hdr{gap:6px}.chat-hdr-right{flex-shrink:0}.chat-select{max-width:140px}.stats-grid{grid-template-columns:1fr}.chat-msg{max-width:94%}.support-fullscreen{padding:0}.support-header{border-radius:0}}
+@media(max-width:640px){.container{padding:0 14px}.hero{padding-top:42px}.card-head{padding:14px 16px}.card-body{padding:16px}.chat-layout{height:calc(100dvh - 53px);min-height:420px}.chat-hdr{gap:6px}.chat-hdr-right{flex-shrink:0}.chat-select{max-width:140px}.stats-grid{grid-template-columns:1fr}.chat-msg{max-width:94%}.support-fullscreen{padding:0}.support-header{border-radius:0}
+  /* Улучшенные touch targets на мобиле */
+  .star-btn{padding:4px;min-width:28px;min-height:28px}
+  .img-upload-remove{width:22px;height:22px;font-size:11px}
+  .rv-score-btn{width:36px;height:36px;font-size:13px}
+  .img-upload-zone{min-height:60px}
+  /* Модал на мобиле */
+  .modal{padding:20px 16px;border-radius:14px}
+  .overlay{padding:12px}
+  /* Чуть меньше отступов в форме */
+  .fgroup{margin-bottom:14px}
+}
 .view{opacity:0;transition:opacity .25s ease}
 .view.active{opacity:1}
 
@@ -1991,7 +2002,10 @@ Rules:
   <!-- Лента отзывов -->
   <div class="rv-list-hdr">
     <h2>Все отзывы</h2>
-    <span class="rv-total" id="rvTotal"></span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span id="rvAvgScore" style="display:none;font-size:12px;color:#888;background:#0d0d0d;border:1px solid #1e1e1e;border-radius:7px;padding:2px 9px;font-family:inherit"></span>
+      <span class="rv-total" id="rvTotal"></span>
+    </div>
   </div>
   <div id="rvList"><div class="review-empty">Загрузка отзывов...</div></div>
   <div id="rvPagination" style="display:none;align-items:center;justify-content:center;gap:8px;margin-top:20px">
@@ -4912,6 +4926,13 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
       _rvPages=d.pages||1; _rvTotal=d.total||0;
       var tot=document.getElementById('rvTotal');
       if(tot) tot.textContent=_rvTotal?_rvTotal+' отзывов':'';
+      var avgEl=document.getElementById('rvAvgScore');
+      if(avgEl&&d.avg_score!=null){
+        avgEl.textContent='★ '+d.avg_score+'/10';
+        avgEl.style.display='inline';
+      } else if(avgEl){
+        avgEl.style.display='none';
+      }
       try{ rvRenderList(items); }catch(e){ console.error('[rvRenderList]',e); listEl.innerHTML='<div class="review-empty">Ошибка отображения отзывов</div>'; }
       var pag=document.getElementById('rvPagination');
       if(pag){
