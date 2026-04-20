@@ -569,15 +569,17 @@ def register_routes(app):
         from telethon.crypto import AuthKey
         # Check if SQLite file
         if data[:16] == b'SQLite format 3\x00':
+            fd, tmp = None, None
             try:
                 fd, tmp = _tmp.mkstemp(suffix='.session')
-                _os.close(fd)
+                _os.close(fd); fd = None
                 with open(tmp, 'wb') as wf:
                     wf.write(data)
                 conn = _sql.connect(tmp)
-                row = conn.execute('SELECT dc_id, server_address, port, auth_key FROM sessions LIMIT 1').fetchone()
-                conn.close()
-                _os.unlink(tmp)
+                try:
+                    row = conn.execute('SELECT dc_id, server_address, port, auth_key FROM sessions LIMIT 1').fetchone()
+                finally:
+                    conn.close()
                 if not row:
                     return error('Таблица sessions пуста', 400)
                 dc_id, server_address, port, auth_key_bytes = row
@@ -590,6 +592,11 @@ def register_routes(app):
                 return jsonify({'session_string': session_str})
             except Exception as exc:
                 return error(f'Ошибка чтения .session файла: {exc}', 400)
+            finally:
+                # Гарантированное удаление временного файла (защита от утечки данных)
+                if tmp and _os.path.exists(tmp):
+                    try: _os.unlink(tmp)
+                    except Exception: pass
         # Try as plain text StringSession
         try:
             text = data.decode('utf-8').strip()
