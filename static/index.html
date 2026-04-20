@@ -2070,12 +2070,12 @@ Rules:
   <h2 id="writeReviewTitle">Написать отзыв</h2>
   <p class="modal-sub">Ваш отзыв будет отправлен на модерацию</p>
   <div class="fgroup" style="margin-bottom:12px">
-    <label>Оценка</label>
+    <label style="display:flex;align-items:center;gap:8px">Оценка <span id="writeReviewScoreLabel" style="color:#ccc;background:#111;border:1px solid #222;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:600;min-width:32px;text-align:center">—</span></label>
     <div class="review-score-row" id="reviewScoreBtns"><button type="button" class="star-btn" data-score="1" onclick="window._rvStarUpdate(1)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="2" onclick="window._rvStarUpdate(2)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="3" onclick="window._rvStarUpdate(3)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="4" onclick="window._rvStarUpdate(4)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="5" onclick="window._rvStarUpdate(5)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="6" onclick="window._rvStarUpdate(6)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="7" onclick="window._rvStarUpdate(7)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="8" onclick="window._rvStarUpdate(8)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="9" onclick="window._rvStarUpdate(9)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button><button type="button" class="star-btn" data-score="10" onclick="window._rvStarUpdate(10)"><svg width="18" height="18" viewBox="0 0 24 24" class="star-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>
   </div>
   <div class="fgroup">
     <label>Текст отзыва</label>
-    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="var e=document.getElementById('writeReviewTextCount');if(e)e.textContent=this.value.length"></textarea>
+    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="var e=document.getElementById('writeReviewTextCount');if(e)e.textContent=this.value.length;try{localStorage.setItem('freeapi_review_draft',this.value);}catch(ex){}"></textarea>
     <div style="font-size:10px;color:#444;margin-top:4px;text-align:right"><span id="writeReviewTextCount">0</span>/1000</div>
   </div>
   <div class="fgroup">
@@ -2088,7 +2088,7 @@ Rules:
     <div class="img-upload-preview" id="writeReviewImgPreview"></div>
     <div class="img-upload-count" id="writeReviewImgCount"></div>
   </div>
-  <button class="btn btn-primary" style="width:100%;height:42px;margin-top:4px" onclick="submitWriteReview()">
+  <button class="btn btn-primary" id="writeReviewSubmitBtn" style="width:100%;height:42px;margin-top:4px" onclick="submitWriteReview()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     Отправить отзыв
   </button>
@@ -3343,16 +3343,21 @@ window.removeAdminReviewImg=function(rid,idx,previewId){
 };
 window.onAdminReviewFilesSelected=function(input,rid,previewId){
   var current=_adminReviewImgs[rid]||[];
-  var files=Array.from(input.files);
+  var files=Array.from(input.files||[]);
   var remaining=10-current.length;
-  if(remaining<=0){showToast('Максимум 10 фото','err');return;}
+  if(remaining<=0){showToast('Максимум 10 фото','err');input.value='';return;}
   files.slice(0,remaining).forEach(function(f){
-    compressImage(f,function(b64){
+    var reader=new FileReader();
+    reader.onerror=function(){showToast('Не удалось прочитать файл','err');};
+    reader.onload=function(ev){
+      var data=ev.target&&ev.target.result;
+      if(!data) return;
       if(!_adminReviewImgs[rid]) _adminReviewImgs[rid]=[];
-      _adminReviewImgs[rid].push(b64);
+      _adminReviewImgs[rid].push(data);
       var el=q(previewId);
       if(el) el.innerHTML=_adminReviewImgs[rid].map(function(src,i){return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeAdminReviewImg(\''+esc(rid)+'\','+i+',\''+esc(previewId)+'\')">×</div></div>';}).join('');
-    });
+    };
+    reader.readAsDataURL(f);
   });
   input.value='';
 };
@@ -4694,11 +4699,11 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
   var _rvPage=1,_rvPages=1,_rvTotal=0,_rvScore=0,_rvImgs=[];
 
   /* Универсальный XHR — работает на всех Android WebView */
-  function rvXhr(method,url,body,cb){
+  function rvXhr(method,url,body,cb,timeout){
     var xhr=new XMLHttpRequest();
     xhr.open(method,url,true);
     xhr.withCredentials=true;
-    xhr.timeout=12000;
+    xhr.timeout=timeout||12000;
     if(body){ xhr.setRequestHeader('Content-Type','application/json'); }
     xhr.ontimeout=function(){ cb(null,'timeout'); };
     xhr.onerror=function(){ cb(null,'network'); };
@@ -4783,10 +4788,10 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
       '<textarea class="rv-textarea" id="rvText" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="document.getElementById(&#39;rvCharCount&#39;).textContent=this.value.length"></textarea>'+
       '<div class="rv-char-count"><span id="rvCharCount">0</span> / 1000</div>'+
       '<div style="margin-top:14px;margin-bottom:8px;font-size:12px;color:#555">Фото <span style="color:#333">(до 10)</span></div>'+
+      '<label class="img-upload-zone" style="display:block;cursor:pointer;padding:10px;margin-top:0">'+
       '<input type="file" id="rvFileInput" accept="image/*" multiple style="display:none" onchange="rvOnFiles(this)">'+
-      '<div class="img-upload-zone" onclick="document.getElementById(&#39;rvFileInput&#39;).click()" style="padding:10px;margin-top:0">'+
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
-      '<p style="margin:4px 0 0">Выбрать фото</p></div>'+
+      '<p style="margin:4px 0 0">Выбрать фото</p></label>'+
       '<div class="img-upload-preview" id="rvImgPreview"></div>'+
       '<div class="rv-submit-row">'+
       '<button class="btn btn-primary" id="rvSubmitBtn" onclick="rvSubmit()">'+
@@ -4838,12 +4843,25 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
   window.rvRemoveImg=function(i){ _rvImgs.splice(i,1); rvRenderImgPreview(); };
 
   window.rvOnFiles=function(inp){
-    var files=Array.from(inp.files);
+    var files=Array.from(inp.files||[]);
+    if(!files.length){ inp.value=''; return; }
     var rem=10-_rvImgs.length;
-    if(rem<=0){ showToast('Максимум 10 фото','err'); return; }
-    files.slice(0,rem).forEach(function(f){
-      compressImage(f,function(b64){ _rvImgs.push(b64); rvRenderImgPreview(); });
+    if(rem<=0){ showToast('Максимум 10 фото','err'); inp.value=''; return; }
+    var MAX_SZ=5*1024*1024;
+    var skipped=0, toProc=files.slice(0,rem);
+    toProc.forEach(function(f){
+      if(f.size>MAX_SZ){ skipped++; return; }
+      var reader=new FileReader();
+      reader.onerror=function(){ showToast('Не удалось прочитать файл','err'); };
+      reader.onload=function(ev){
+        var data=ev.target&&ev.target.result;
+        if(!data) return;
+        _rvImgs.push(data);
+        rvRenderImgPreview();
+      };
+      reader.readAsDataURL(f);
     });
+    if(skipped>0) showToast(skipped+' файл(ов) пропущено — превышает 5 МБ','err');
     inp.value='';
   };
 
@@ -4854,14 +4872,18 @@ fetch('/api/auth/me',{credentials:'include'}).then(function(r){return r.json();}
     if(text.length<10){ showToast('Текст слишком короткий (минимум 10 символов)','err'); return; }
     if(text.length>1000){ showToast('Текст слишком длинный (максимум 1000 символов)','err'); return; }
     var btn=document.getElementById('rvSubmitBtn');
+    var _btnOrigHtml=btn?btn.innerHTML:'';
     if(btn){ btn.disabled=true; btn.textContent='Отправка...'; }
+    var _rvTimeout=_rvImgs.length>0?60000:20000;
     rvXhr('POST','/api/reviews',{score:_rvScore,text:text,images:_rvImgs},function(d,err){
-      if(btn){ btn.disabled=false; btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Отправить'; }
-      if(err){ showToast((d&&d.error)||'Ошибка соединения','err'); return; }
+      if(btn){ btn.disabled=false; btn.innerHTML=_btnOrigHtml; }
+      if(err){ showToast((d&&(d.message||d.error))||'Ошибка соединения ('+err+')','err'); return; }
+      if(d&&d.error){ showToast(d.message||d.error||'Ошибка','err'); return; }
+      try{localStorage.removeItem('freeapi_review_draft');}catch(e){}
       var status=d&&d.review&&d.review.status;
       showToast(status==='pending'?'Отзыв отправлен на модерацию':'Отзыв опубликован','ok');
-      rvLoadPage(1); loadReviews(); rvRenderWriteSection();
-    });
+      rvLoadPage(1); try{loadReviews();}catch(e){} rvRenderWriteSection();
+    },_rvTimeout);
   };
 
   function rvLoadPage(page){
@@ -4997,14 +5019,17 @@ var _writeReviewImgs=[];
 window._rvStarUpdate=function(score){
   _writeReviewScore=score;
   var sb=document.getElementById('reviewScoreBtns');
-  if(!sb) return;
-  sb.querySelectorAll('.star-btn').forEach(function(b){
-    var svg=b.querySelector('svg');
-    if(!svg) return;
-    var filled=(parseInt(b.dataset.score)||0)<=score;
-    svg.style.fill=filled?'#ffffff':'none';
-    svg.style.stroke=filled?'#ffffff':'#555555';
-  });
+  if(sb){
+    sb.querySelectorAll('.star-btn').forEach(function(b){
+      var svg=b.querySelector('svg');
+      if(!svg) return;
+      var filled=(parseInt(b.dataset.score)||0)<=score;
+      svg.style.fill=filled?'#ffffff':'none';
+      svg.style.stroke=filled?'#ffffff':'#555555';
+    });
+  }
+  var lbl=document.getElementById('writeReviewScoreLabel');
+  if(lbl) lbl.textContent=score?score+'/10':'—';
 };
 
 window.openWriteReviewModal=function(){
@@ -5012,29 +5037,36 @@ window.openWriteReviewModal=function(){
     _writeReviewScore=0;
     _writeReviewImgs=[];
     var ta=document.getElementById('writeReviewText');
-    if(ta){ta.value='';}
-    var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent='0';
+    /* Восстановить черновик из localStorage */
+    var draft='';
+    try{ draft=localStorage.getItem('freeapi_review_draft')||''; }catch(e){}
+    if(ta){ta.value=draft;}
+    var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent=draft.length||'0';
     var ip=document.getElementById('writeReviewImgPreview'); if(ip) ip.innerHTML='';
     var ic=document.getElementById('writeReviewImgCount'); if(ic) ic.textContent='';
     var fi=document.getElementById('writeReviewFileInput');
     if(fi){ fi.value=''; }
     window._rvStarUpdate(0);
-    /* Pre-fill if user already has a review */
+    /* Pre-fill if user already has a review (XHR — надёжно на Android) */
     try{
-      api('/api/reviews/mine').then(function(d){
-        if(d&&d.review){
+      rvXhr('GET','/api/reviews/mine',null,function(d,err){
+        if(!err&&d&&d.review){
           var r=d.review;
           if(r.score){ window._rvStarUpdate(r.score); }
-          if(r.text&&ta) ta.value=r.text;
-          var cc2=q('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length;
+          if(r.text&&ta){ ta.value=r.text; var cc2=q('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length; }
           try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_writeReviewImgs=imgs.slice();if(window.renderWriteReviewPreview)renderWriteReviewPreview();}catch(e){}
           var t=q('writeReviewTitle'); if(t) t.textContent='Редактировать отзыв';
         } else {
           var t=q('writeReviewTitle'); if(t) t.textContent='Написать отзыв';
         }
-      }).catch(function(){var t=q('writeReviewTitle');if(t)t.textContent='Написать отзыв';});
+      });
     }catch(e){}
     openModal('writeReviewModal');
+    /* Auto-focus textarea с небольшой задержкой (анимация открытия) */
+    setTimeout(function(){
+      var ta2=document.getElementById('writeReviewText');
+      if(ta2){ try{ ta2.focus(); }catch(e){} }
+    }, 350);
   } catch(e){ console.error('[openWriteReviewModal]',e); openModal('writeReviewModal'); }
 };
 
@@ -5044,17 +5076,25 @@ window.onWriteReviewFilesSelected=function(input){
   if(!files.length){ console.log('[PHOTO] файлы пустые, выход'); return; }
   var remaining=10-_writeReviewImgs.length;
   if(remaining<=0){showToast('Максимум 10 фото','err');input.value='';return;}
+  var MAX_FILE_SIZE=5*1024*1024; /* 5 МБ на файл */
   var toProcess=files.slice(0,remaining);
+  var skipped=0;
   console.log('[PHOTO] обрабатываем '+toProcess.length+' файл(ов)');
   toProcess.forEach(function(f,idx){
+    if(f.size>MAX_FILE_SIZE){
+      console.log('[PHOTO] файл '+idx+' слишком большой: '+f.size+' байт');
+      skipped++;
+      if(skipped===toProcess.length) showToast('Файл(ы) слишком большие (макс. 5 МБ)','err');
+      return;
+    }
     console.log('[PHOTO] FileReader запущен для файла '+idx+': '+f.name+' ('+f.size+' байт)');
     var reader=new FileReader();
     reader.onload=function(ev){
-      var data=ev.target.result;
+      var data=ev.target&&ev.target.result;
       console.log('[PHOTO] FileReader.onload idx='+idx+', data длина=', data ? data.length : 'null');
       if(!data){ console.log('[PHOTO] data пустой!'); return; }
       _writeReviewImgs.push(data);
-      console.log('[PHOTO] _writeReviewImgs теперь '+_writeReviewImgs.length+' шт, вызываем renderWriteReviewPreview');
+      console.log('[PHOTO] _writeReviewImgs теперь '+_writeReviewImgs.length+' шт');
       renderWriteReviewPreview();
     };
     reader.onerror=function(e){
@@ -5086,29 +5126,39 @@ window.removeWriteReviewImg=function(idx){
 window.submitWriteReview=function(){
   console.log('[SUBMIT] вызван, score='+_writeReviewScore+', imgs='+_writeReviewImgs.length);
   if(!_writeReviewScore){
-    console.log('[SUBMIT] нет оценки, показываем toast');
     showToast('Выберите оценку от 1 до 10','err');
     return;
   }
   var ta=q('writeReviewText');
   var text=(ta?ta.value:'').trim();
-  console.log('[SUBMIT] text.length='+text.length);
+  console.log('[SUBMIT] text.length='+text.length+', score='+_writeReviewScore);
   if(text.length<10){showToast('Текст слишком короткий (минимум 10 символов)','err');return;}
   if(text.length>1000){showToast('Текст слишком длинный (максимум 1000 символов)','err');return;}
-  console.log('[SUBMIT] отправляем POST /api/reviews...');
-  api('/api/reviews','POST',{score:_writeReviewScore,text:text,images:_writeReviewImgs}).then(function(d){
-    console.log('[SUBMIT] ответ сервера:', JSON.stringify(d).substring(0,200));
-    if(d.error){showToast(d.message||'Ошибка','err');return;}
+  var btn=document.getElementById('writeReviewSubmitBtn');
+  var _btnOrig=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.textContent='Отправка...';}
+  function _restoreBtn(){if(btn){btn.disabled=false;btn.innerHTML=_btnOrig;}}
+  console.log('[SUBMIT] отправляем POST /api/reviews через XHR...');
+  var _submitTimeout=_writeReviewImgs.length>0?60000:20000;
+  rvXhr('POST','/api/reviews',{score:_writeReviewScore,text:text,images:_writeReviewImgs},function(d,err){
+    if(err){
+      console.error('[SUBMIT] XHR ошибка:', err, d);
+      _restoreBtn();
+      showToast((d&&(d.message||d.error))||'Ошибка соединения ('+err+')','err');
+      return;
+    }
+    console.log('[SUBMIT] успех:', JSON.stringify(d).substring(0,200));
+    _restoreBtn();
+    if(d&&d.error){showToast(d.message||d.error||'Ошибка','err');return;}
+    try{localStorage.removeItem('freeapi_review_draft');}catch(e){}
     closeModal('writeReviewModal');
-    var status=d.review&&d.review.status;
+    var status=d&&d.review&&d.review.status;
     if(status==='pending') showToast('Отзыв отправлен на модерацию','ok');
     else showToast('Отзыв опубликован','ok');
-    loadReviews();
-    rvLoadPage(_rvPage||1);
-  }).catch(function(err){
-    console.error('[SUBMIT] ошибка fetch:', err);
-    showToast('Ошибка соединения','err');
-  });
+    try{loadReviews();}catch(e){}
+    try{rvLoadPage(_rvPage||1);}catch(e){}
+    try{rvRenderWriteSection();}catch(e){}
+  },_submitTimeout);
 };
 
 /* ═══════════════════════════════════════
@@ -5154,6 +5204,25 @@ window.openLightbox=function(imgs,idx){
   q('imageLightbox').classList.add('open');
   document.addEventListener('keydown',_lbKeyHandler);
 };
+
+/* Touch swipe для lightbox на мобиле */
+(function(){
+  var _tx=0,_ty=0;
+  document.addEventListener('touchstart',function(e){
+    var lb=q('imageLightbox');
+    if(!lb||!lb.classList.contains('open')) return;
+    _tx=e.touches[0].clientX; _ty=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchend',function(e){
+    var lb=q('imageLightbox');
+    if(!lb||!lb.classList.contains('open')) return;
+    var dx=e.changedTouches[0].clientX-_tx;
+    var dy=e.changedTouches[0].clientY-_ty;
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>40){
+      navLightbox(dx<0?1:-1);
+    }
+  },{passive:true});
+})();
 
 function updateLightbox(){
   var lb=q('imageLightbox');
