@@ -1061,7 +1061,7 @@ body.view-no-scroll{overflow:hidden}
 <section class="land reveal" id="reviews-section">
 <div class="container">
   <div class="sec-head" style="margin-bottom:20px">
-    <h2>Отзывы о сайте</h2>
+    <h2>Отзывы о сайте <span id="landingAvgScore" style="display:none;font-size:13px;color:#888;background:#0d0d0d;border:1px solid #1e1e1e;border-radius:7px;padding:2px 9px;font-weight:400;vertical-align:middle;margin-left:6px"></span></h2>
     <p>Публичная лента с автономной AI-модерацией</p>
     <button class="btn btn-outline btn-sm" onclick="goView('reviews')" style="margin-top:14px">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -3208,6 +3208,10 @@ function loadReviews(page){
       return;
     }
     renderReviews(d.reviews||[]);
+    /* Показываем средний рейтинг на лендинге */
+    var las=q('landingAvgScore');
+    if(las&&d.avg_score!=null){ las.textContent='★ '+d.avg_score+'/10'; las.style.display='inline'; }
+    else if(las){ las.style.display='none'; }
     _reviewsPages=d.pages||1;
     var pag=q('reviewsPagination');
     if(pag){
