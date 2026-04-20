@@ -1,0 +1,85 @@
+=================================================================
+ ПЛАН АВТОНОМНОЙ СЕССИИ — FreeApi-Python
+ Начало: ~02:52 МСК 20 апреля 2026
+ Конец:  10:00 МСК 20 апреля 2026
+=================================================================
+
+ЦЕЛЬ: Исправить баги + улучшить проект
+
+=================================================================
+АУДИТ ПРОЕКТА
+=================================================================
+Стек: Flask + SQLite + Telethon, single-page HTML (~5230 строк)
+Среда: Termux (Android), Cloudflare Tunnel для публичного URL
+Особенность: использует rvXhr (XMLHttpRequest), а НЕ fetch()
+  → fetch() может ненадёжно работать на Android WebView/Termux
+  → Автор уже знал об этом и написал rvXhr специально
+
+НАЙДЕННЫЕ БАГИ:
+1. submitWriteReview() использует api() [fetch] — НЕ работает на Android
+   → Исправление: переписать через rvXhr()
+2. onWriteReviewFilesSelected() использует compressImage [canvas]
+   → canvas.toDataURL() может падать на мобильном браузере
+   → Исправление: FileReader.readAsDataURL() напрямую (уже сделано)
+3. writeReviewFileInput: был display:none + pointer-events:none
+   → pointer-events:none мешало событиям
+   → Исправление: <label> wrapping input (уже сделано в последнем push)
+4. rvOnFiles() в inline форме тоже использует compressImage + onclick
+   → Та же проблема что и в модальной форме
+5. Звёзды 28px × 10 = не помещаются на мобиле
+   → Исправлено: 18px
+
+=================================================================
+ЗАДАЧИ
+=================================================================
+
+T001 [КРИТИЧНО] submitWriteReview: api() → rvXhr()
+  Файл: static/index.html ~5087
+  Причина: fetch не работает стабильно на Android WebView
+
+T002 [КРИТИЧНО] rvOnFiles: compressImage → FileReader + label wrap
+  Файл: static/index.html ~4787, 4840
+  Причина: та же что в T001 + canvas проблема
+
+T003 [УЛУЧШЕНИЕ] Индикатор загрузки на кнопке отправки (modal)
+  + предотвращение двойной отправки
+
+T004 [УЛУЧШЕНИЕ] Показ текущей оценки числом "7/10" при выборе звёзд
+
+T005 [УЛУЧШЕНИЕ] Исправить auto-scroll модала на мобиле
+  modal max-height: 90vh но кнопка уходит за экран если клавиатура открыта
+
+T006 [УЛУЧШЕНИЕ] Улучшить отображение фото в отзывах (lightbox)
+
+T007 [УЛУЧШЕНИЕ] Авто-сохранение черновика отзыва в localStorage
+
+T008 [УЛУЧШЕНИЕ] Качественная компрессия картинок с надёжным fallback
+  (canvas с fallback на сырой FileReader)
+
+T009 [БАГ?] Проверить create_review - уже есть review у пользователя?
+  Нет - репо делает UPSERT, это OK
+
+T010 [ПЛАН] Записать контекст в файл
+
+=================================================================
+ВЫПОЛНЕНО ДО ЭТОЙ СЕССИИ (предыдущие пуши):
+=================================================================
+✅ Звёзды 28px → 18px, gap 2→1px
+✅ writeReviewFileInput: label wrapping input (display:none внутри label)
+✅ onWriteReviewFilesSelected: FileReader вместо compressImage
+✅ Убран дублирующий addEventListener в openWriteReviewModal
+✅ Добавлены console.log [PHOTO], [PREVIEW], [SUBMIT] для отладки
+✅ Добавлен .catch() в api() вызов
+
+=================================================================
+ПРОГРЕСС
+=================================================================
+[ ] T001 submitWriteReview → rvXhr
+[ ] T002 rvOnFiles fix
+[ ] T003 loading state modal
+[ ] T004 score display
+[ ] T005 modal scroll fix
+[ ] T006 lightbox improvement
+[ ] T007 localStorage draft
+[ ] T008 robust compression
+[ ] T010 context file
