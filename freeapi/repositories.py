@@ -228,6 +228,17 @@ def get_approved_reviews(limit=10, offset=0):
         return items, total
 
 
+def get_avg_review_score():
+    """Возвращает средний рейтинг всех одобренных отзывов, округлённый до 1 знака."""
+    with db() as conn:
+        row = conn.execute(
+            "SELECT ROUND(AVG(score), 1) AS avg FROM reviews WHERE status IN ('approved', 'flagged')"
+        ).fetchone()
+        if row and row['avg'] is not None:
+            return float(row['avg'])
+        return None
+
+
 def get_pending_reviews():
     with db() as conn:
         return rows(conn.execute(
