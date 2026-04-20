@@ -6,25 +6,13 @@
   не гарантированно вызывает onchange. Это стандартный баг Android WebView.
 
 МЕСТА В КОДЕ:
-  1) Модальное окно writeReviewModal (строки 2097-2098):
-     <label class="img-upload-zone" id="writeReviewUploadZone" ...>
-       <input type="file" id="writeReviewFileInput" ... style="display:none" onchange="...">
-  2) Секция rvRenderWriteSection (строки 4838-4839):
-     Аналогичная конструкция с rvFileInput
+  1) Модальное окно writeReviewModal
+  2) Секция rvRenderWriteSection
 
-РЕШЕНИЕ:
-  a) Убрать display:none с file input — заменить на позиционирование за пределами видимости
-     (position:absolute; opacity:0; width:1px; height:1px; left:-9999px)
-     ИЛИ сделать зону кликабельным div/button, который вызывает fileInput.click()
-  b) Добавить addEventListener('change', ...) как дублирующий механизм поверх onchange
-  c) Использовать железобетонный FileReader с полными console.log на каждом шаге
-  d) Убедиться что renderWriteReviewPreview() находит элемент и обновляет DOM
+РЕШЕНИЕ (ПРИМЕНЕНО):
+  a) position:absolute;opacity:0;width:1px;height:1px;left:-9999px — вместо display:none
+  b) Зона загрузки — кликабельный div с onclick вместо label
+  c) addEventListener('change') как дублёр onchange
+  d) Полные console.log на каждом шаге для отладки
 
-ШАГИ ВЫПОЛНЕНИЯ:
-  1. Изменить HTML модального окна — убрать display:none у file input
-  2. Перевести зону загрузки в div/button с onclick="document.getElementById('writeReviewFileInput').click()"
-  3. Привязать обработчик через addEventListener в openWriteReviewModal()
-  4. Обновить аналогичную секцию rvRenderWriteSection
-  5. git push
-
-СТАТУС: ВЫПОЛНЯЕТСЯ
+СТАТУС: ✅ ЗАВЕРШЁН (commit c4937722)
