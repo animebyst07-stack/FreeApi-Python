@@ -2706,14 +2706,20 @@ window.importSessionFile=function(input){
   unlockSidebarScrollIfClosed();
   var form=new FormData();
   form.append('file',file);
-  fetch('/api/tg/session/import',{method:'POST',body:form})
-  .then(function(r){return r.json();})
-  .then(function(d){
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST','/api/tg/session/import',true);
+  xhr.withCredentials=true;
+  xhr.timeout=20000;
+  xhr.ontimeout=function(){ showToast('Таймаут при загрузке файла','err'); unlockSidebarScrollIfClosed(); };
+  xhr.onerror=function(){ showToast('Ошибка сети при загрузке файла','err'); unlockSidebarScrollIfClosed(); };
+  xhr.onload=function(){
+    unlockSidebarScrollIfClosed();
+    var d={}; try{ d=JSON.parse(xhr.responseText); }catch(e){}
     if(d.error){showToast(d.message||'Ошибка чтения файла','err');return;}
     q('sSession').value=d.session_string||'';
     showToast('Файл сессии загружен','ok');
-  }).catch(function(){showToast('Ошибка при загрузке файла','err');})
-  .then(function(){unlockSidebarScrollIfClosed();});
+  };
+  xhr.send(form);
   input.value='';
   input.blur();
 };
