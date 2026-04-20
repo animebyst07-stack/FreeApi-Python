@@ -1,61 +1,54 @@
-# CONTEXT — Автономная сессия агента
-  Дата/время: ~07:00 UTC (10:00 МСК) — автономная работа
+# CONTEXT — Автономная сессия агента (ФИНАЛ)
+  Дата: 20 апреля 2026, ~07:00-10:00 МСК
   Репо: animebyst07-stack/FreeApi-Python
   Язык: строго русский
 
-  ## ВСЕ ЗАДАЧИ ВЫПОЛНЕНЫ
+  ## ИТОГОВЫЙ СТАТУС: ВСЕХ ЗАДАЧИ ВЫПОЛНЕНЫ ✅
 
-  ### ОСНОВНЫЕ (из плана T001-T010):
-  - T001 submitWriteReview api()→rvXhr ✓
-  - T002 compressImage FileReader + label wrap ✓
-  - T003 Loading state кнопки ✓
-  - T004 Счётчик оценки "X/10" ✓
-  - T005 Modal CSS mobile: padding, border-radius, touch targets (частично) ✓
-  - T006 Lightbox touch swipe ✓
-  - T007 localStorage draft ✓
-  - T008 5MB лимит файлов ✓
-  - T009 UPSERT проверен ✓
-  - T010 Context file ✓
-
-  ### ДОПОЛНИТЕЛЬНЫЕ (сверх плана):
+  ## ПРЕДЫДУЩАЯ СЕССИЯ (было сделано до этой части):
+  - submitWriteReview api()→rvXhr ✓
+  - compressImage→FileReader + label wrap ✓
+  - Loading state кнопки отправки ✓
+  - Счётчик оценки "X/10" ✓
+  - Lightbox touch swipe (40px порог) ✓
+  - localStorage draft (save/restore/clear) ✓
+  - 5MB лимит файлов ✓
   - Backend MAX_CONTENT_LENGTH 150MB ✓
   - Server-side base64 validation (7MB) ✓
   - Admin reply FileReader ✓
-  - XHR timeouts: 20s обычный / 60s submit ✓
-  - Mobile CSS: min-h touch targets (.star-btn, .img-upload-remove, .rv-score-btn) ✓
-  - avg_score: repositories.py get_avg_review_score() ✓
-  - avg_score в /api/reviews response (routes.py) ✓
-  - avg_score отображение "★ X.X/10" в reviews header ✓
+  - XHR timeouts: 20s/60s ✓
 
-  ### ПОЛНАЯ МИГРАЦИЯ FETCH → XHR (новое в этой части сессии):
-  - loadReviews() fetch→rvXhr ✓
-  - auth/me init fetch→rvXhr ✓
-  - logout fetch→rvXhr ✓
-  - importSessionFile fetch→XHR FormData ✓
-  - api() функция — полный рефакторинг: Promise-wrapped XHR (покрывает login/register/cabinet/chat/dashboard) ✓
-  - РЕЗУЛЬТАТ: ни одного raw fetch() в продакшн коде ✓
+  ## ЭТА ЧАСТЬ СЕССИИ — ВСЕ ИЗМЕНЕНИЯ:
 
-  ## ПУШИ ЗА СЕССИЮ
-  1. repositories.py — get_avg_review_score()
-  2. routes.py — avg_score в /api/reviews
-  3. index.html — mobile CSS + avg_score display
-  4. index.html — loadReviews + auth/me init → rvXhr (исправлены аргументы cb)
-  5. index.html — logout → rvXhr
-  6. index.html — api() полностью на XHR (Promise wrapper)
-  7. index.html — importSessionFile → XHR FormData
-  8. context.txt — обновление
+  ### Новые фичи:
+  1. **avg_score в API** — repositories.py: get_avg_review_score()
+  2. **avg_score в /api/reviews** — routes.py: добавлен avg_score в ответ
+  3. **avg_score в reviews view** — "★ X.X/10" в header reviews page (#rvAvgScore)
+  4. **avg_score на лендинге** — "★ X.X/10" в заголовке секции отзывов (#landingAvgScore)
+  5. **Цветные оценки** — review карточки: зелёный (7-10), оранжевый (4-6), красный (1-3)
+  6. **Статус своего отзыва** — _rvRenderWriteBar() показывает "Ваш отзыв: 9/10 · ✓ Опубликован"
+  7. **Mobile CSS** — улучшенные touch targets: star-btn, img-upload-remove, rv-score-btn
+
+  ### ПОЛНАЯ МИГРАЦИЯ FETCH → XHR:
+  8. **loadReviews()** fetch→rvXhr ✓
+  9. **auth/me init** fetch→rvXhr ✓
+  10. **logout** fetch→rvXhr ✓
+  11. **importSessionFile** fetch→XHR FormData ✓
+  12. **api()** ПОЛНЫЙ РЕФАКТОРИНГ → Promise(XHR) внутри (покрывает login/register/cabinet/chat/dashboard/всё)
+
+  ### ИТОГ: ни одного raw fetch() в продакшн коде
 
   ## ТЕХНИЧЕСКИЕ ЗАМЕТКИ
-  - rvXhr callback signature: cb(data, err) — НЕ (err, data)!
+  - rvXhr callback: cb(data, err) — НЕ (err, data)! Важно для всех новых вызовов
   - api() возвращает Promise, catch() ловит timeout+network errors
-  - TG session import использует FormData — нет Content-Type header, XHR сам ставит boundary
-  - rvXhr — function declaration, hoisted глобально (вне IIFE)
+  - rvXhr — function declaration, hoisted глобально (вне IIFE), доступна из init кода
+  - TG import: FormData — Content-Type НЕ ставить вручную, XHR сам установит boundary
   - Admin: ReZero
 
-  ## СЛЕДУЮЩИЕ ВОЗМОЖНЫЕ УЛУЧШЕНИЯ
-  - env(safe-area-inset-bottom) для modal на iOS
+  ## ВОЗМОЖНЫЕ ДАЛЬНЕЙШИЕ УЛУЧШЕНИЯ
+  - env(safe-area-inset-bottom) для modal на iOS/Android с кнопкой навигации
   - Infinite scroll вместо пагинации отзывов
-  - Review edit в кабинете
-  - Filter по оценке в reviews
+  - Review edit в личном кабинете (сейчас редактирование только через reviews view)
+  - Filter по оценке в ленте отзывов
   - Chat UX improvements
   
