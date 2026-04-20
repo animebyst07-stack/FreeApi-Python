@@ -1040,6 +1040,9 @@ def register_routes(app):
         images = data.get('images') or []
         if not isinstance(images, list):
             images = []
+        # Фильтруем невалидные изображения (max 7MB base64 на файл ≈ 5MB raw)
+        MAX_IMG_B64 = 7 * 1024 * 1024  # 7MB base64
+        images = [img for img in images if isinstance(img, str) and len(img) <= MAX_IMG_B64]
         images = images[:10]
         agent_ready = repo.get_admin_setting('agent_enabled', '0') == '1' and bool(repo.get_admin_setting('agent_key_id', ''))
         if is_admin:
@@ -1083,6 +1086,8 @@ def register_routes(app):
         if admin_images is not None:
             if not isinstance(admin_images, list):
                 admin_images = []
+            MAX_IMG_B64 = 7 * 1024 * 1024
+            admin_images = [img for img in admin_images if isinstance(img, str) and len(img) <= MAX_IMG_B64]
             admin_images = admin_images[:10]
         review = repo.update_review_status(review_id, status, ai_response=ai_response, admin_images=admin_images)
         return jsonify({'review': review})
