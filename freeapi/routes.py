@@ -1002,7 +1002,14 @@ def register_routes(app):
         limit = 10
         offset = (page - 1) * limit
         items, total = repo.get_approved_reviews(limit=limit, offset=offset)
-        return jsonify({'reviews': items, 'total': total, 'page': page, 'pages': max(1, (total + limit - 1) // limit)})
+        avg_score = repo.get_avg_review_score()
+        return jsonify({
+            'reviews': items,
+            'total': total,
+            'page': page,
+            'pages': max(1, (total + limit - 1) // limit),
+            'avg_score': avg_score,
+        })
 
     @app.get('/api/reviews/mine')
     def get_my_review():
