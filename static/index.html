@@ -3489,21 +3489,30 @@ io.observe(q('stats-section'));
 
 /* ───────────── UTILS ───────────── */
 function api(url,method,body){
-  var o={method:method||'GET',headers:{},credentials:'include'};
-  if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body);}
-  return fetch(url,o).then(function(r){
-    return r.text().then(function(text){
-      var data=text?JSON.parse(text):{};
-      if(r.status===401&&user){
-        user=null;
-        accountState=null;
-        updateSidebar();
-        if(['dashboard','cabinet','chat','admin'].some(function(v){return document.getElementById('view-'+v).classList.contains('active');})) goView('landing');
+  /* XHR-based реализация — надёжна в Android WebView/Termux, возвращает Promise */
+  return new Promise(function(resolve,reject){
+    var xhr=new XMLHttpRequest();
+    xhr.open(method||'GET',url,true);
+    xhr.withCredentials=true;
+    xhr.timeout=15000;
+    if(body){ xhr.setRequestHeader('Content-Type','application/json'); }
+    xhr.ontimeout=function(){ reject(new Error('timeout')); };
+    xhr.onerror=function(){ reject(new Error('network')); };
+    xhr.onload=function(){
+      var data={};
+      try{ if(xhr.responseText) data=JSON.parse(xhr.responseText); }catch(e){}
+      if(xhr.status===401&&user){
+        user=null; accountState=null; updateSidebar();
+        if(['dashboard','cabinet','chat','admin'].some(function(v){
+          var el=document.getElementById('view-'+v);
+          return el&&el.classList.contains('active');
+        })) goView('landing');
         showToast('Сессия истекла. Войдите снова.','err');
       }
-      if(!r.ok&&data&&typeof data==='object') data.status=r.status;
-      return data;
-    });
+      if(xhr.status<200||xhr.status>=300){ if(typeof data==='object') data.status=xhr.status; }
+      resolve(data);
+    };
+    xhr.send(body?JSON.stringify(body):null);
   });
 }
 function q(id){return document.getElementById(id);}
