@@ -123,6 +123,14 @@ def create_app():
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
 
+        # КРИТИЧНО для Android WebView (Termux): запрет кэширования HTML и SW.
+        # Без этого WebView держит старый index.html до 12ч, и фиксы не применяются.
+        ctype = (response.content_type or '').lower()
+        if 'text/html' in ctype or request.path == '/' or request.path.endswith('.html'):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+
         if request.path.endswith('/status') and 'text/event-stream' in response.content_type:
             response.headers['X-Accel-Buffering'] = 'no'
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
