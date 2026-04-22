@@ -41,6 +41,29 @@ def _is_static_asset(path: str) -> bool:
     return ext.lower() in _STATIC_EXTENSIONS
 
 
+# (limit, window_sec) per endpoint group. Применяется в before_request.
+_RATE_LIMIT_RULES = (
+    # auth
+    (('POST',), ('/api/auth/login', '/api/auth/register'), 10, 60),
+    # отзывы — создание/редактирование/удаление, лайки
+    (('POST', 'PUT', 'PATCH', 'DELETE'), ('/api/reviews',), 20, 60),
+    # support чат — отправка сообщений
+    (('POST',), ('/api/support/',), 30, 60),
+    # тестовый chat playground
+    (('POST',), ('/api/chat/test', '/api/v1/chat/completions'), 30, 60),
+)
+
+
+def _rate_limit_for(path: str, method: str):
+    for methods, prefixes, limit, window in _RATE_LIMIT_RULES:
+        if method not in methods:
+            continue
+        for prefix in prefixes:
+            if path == prefix or path.startswith(prefix.rstrip('/') + '/'):
+                return (limit, window)
+    return None
+
+
 def _get_allowed_origins():
     origins_env = os.environ.get('ALLOWED_ORIGINS', '')
     if origins_env:
@@ -84,9 +107,11 @@ def create_app():
 
         if path.startswith('/api/'):
             ip = request.remote_addr or request.headers.get('CF-Connecting-IP', '0.0.0.0')
-            if path in ('/api/auth/login', '/api/auth/register'):
-                if not check_rate_limit(ip, path, limit=10, window=60):
-                    logger.warning('[RateLimit] Заблокирован %s → %s', ip, path)
+            limits = _rate_limit_for(path, request.method)
+            if limits is not None:
+                limit, window = limits
+                if not check_rate_limit(ip, path, limit=limit, window=window):
+                    logger.warning('[RateLimit] Заблокирован %s → %s (limit=%d/%ds)', ip, path, limit, window)
                     return jsonify({'error': True, 'message': 'Слишком много запросов. Попробуйте позже.', 'log_code': 'RATE_LIMIT_429'}), 429
             return None
 
