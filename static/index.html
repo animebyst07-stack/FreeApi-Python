@@ -3389,17 +3389,6 @@ window.changeReviewsPage=function(delta){
   var sec=q('reviews-section');
   if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
 };
-function renderReviewImgs(imgs,baseId){
-  if(!imgs||!imgs.length) return '';
-  var show=imgs.slice(0,4),more=imgs.length-4;
-  var html='<div class="review-imgs">';
-  show.forEach(function(src,i){
-    html+='<div class="review-img-thumb" onclick="openLightbox('+JSON.stringify(imgs)+','+i+')"><img src="'+src+'" alt="фото" loading="lazy"></div>';
-  });
-  if(more>0) html+='<div class="review-img-more" onclick="openLightbox('+JSON.stringify(imgs)+',4)">+'+more+'</div>';
-  html+='</div>';
-  return html;
-}
 function renderReviews(items){
   var list=q('reviewsList');
   if(!items.length){list.innerHTML='<div class="review-empty">Пока нет опубликованных отзывов. Станьте первым — оставьте отзыв в разделе «Отзывы» после авторизации.</div>';return;}
@@ -3721,12 +3710,6 @@ window.saveAdminReviewResp=function(rid,status){
 window.deleteAdminNotification=function(id){api('/api/admin/notifications/'+id,'DELETE').then(function(){loadAdmin();showToast('Уведомление удалено','ok');});};
 window.deleteAdminReview=function(id){customConfirm('Удаление отзыва','Удалить этот отзыв?').then(function(ok){if(!ok)return;api('/api/reviews/'+id,'DELETE').then(function(){loadAdmin();loadReviews();showToast('Отзыв удалён','ok');});});};
 window.setReviewStatus=function(id,status){api('/api/reviews/'+id+'/status','PUT',{status:status}).then(function(){loadAdmin();loadReviews();showToast('Статус обновлён','ok');});};
-function formatDate(v){
-  if(!v)return '—';
-  var d=new Date(String(v).replace(' ','T'));
-  if(isNaN(d.getTime()))return String(v);
-  return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
-}
 
 /* ───────────── DOCS ───────────── */
 window.setDocsSection=function(id,btn){
@@ -3863,8 +3846,6 @@ function api(url,method,body){
     xhr.send(body?JSON.stringify(body):null);
   });
 }
-function q(id){return document.getElementById(id);}
-function esc(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
 
 /* ───────────── SESSION DOWNLOAD PER KEY ───────────── */
 window.downloadKeySession=function(keyId,keyName){
