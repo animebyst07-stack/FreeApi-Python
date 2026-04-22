@@ -116,7 +116,7 @@
   </div>
   <div style="display:flex;align-items:center;margin-left:auto">
     <button class="topbar-bell" id="topbarBell" type="button" onclick="goView('notifications')" aria-label="Уведомления" title="Уведомления">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"/></svg>
       <span class="topbar-bell-badge" id="topbarBellBadge" style="display:none">0</span>
     </button>
     <div class="hamburger" id="hamburger" onclick="toggleSidebar()">
@@ -444,7 +444,7 @@
 <div class="container notif-page">
   <div class="notif-head">
     <h2>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"/></svg>
       Уведомления
       <span class="nh-cnt" id="notifPageUnread" style="display:none">0</span>
     </h2>
@@ -520,7 +520,7 @@
     <select id="chatKeySelect" class="chat-select" onchange="onChatKeyChange()" style="display:none">
       <option value="">— Выберите ключ —</option>
     </select>
-    <div class="custom-select-wrap" id="chatKeySelectWrap" style="min-width:0;width:140px;flex-shrink:1">
+    <div class="custom-select-wrap" id="chatKeySelectWrap" style="min-width:0;flex:1 1 0">
       <div class="custom-select-trigger" tabindex="0" onclick="toggleCustomSelect('chatKeySelectWrap')">
         <span class="custom-select-label" id="chatKeyLabel">— Выберите ключ —</span>
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -528,7 +528,7 @@
       <div class="custom-select-dropdown" id="chatKeyDropdown"></div>
     </div>
     <select id="chatModelSelect" class="chat-select" onchange="onChatModelChange()" style="display:none;max-width:220px"></select>
-    <div class="custom-select-wrap" id="chatModelSelectWrap" style="min-width:0;flex:1;flex-shrink:1">
+    <div class="custom-select-wrap" id="chatModelSelectWrap" style="min-width:0;flex:1 1 0">
       <div class="custom-select-trigger" tabindex="0" onclick="toggleCustomSelect('chatModelSelectWrap')">
         <span class="custom-select-label" id="chatModelLabel">Модель</span>
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -2731,22 +2731,36 @@ function renderAdminReviews(items){
     var imgs=[];try{imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);}catch(e){}
     var adminImgs=[];try{adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]);}catch(e){}
     _adminReviewImgs[r.id]=adminImgs.slice();
-    var imgsHtml=imgs.length?'<div style="margin:6px 0">'+renderReviewImgs(imgs)+'</div>':'';
+    var statusCls='s-'+esc(r.status||'pending');
+    var imgsHtml=imgs.length?'<div class="admin-item-imgs">'+imgs.map(function(src){return '<img src="'+src+'" alt="">';}).join('')+'</div>':'';
     var adminImgsPreviewId='adminRImgPreview_'+r.id;
-    var adminImgsHtml='<div class="img-upload-preview" id="'+adminImgsPreviewId+'">'+adminImgs.map(function(src,i){return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeAdminReviewImg(\''+esc(r.id)+'\','+i+',\''+adminImgsPreviewId+'\')">×</div></div>';}).join('')+'</div>';
+    var adminImgsHtml='<div class="img-upload-preview" id="'+adminImgsPreviewId+'" style="margin-top:4px">'+adminImgs.map(function(src,i){return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeAdminReviewImg(\''+esc(r.id)+'\','+i+',\''+adminImgsPreviewId+'\')">×</div></div>';}).join('')+'</div>';
     return '<div class="admin-item">'+
-      '<div class="admin-item-head"><span>'+esc(r.username)+' · '+esc(r.score)+'/10 · '+esc(r.status)+'</span>'+
-      '<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-xs" onclick="setReviewStatus(\''+esc(r.id)+'\',\'approved\')">Одобрить</button><button class="btn btn-ghost btn-xs btn-danger" onclick="deleteAdminReview(\''+esc(r.id)+'\')">Удалить</button></div></div>'+
+      '<div class="admin-item-head">'+
+        '<div class="admin-item-meta">'+
+          '<span class="ai-name">'+esc(r.username)+'</span>'+
+          '<span class="ai-score">★ '+esc(r.score)+'/10</span>'+
+          '<span class="ai-status '+statusCls+'">'+esc(r.status||'pending')+'</span>'+
+        '</div>'+
+        '<div class="admin-item-actions">'+
+          '<button class="btn btn-ghost btn-xs" onclick="setReviewStatus(\''+esc(r.id)+'\',\'approved\')">Одобрить</button>'+
+          '<button class="btn btn-ghost btn-xs btn-danger" onclick="deleteAdminReview(\''+esc(r.id)+'\')">Удалить</button>'+
+        '</div>'+
+      '</div>'+
       '<div class="admin-mini">'+formatDate(r.updated_at||r.created_at)+'</div>'+
       '<div class="admin-item-body">'+esc(r.text||'')+'</div>'+imgsHtml+
-      '<div style="margin-top:8px;font-size:11px;color:#555;margin-bottom:4px">Ответ (ai_response):</div>'+
-      '<textarea id="adminResp_'+esc(r.id)+'" rows="2" style="width:100%;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:7px 10px;font-size:12px;color:#aaa;resize:vertical;font-family:inherit" placeholder="Введите ответ..." onchange="">'+esc(r.ai_response||'')+'</textarea>'+
-      '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
-      '<label style="font-size:11px;color:#555;cursor:pointer;border:1px dashed #1e1e1e;border-radius:6px;padding:4px 10px;background:#070707;transition:all .15s" onmouseover="this.style.borderColor=\'#444\'" onmouseout="this.style.borderColor=\'#1e1e1e\'">'+
-      '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
-      ' Фото к ответу<input type="file" accept="image/*" multiple style="display:none" onchange="onAdminReviewFilesSelected(this,\''+esc(r.id)+'\',\''+adminImgsPreviewId+'\')"></label>'+
-      '<button class="btn btn-ghost btn-xs" onclick="saveAdminReviewResp(\''+esc(r.id)+'\',\'approved\')">Сохранить и одобрить</button>'+
-      '</div>'+adminImgsHtml+
+      '<div class="admin-item-reply">'+
+        '<div class="admin-item-reply-label">Ответ (ai_response)</div>'+
+        '<textarea id="adminResp_'+esc(r.id)+'" rows="2" placeholder="Введите ответ...">'+esc(r.ai_response||'')+'</textarea>'+
+        '<div class="admin-item-reply-toolbar">'+
+          '<label style="font-size:11px;color:#888;cursor:pointer;border:1px dashed #2a2a2a;border-radius:7px;padding:5px 11px;background:#070707;display:inline-flex;align-items:center;gap:6px;transition:all .15s" onmouseover="this.style.borderColor=\'#444\'" onmouseout="this.style.borderColor=\'#2a2a2a\'">'+
+            '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'+
+            ' Фото к ответу<input type="file" accept="image/*" multiple style="display:none" onchange="onAdminReviewFilesSelected(this,\''+esc(r.id)+'\',\''+adminImgsPreviewId+'\')">'+
+          '</label>'+
+          '<button class="btn btn-ghost btn-xs" onclick="saveAdminReviewResp(\''+esc(r.id)+'\',\'approved\')">Сохранить и одобрить</button>'+
+        '</div>'+
+        adminImgsHtml+
+      '</div>'+
       '</div>';
   }).join('');
 }
