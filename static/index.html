@@ -5160,7 +5160,7 @@ window.openWriteReviewModal=function(){
         if(!err&&d&&d.review){
           var r=d.review;
           if(r.score){ window._rvStarUpdate(r.score); }
-          if(r.text&&ta){ ta.value=r.text; var cc2=q('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length; }
+          if(r.text&&ta){ ta.value=r.text; var cc2=document.getElementById('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length; }
           try{
             var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);
             /* КРИТИЧНО: если юзер уже успел добавить новое фото — НЕ перетираем */
@@ -5172,9 +5172,9 @@ window.openWriteReviewModal=function(){
               clog('REVIEW_MODAL','юзер уже добавил фото — не перетираем (имеется '+_writeReviewImgs.length+')','warn');
             }
           }catch(e){ clog('REVIEW_MODAL','parse images err: '+e,'error'); }
-          var t=q('writeReviewTitle'); if(t) t.textContent='Редактировать отзыв';
+          var t=document.getElementById('writeReviewTitle'); if(t) t.textContent='Редактировать отзыв';
         } else {
-          var t=q('writeReviewTitle'); if(t) t.textContent='Написать отзыв';
+          var t=document.getElementById('writeReviewTitle'); if(t) t.textContent='Написать отзыв';
         }
       });
     }catch(e){ clog('REVIEW_MODAL','prefetch /reviews/mine ошибка: '+e,'error'); }
@@ -5252,9 +5252,9 @@ function _scheduleInputReset(input){
   }, 800);
 }
 
-function renderWriteReviewPreview(){
-  var el=q('writeReviewImgPreview');
-  var cnt=q('writeReviewImgCount');
+window.renderWriteReviewPreview=function(){
+  var el=document.getElementById('writeReviewImgPreview');
+  var cnt=document.getElementById('writeReviewImgCount');
   clog('PREVIEW','render: el='+(el?'OK':'NULL')+', imgs='+_writeReviewImgs.length);
   if(!el){ clog('PREVIEW','writeReviewImgPreview не найден в DOM','error'); return; }
   el.innerHTML=_writeReviewImgs.map(function(src,i){
@@ -5262,7 +5262,8 @@ function renderWriteReviewPreview(){
   }).join('');
   if(cnt) cnt.textContent=_writeReviewImgs.length?_writeReviewImgs.length+'/10 фото':'';
   clog('PREVIEW','innerHTML обновлён, длина='+(el.innerHTML?el.innerHTML.length:0));
-}
+};
+var renderWriteReviewPreview=window.renderWriteReviewPreview;
 
 window.removeWriteReviewImg=function(idx){
   clog('PHOTO','remove idx='+idx);
@@ -5277,7 +5278,7 @@ window.submitWriteReview=function(){
     showToast('Выберите оценку от 1 до 10','err');
     return;
   }
-  var ta=q('writeReviewText');
+  var ta=document.getElementById('writeReviewText');
   var text=(ta?ta.value:'').trim();
   clog('SUBMIT','text.length='+text.length+', score='+_writeReviewScore);
   if(text.length<10){showToast('Текст слишком короткий (минимум 10 символов)','err');return;}
