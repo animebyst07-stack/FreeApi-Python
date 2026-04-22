@@ -1172,7 +1172,39 @@ def register_routes(app):
         logger.info('[REVIEWS] status_update review_id=%s status=%s reply_by=%s ai_resp_len=%s admin_imgs=%s uid=%s',
                     review_id, status, reply_by, len(ai_response or ''), len(admin_images or []), current_user_id())
         review = repo.update_review_status(review_id, status, ai_response=ai_response, admin_images=admin_images, reply_by=reply_by)
+        # Уведомление автору отзыва, если ответ оставил владелец вручную
+        if review and reply_by == 'manual':
+            target_uid = review.get('user_id')
+            if target_uid and target_uid != current_user_id():
+                snippet = (ai_response or '').strip()
+                if len(snippet) > 200:
+                    snippet = snippet[:200].rstrip() + '…'
+                has_imgs = bool(admin_images)
+                if snippet and has_imgs:
+                    msg = f'👑 Владелец ответил на ваш отзыв (с фото): {snippet}'
+                elif snippet:
+                    msg = f'👑 Владелец ответил на ваш отзыв: {snippet}'
+                elif has_imgs:
+                    msg = '👑 Владелец прикрепил фото к ответу на ваш отзыв.'
+                else:
+                    msg = '👑 Владелец отметил ваш отзыв.'
+                try:
+                    repo.create_user_notification(target_uid, msg)
+                    logger.info('[REVIEWS] user_notification создано: target_uid=%s review_id=%s len=%s',
+                                target_uid, review_id, len(msg))
+                except Exception as exc:
+                    logger.warning('[REVIEWS] не удалось создать user_notification: %s', exc)
         return jsonify({'review': review})
+
+    @app.post('/api/notifications/read_all')
+    def mark_all_notifs_read():
+        err = require_user()
+        if err:
+            return err
+        uid = current_user_id()
+        cnt = repo.mark_all_notifications_read(uid)
+        logger.info('[NOTIF] read_all uid=%s updated=%s', uid, cnt)
+        return jsonify({'ok': True, 'updated': cnt})
 
     @app.post('/api/reviews/<review_id>/like')
     def like_review(review_id):
