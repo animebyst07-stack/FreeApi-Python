@@ -26,6 +26,7 @@ from freeapi.blueprints._helpers import (
     error, current_user_id, support_project_context, require_user,
     bearer_value, authorized_key, fake_stream,
 )
+from freeapi.blueprints.admin_bp import DEFAULT_SUPPORT_PROMPT
 
 bp = Blueprint('support', __name__)
 
