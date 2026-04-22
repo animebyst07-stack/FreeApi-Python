@@ -38,11 +38,7 @@ def _has_internet() -> bool:
 
 
 def _print_tunnel_url(url: str):
-    border = '─' * 54
-    print(f'\n┌{border}┐', flush=True)
-    print(f'│  🌐  Cloudflare Tunnel активен{" " * 23}│', flush=True)
-    print(f'│  🔗  {url:<48}  │', flush=True)
-    print(f'└{border}┘\n', flush=True)
+    logger.info('[Tunnel] Cloudflare Tunnel активен: %s', url)
 
 
 class CloudflareManager:
