@@ -1461,14 +1461,21 @@ Rules:
 
 <script type="module" src="/js/main.js"></script>
 <script>
-/* ═══════════ ГЛОБАЛЬНЫЕ ХЕЛПЕРЫ ═══════════
-   q, esc, formatDate — перенесены в /js/core/dom.js (шаг 0.5.2).
-   Они остаются доступны как window.q / window.esc / window.formatDate
-   (см. main.js). Поэтому inline-скрипт ниже использует именно эти три имени
-   через глобал window — определения перенесены, чтобы не было дублей. */
-/* MOVED→core/dom.js: function q(id){...} */
-/* MOVED→core/dom.js: function esc(s){...} */
-/* MOVED→core/dom.js: function formatDate(v){...} */
+/* ═══════════ ГЛОБАЛЬНЫЕ ХЕЛПЕРЫ (доступны везде, в т.ч. внутри IIFE) ═══════════
+   ВАЖНО: эти функции ОБЯЗАНЫ быть доступны синхронно — они вызываются
+   inline-IIFE ниже сразу после парсинга. <script type="module"> в main.js
+   defer-загружается и выставляет те же window.q/esc/formatDate ПОСЛЕ
+   DOMContentLoaded, что слишком поздно. Поэтому держим определения здесь
+   до тех пор, пока сам IIFE не будет перенесён в модуль (план 0.5.3+).
+   Парные определения в /js/core/dom.js (для будущих ESM-консументов). */
+function q(id){return document.getElementById(id);}
+function esc(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+function formatDate(v){
+  if(!v)return '—';
+  var d=new Date(String(v).replace(' ','T'));
+  if(isNaN(d.getTime()))return String(v);
+  return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+}
 function renderReviewImgs(imgs,baseId){
   if(!imgs||!imgs.length) return '';
   var show=imgs.slice(0,4),more=imgs.length-4;
@@ -1480,8 +1487,7 @@ function renderReviewImgs(imgs,baseId){
   html+='</div>';
   return html;
 }
-/* window.q / window.esc / window.formatDate теперь выставляет main.js (модуль). */
-window.renderReviewImgs=renderReviewImgs;
+window.q=q; window.esc=esc; window.formatDate=formatDate; window.renderReviewImgs=renderReviewImgs;
 
 /* ═══════════ РАННИЙ ГЛОБАЛЬНЫЙ ЛОГГЕР В TERMUX ═══════════ */
 (function(){

@@ -1,8 +1,12 @@
 /* main.js — entry-point модульной фронтенд-сборки.
-   После 0.5.2: core/dom.js — чистые утилиты (q, esc, formatDate)
-   уже работают через ESM. Остальные модули — заглушки. */
+   ВНИМАНИЕ ПО ПОРЯДКУ ЗАГРУЗКИ:
+   <script type="module"> исполняется в режиме defer, ПОСЛЕ парсинга DOM
+   и ПОСЛЕ всех inline classic-<script>. Поэтому нельзя выставлять отсюда
+   window.X для функций, нужных синхронно — inline IIFE упадёт с
+   ReferenceError. Такие хелперы остаются продублированы в inline-скрипте
+   до момента, когда сам IIFE будет перенесён в модуль. */
 
-import { q, esc, formatDate } from './core/dom.js';
+import './core/dom.js';     // q/esc/formatDate (для будущих ESM-консументов)
 import './core/api.js';
 import './core/logger.js';
 import './core/storage.js';
@@ -24,13 +28,5 @@ import './views/support.js';
 import './views/admin.js';
 import './views/stats.js';
 
-/* ВРЕМЕННО: пока inline-скрипт в index.html ещё ссылается на эти функции
-   через onclick="esc(...)" и аналогичные — экспортируем их в window.
-   После полного выноса логики и перевода onclick-ов на addEventListener
-   эту строку можно будет удалить (см. шаг 0.5.7-0.5.8). */
-window.q = q;
-window.esc = esc;
-window.formatDate = formatDate;
-
 window.__FPA_MAIN_LOADED__ = true;
-console.debug('[FPA] main.js loaded (step 0.5.2: core/dom in module)');
+console.debug('[FPA] main.js loaded (step 0.5.2 hotfix: ESM-инфраструктура без вытеснения inline)');
