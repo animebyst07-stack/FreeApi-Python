@@ -3816,24 +3816,46 @@ window.clearSupportAttachment=function(){
   document.getElementById('supportAttachBtn').classList.remove('has-file');
 };
 
-/* ───────────── INIT ───────────── */
-loadModels();
-loadReviews();
-rvXhr('GET','/api/auth/me',null,function(d,err){
-  if(err||!d){ updateSidebar(); return; }
-  accountState=d||null;
-  if(d&&d.user){
-    user=d.user;
-    updateNav();
-    updateSidebar();
-    loadReviews();
-    if(window.startNotifPolling) startNotifPolling();
-    goView('dashboard');
-  } else {
-    updateSidebar();
-    if(window.refreshNotifBadge) refreshNotifBadge();
+/* ───────────── INIT ─────────────
+   Шаг 0.5.13-FIX: bootstrap откладывается до DOMContentLoaded.
+   ESM-модули (defer) гарантированно выполняются ДО DOMContentLoaded,
+   так что к этому моменту window.api / window.clog / window.showToast
+   и прочие уже определены. Без этой обёртки loadModels() падал на
+   `api is not defined` и прерывал ВЕСЬ остаток inline-script (отсюда
+   `rvAdminDelete is not defined` и все остальные регрессии). */
+function _fpaBootstrap(){
+  try{ if(window.clog) window.clog('BOOT','DOMContentLoaded → bootstrap start'); }catch(_){}
+  try{ loadModels(); }catch(e){ try{window.clog&&window.clog('BOOT','loadModels FAIL '+(e&&e.message||e),'error');}catch(_){ } }
+  try{ loadReviews(); }catch(e){ try{window.clog&&window.clog('BOOT','loadReviews FAIL '+(e&&e.message||e),'error');}catch(_){ } }
+  try{
+    rvXhr('GET','/api/auth/me',null,function(d,err){
+      try{ if(window.clog) window.clog('BOOT','/api/auth/me cb err='+err+' has_user='+(!!(d&&d.user))); }catch(_){}
+      if(err||!d){ updateSidebar(); return; }
+      accountState=d||null;
+      if(d&&d.user){
+        user=d.user;
+        updateNav();
+        updateSidebar();
+        loadReviews();
+        if(window.startNotifPolling) startNotifPolling();
+        goView('dashboard');
+      } else {
+        updateSidebar();
+        if(window.refreshNotifBadge) refreshNotifBadge();
+      }
+      try{ if(window.clog) window.clog('BOOT','bootstrap finished username='+(user&&user.username||'(anon)')); }catch(_){}
+    });
+  }catch(e){
+    try{window.clog&&window.clog('BOOT','rvXhr /api/auth/me FAIL '+(e&&e.message||e),'error');}catch(_){ }
   }
-});
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',_fpaBootstrap,{once:true});
+} else {
+  /* DOM уже разобран (страница была кэширована) — запускаем сразу,
+     но через micro-tick, чтобы дать defer-модулям догрузиться. */
+  setTimeout(_fpaBootstrap,0);
+}
 
 
 /* ─── CHAT CANVAS PARTICLES ─── */
