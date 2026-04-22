@@ -29,4 +29,27 @@ import './views/admin.js';
 import './views/stats.js';
 
 window.__FPA_MAIN_LOADED__ = true;
-console.debug('[FPA] main.js loaded (step 0.5.2 hotfix: ESM-инфраструктура без вытеснения inline)');
+console.debug('[FPA] main.js loaded (step 0.5.13-fix)');
+
+/* Шаг 0.5.13-FIX: явный лог в Termux о готовности ESM —
+   полезно для отладки порядка загрузки. */
+try {
+  if (window.clog) {
+    window.clog('ESM','main.js loaded; modules ready: api='
+      + (typeof window.api) + ' clog=' + (typeof window.clog)
+      + ' showToast=' + (typeof window.showToast)
+      + ' goView=' + (typeof window.goView)
+      + ' lsGet=' + (typeof window.lsGet)
+      + ' refreshNotifBadge=' + (typeof window.refreshNotifBadge));
+  }
+} catch (_) {}
+
+/* Глобальный логгер unhandledrejection — отдельно от inline window.onerror. */
+window.addEventListener('unhandledrejection', function(ev){
+  try {
+    var reason = ev && ev.reason;
+    var msg = reason && reason.message ? reason.message : String(reason);
+    var stack = reason && reason.stack ? String(reason.stack).slice(0, 1500) : '';
+    if (window.clog) window.clog('JS_PROMISE_REJECT', msg + (stack ? ' || stack=' + stack : ''), 'error');
+  } catch (_) {}
+});
