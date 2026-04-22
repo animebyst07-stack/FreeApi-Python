@@ -15,7 +15,13 @@
 | HOTFIX-A | ✓      | a449cf1  | Лайтбокс: открытие по клику на миниатюру в отзывах |
 | 0.5.5    | ✓      | 13df55d  | `function api()` (XHR-обёртка) → `core/api.js`; 51 callsite сохранён |
 | **0.5.6**| ✓      | (этот)   | `localStorage`-обёртки → `core/storage.js`: `lsGet/lsSet/lsDel` + `window.*`. Заменены 6 inline-вызовов в `static/index.html` (chat history × 2, review draft × 4). Ключи AS IS. Inline-handler в textarea имеет fallback `window.lsSet \|\| localStorage.setItem` на случай раннего ввода до загрузки ESM. |
-| 0.5.7    | ☐      | —        | следующий: вынос UI-помощников (`showToast/openModal/closeModal/...`) и/или другой блок по `plan.txt` |
+| 0.5.7    | ✓      | 90dfb7d  | `showToast` → `ui/toast.js` |
+| 0.5.8    | ✓      | ff87601  | `openModal/closeModal/overlayClick/switchModal/customConfirm/resolveConfirm` + `_confirmResolve` → `ui/modal.js` |
+| 0.5.9    | ✓      | 2868137  | `toggleSidebar/closeSidebar` + resize-listener → `ui/sidebar.js` |
+| 0.5.10   | ✓      | 8b47a98 / 24331bf | `toggleCustomSelect/buildCustomSelect` + click-outside → `ui/select.js` |
+| 0.5.11   | ✓      | ff4d049  | `goView` + `updateSidebarActive` (роутер view'ов) → `ui/view.js`. Все view-init функции (`loadDashboard/initChatView/...`) пока остаются inline (top-level classic-script ⇒ window.*). |
+| 0.5.12   | ✓      | fbcf8ceb | Уведомления: `refreshNotifBadge/loadNotifications/markAllNotifsRead/deleteUserNotification/startNotifPolling/stopNotifPolling/loadUserNotifications` + `_notifPollTimer/_notifLastUnread` → `views/notifications.js`. Прямой вызов `loadUserNotifications()` в `loadDashboard` заменён на `if(window.refreshNotifBadge) window.refreshNotifBadge();`. |
+| 0.5.13   | ☐      | —        | следующий: вынос блока поддержки (`views/support.js`) — `initSupportView/loadSupportHistory/sendSupportMessage/closeSupportChat/_doCloseSupportChat/appendSupportMsg/appendSupportThinking/clearSupportAttachment/_supportPending/_supportImageBase64/_supportImageName`. Внимание: зависит от `parseTgMarkdown` и `autoResizeTextarea` (общие inline-хелперы — оставить inline и звать через window.*). |
 
 ## Smoke-тест 0.5.6
 
