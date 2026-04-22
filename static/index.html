@@ -1526,8 +1526,14 @@ window.q=q; window.esc=esc; window.formatDate=formatDate; window.renderReviewImg
   },true);
 })();
 
-(function(){
-'use strict';
+/* ═══════════ BIG-IIFE-OPEN — РАСПИЛЕНО (шаг 0.5.3a) ═══════════
+   Бывшая обёртка `(function(){ 'use strict'; ... })();` снята, чтобы все
+   локальные var/function стали top-level в classic-<script>. Это нужно
+   для последующего поэтапного выноса логики в ES-модули (defer ESM не
+   видит closure-переменные). Парная метка закрытия — BIG-IIFE-CLOSE ниже.
+   'use strict' умышленно убран: на верхнем уровне classic-script он
+   неприменим к произвольному блоку, а внутри функций его эффект
+   сохраняется только если объявлен в самой функции. */
 
 /* ───────────── THREE.JS BG REMOVED ───────────── */
 
@@ -4143,11 +4149,13 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
   window.addEventListener('resize',function(){ resize(); });
 })();
 
-/* Экспорт функций, используемых в секции Reviews (вне этого IIFE) */
+/* Экспорт функций, используемых в секции Reviews (раньше — вне IIFE).
+   После распиливания (0.5.3a) эти присваивания формально избыточны
+   (api/loadReviews уже top-level), но оставлены для явности. */
 window.api=api;
 window.loadReviews=loadReviews;
 
-})();
+/* ═══════════ BIG-IIFE-CLOSE — РАСПИЛЕНО (шаг 0.5.3a) ═══════════ */
 
 /* ═══════════════════════════════════════
      REVIEWS VIEW PAGE  (XHR-based rewrite)
