@@ -1,8 +1,10 @@
+import atexit
 import logging
 import os
 import signal
 import sys
 import threading
+from collections import deque
 from typing import Optional
 
 from freeapi.app import create_app
@@ -13,6 +15,88 @@ from freeapi.tg_notify import load_notify_config, notify_new_url, validate_token
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(message)s')
 logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0.5.13: in-memory ring-buffer для всех логов + сохранение в файл при остановке
+# Целевой путь — Android-хранилище (Termux). Если каталога нет / нет прав —
+# fallback в `./logi.txt` рядом с api.py.
+# ─────────────────────────────────────────────────────────────────────────────
+LOG_DUMP_PATH = '/storage/emulated/0/Цхранилище/Мусор/logi.txt'
+_LOG_BUFFER_MAX = 50000  # храним последние 50k записей в памяти
+
+
+class _RingMemoryHandler(logging.Handler):
+    """Хранит отформатированные строки логов в кольцевом буфере."""
+
+    def __init__(self, capacity: int):
+        super().__init__(level=logging.DEBUG)
+        self._buf: deque = deque(maxlen=capacity)
+        self._lock = threading.Lock()
+        self.setFormatter(
+            logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+        )
+
+    def emit(self, record: logging.LogRecord):
+        try:
+            line = self.format(record)
+        except Exception:
+            line = record.getMessage()
+        with self._lock:
+            self._buf.append(line)
+
+    def snapshot(self):
+        with self._lock:
+            return list(self._buf)
+
+
+_log_ring = _RingMemoryHandler(_LOG_BUFFER_MAX)
+# Подвешиваем на root, чтобы захватывать всё (freeapi, werkzeug, __main__, ...)
+logging.getLogger().addHandler(_log_ring)
+logging.getLogger().setLevel(logging.INFO)
+
+
+def _dump_logs_to_file() -> Optional[str]:
+    """
+    При остановке — пишет накопленные логи в LOG_DUMP_PATH.
+    Если файл существует, перезаписывается. Возвращает фактический путь
+    или None при ошибке.
+    """
+    lines = _log_ring.snapshot()
+    if not lines:
+        return None
+    payload = '\n'.join(lines) + '\n'
+
+    candidates = [LOG_DUMP_PATH, os.path.join(os.getcwd(), 'logi.txt')]
+    for path in candidates:
+        try:
+            os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+            # Удаляем старый, если существует — гарантируем "новый файл".
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(payload)
+            logger.info('[Logs] Сохранено %d строк в %s', len(lines), path)
+            return path
+        except Exception as e:
+            logger.warning('[Logs] Не удалось писать в %s: %s', path, e)
+    return None
+
+
+# Подстраховка на случай нештатного выхода без срабатывания GracefulShutdown.
+_atexit_done = threading.Event()
+
+
+def _atexit_dump():
+    if _atexit_done.is_set():
+        return
+    _atexit_done.set()
+    _dump_logs_to_file()
+
+
+atexit.register(_atexit_dump)
 
 
 def load_env(path='.env'):
@@ -55,6 +139,11 @@ class GracefulShutdown:
         logger.info('[Shutdown] Получен сигнал %s, начинаю завершение...', sig)
         if self._cf_manager:
             self._cf_manager.stop()
+        # 0.5.13: дамп логов в файл (даёт юзеру полный текстовый журнал сессии)
+        try:
+            _dump_logs_to_file()
+        except Exception as e:
+            logger.warning('[Logs] dump fail: %s', e)
         self._event.set()
 
     def wait(self):
