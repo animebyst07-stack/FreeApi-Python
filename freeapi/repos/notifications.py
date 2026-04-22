@@ -50,13 +50,21 @@ def count_unread_notifications(user_id):
 # ─────────── ADMIN NOTIFICATIONS ───────────
 
 
-def create_admin_notification(review_id, review_text, review_score, review_author, ai_response, ai_advice):
+def create_admin_notification(review_id, review_text, review_score, review_author,
+                              ai_response, ai_advice, support_chat_id=None):
+    """support_chat_id — опциональный айди чата поддержки (для отчётов от
+    support-агента: тогда review_text = краткое summary от ИИ, ai_advice =
+    подробности отчёта, а сам диалог админ откроет в модалке по chat_id).
+    Для обычных уведомлений по отзывам остаётся None."""
     notif_id = uuid4()
     now = msk_now()
     with db() as conn:
         conn.execute(
-            'INSERT INTO admin_notifications(id, review_id, review_text, review_score, review_author, ai_response, ai_advice, created_at) VALUES (?,?,?,?,?,?,?,?)',
-            (notif_id, review_id, review_text, review_score, review_author, ai_response, ai_advice, now)
+            'INSERT INTO admin_notifications(id, review_id, review_text, review_score, '
+            'review_author, ai_response, ai_advice, support_chat_id, created_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?)',
+            (notif_id, review_id, review_text, review_score, review_author,
+             ai_response, ai_advice, support_chat_id, now)
         )
         return row(conn.execute('SELECT * FROM admin_notifications WHERE id=?', (notif_id,)).fetchone())
 

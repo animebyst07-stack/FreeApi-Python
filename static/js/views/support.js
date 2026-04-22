@@ -85,10 +85,11 @@ function appendSupportMsg(role, content, imageSrc, docTag){
   var empty=document.getElementById('supportEmptyState');
   if(empty) empty.style.display='none';
 
-  // Промежуточный шаг агента: рисуем компактный пузырь со значком книги
-  // и пометкой «📖 Читаю документацию: NAME». Текст шага (то, что ИИ
-  // написал перед тегом, например «Сейчас уточню как работают отзывы…»)
-  // показываем под пометкой курсивом.
+  // Промежуточный шаг агента: компактный пузырь с SVG-иконкой книги
+  // и пометкой «Читаю документацию: NAME». Эмодзи на сайте принципиально
+  // не используем — только инлайн-SVG в общей стилистике интерфейса.
+  // Текст шага (то, что ИИ написал перед тегом, например «Сейчас уточню,
+  // как работают отзывы…») показываем под пометкой курсивом.
   if(role==='agent_step'){
     var sdiv=document.createElement('div');
     sdiv.className='chat-msg assistant';
@@ -97,7 +98,7 @@ function appendSupportMsg(role, content, imageSrc, docTag){
     sbub.style.cssText='background:#1a1a1a;border:1px dashed #2a2a2a;color:#9aa0a6;font-size:12px;padding:8px 12px';
     var head=document.createElement('div');
     head.style.cssText='display:flex;align-items:center;gap:6px;color:#bdc1c6';
-    head.innerHTML='<span style="font-size:14px">📖</span><span>Читаю документацию: <b style="color:#e8eaed">'+(docTag||'…')+'</b></span>';
+    head.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><span>Читаю документацию: <b style="color:#e8eaed">'+(docTag||'…')+'</b></span>';
     sbub.appendChild(head);
     var stext=(content||'').trim();
     if(stext && stext!=='(читаю документацию...)'){
@@ -213,11 +214,22 @@ function closeSupportChat(){
   });
 }
 
+/* Анти-double-click: пока первый /api/support/close ещё крутится у Сэма
+   через Telethon (это спокойно 30+ секунд), второй клик ловил KEY_BUSY_301
+   и триггерил сломанный fallback по словам. Теперь, пока запрос «висит»,
+   повторный клик просто игнорируется. */
+window._supportClosing = window._supportClosing || false;
+
 function _doCloseSupportChat(){
+  if (window._supportClosing) return;          /* уже идёт — выходим тихо */
   var api=getApi(); if(!api) return;
   var btn=document.getElementById('supportCloseBtn');
+  window._supportClosing = true;
   btn.disabled=true; btn.textContent='Завершение...';
-  api('/api/support/close','POST',{}).then(function(d){
+  /* Таймаут 90с — чтобы фронт не сдавался раньше Сэма; toast'ов больше
+     не показываем (по требованию: все статусы — только в чате и на
+     странице уведомлений). */
+  api('/api/support/close','POST',{},{timeout:90000}).then(function(d){
     document.getElementById('supportInput').disabled=true;
     document.getElementById('supportSendBtn').disabled=true;
     document.getElementById('supportCloseBtn').style.display='none';
@@ -225,17 +237,19 @@ function _doCloseSupportChat(){
     if(newChatBtn) newChatBtn.style.display='';
     var status=document.getElementById('supportChatStatus');
     if(status) status.textContent='Диалог завершён';
-    if(d.reported){
-      toast('Обращение передано администратору','ok');
-      appendSupportMsg('agent','Ваш диалог завершён. Я передал информацию о вашей проблеме администратору — он свяжется с вами через уведомления.',null);
+    if(d && d.reported){
+      appendSupportMsg('agent','Диалог завершён. Я передал ваш вопрос администратору — ответ придёт в раздел «Уведомления».',null);
     } else {
-      toast('Диалог завершён','ok');
-      appendSupportMsg('agent','Рад был помочь! Если возникнут новые вопросы — вернитесь в раздел поддержки.',null);
+      appendSupportMsg('agent','Рад был помочь! Если появятся новые вопросы — вернитесь в раздел поддержки.',null);
     }
   }).catch(function(){
+    /* Таймаут / сеть упала. Кнопку возвращаем, чтобы можно было повторить;
+       сообщение пишем прямо в чат (без всплывающих окон). */
     btn.disabled=false;
     btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Завершить диалог';
-    toast('Ошибка при завершении диалога','err');
+    appendSupportMsg('agent','Не удалось завершить диалог: сеть не отвечает. Подождите несколько секунд и попробуйте снова.',null);
+  }).finally(function(){
+    window._supportClosing = false;
   });
 }
 

@@ -10,17 +10,21 @@
      window.updateSidebar, window.goView, window.showToast — UI-помощники
    Все обращения через window.* — модуль ESM не имеет прямого доступа к ним. */
 
-export function api(url, method, body){
+/* opts.timeout — кастомный таймаут в мс (по умолчанию 15000). Нужен для
+   длительных операций вроде /api/support/close, где Сэм через Telethon
+   спокойно отвечает 30+ секунд, и стандартные 15с дают ложный TIMEOUT. */
+export function api(url, method, body, opts){
   var _t0 = Date.now();
   var _m  = (method || 'GET').toUpperCase();
   var _bs = body ? (typeof body === 'string' ? body.length : JSON.stringify(body).length) : 0;
+  var _to = (opts && typeof opts.timeout === 'number') ? opts.timeout : 15000;
   try { window._clogRaw && url.indexOf('/api/_clog') < 0 && window._clogRaw('API_CALL','→ ' + _m + ' ' + url + ' body=' + _bs + 'b'); } catch(_) {}
 
   return new Promise(function(resolve, reject){
     var xhr = new XMLHttpRequest();
     xhr.open(method || 'GET', url, true);
     xhr.withCredentials = true;
-    xhr.timeout = 15000;
+    xhr.timeout = _to;
     if (body) xhr.setRequestHeader('Content-Type', 'application/json');
 
     xhr.ontimeout = function(){

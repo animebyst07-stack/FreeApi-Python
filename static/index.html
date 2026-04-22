@@ -1141,7 +1141,12 @@ Rules:
           <button class="btn btn-primary" style="width:100%;height:40px" onclick="saveSupportSettings()">Сохранить поддержку</button>
         </div>
       </div>
-      <div class="card"><div class="card-head"><h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>Уведомления для Админа</h3></div><div class="card-body"><div class="admin-stack" id="adminNotificationsList"><div class="review-empty">Загрузка...</div></div></div></div>
+      <!-- 0.5.13c: дубль-карточка «Уведомления для Админа» удалена.
+           Все админ-уведомления теперь показываются единым списком на
+           странице «Уведомления» (раздел /notifications) вместе с обычными
+           уведомлениями пользователя — см. static/js/views/notifications.js.
+           Это убирает разрыв UX, когда часть уведомлений лежала в админке,
+           а часть — в общем разделе. -->
     </div>
     <!-- 0.5.13-UI: карточка «Отзывы» удалена из админки —
          все действия (удалить/ответить) доступны прямо в разделе «Отзывы». -->
@@ -2525,7 +2530,9 @@ function loadAdmin(){
       buildCustomSelect('csSupportModel',modelOpts,s.support_model||'');
     }).catch(function(){});
   }).catch(function(){showToast('Нет доступа к админ-панели','err');goView('dashboard');});
-  api('/api/admin/notifications').then(function(d){renderAdminNotifications(d.notifications||[]);}).catch(function(){});
+  /* 0.5.13c: запрос /api/admin/notifications на админ-странице удалён —
+     все админ-уведомления грузятся из views/notifications.js единым списком
+     на странице «Уведомления». loadAdmin() больше не дёргает этот эндпоинт. */
   /* 0.5.13-UI: запрос /api/admin/reviews и renderAdminReviews удалены —
      карточка «Отзывы» больше не показывается в админке. Все действия
      над отзывами выполняются прямо в разделе «Отзывы». */
@@ -2556,11 +2563,10 @@ window.saveSupportSettings=function(){
 };
 window.resetModeratorPrompt=function(){q('adminModeratorPrompt').value='';showToast('Промпт сброшен на стандартный','ok');};
 window.resetSupportPrompt=function(){q('adminSupportPrompt').value='';showToast('Промпт сброшен на стандартный','ok');};
-function renderAdminNotifications(items){
-  var list=q('adminNotificationsList');
-  if(!items.length){list.innerHTML='<div class="review-empty">Уведомлений нет</div>';return;}
-  list.innerHTML=items.map(function(n){return '<div class="admin-item"><div class="admin-item-head"><span>'+esc(n.review_author||'user')+' · '+esc(n.review_score)+'/10</span><button class="btn btn-ghost btn-xs" onclick="deleteAdminNotification(\''+esc(n.id)+'\')">Удалить</button></div><div class="admin-mini">'+formatDate(n.created_at)+'</div><div class="admin-item-body"><b>Отзыв:</b> '+esc(n.review_text||'')+'\n\n<b>Ответ агента:</b> '+esc(n.ai_response||'')+'\n\n<b>Совет админу:</b> '+esc(n.ai_advice||'')+'</div></div>';}).join('');
-}
+/* 0.5.13c: renderAdminNotifications больше не нужен — карточка удалена.
+   Оставляем no-op shim, чтобы случайный старый вызов не падал. Реальный
+   рендер админ-уведомлений теперь в static/js/views/notifications.js. */
+function renderAdminNotifications(){ /* noop */ }
 /* 0.5.13-UI: блок админ-карточки отзывов (renderAdminReviews,
    _adminReviewImgs, removeAdminReviewImg, onAdminReviewFilesSelected,
    saveAdminReviewResp, deleteAdminReview, setReviewStatus) удалён —

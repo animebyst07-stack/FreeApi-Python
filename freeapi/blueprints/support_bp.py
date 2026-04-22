@@ -191,7 +191,7 @@ def support_send_message():
     user_msgs_count = sum(1 for m in all_messages if m.get('role') == 'user')
     is_first = (user_msgs_count == 1)  # только что добавленное — единственное
     # Промежуточные «шаги» агента (когда он читает документацию по тегам [[doc:NAME]]).
-    # Возвращаем фронту, чтобы он отрисовал отдельные пузыри «📖 читает документацию: X».
+    # Возвращаем фронту, чтобы он отрисовал отдельные пузыри «Читаю документацию: X».
     steps_added = []
 
     _support_username = session.get('username') or ''
@@ -372,7 +372,8 @@ def support_close_chat():
     ]
 
     reported = False
-    report_text = None
+    summary = None       # короткая фраза «о чём был диалог» — пойдёт в review_text
+    report_text = None   # подробности проблемы — пойдут в ai_advice (раскрываемая часть)
     key = None
 
     try:
@@ -389,25 +390,29 @@ def support_close_chat():
             from freeapi.models import DEFAULT_MODEL_ID
             import json as _json
             _support_model_close = repo.get_admin_setting('support_model', '') or key.get('default_model') or DEFAULT_MODEL_ID
+            # На входе в close-анализ обязательно сбрасываем контекст у Сэма —
+            # иначе он отвечает с учётом памяти диалога, что путает анализ.
+            try:
+                run_control(key, '/reset')
+            except Exception:
+                pass
             raw = run_chat(key, _support_model_close, close_messages)
             start = raw.find('{')
             end = raw.rfind('}')
             if start != -1 and end != -1:
                 decision = _json.loads(raw[start:end+1])
+                # Уведомление создаётся ТОЛЬКО если ИИ явно сказал needs_report=true.
+                # Никаких fallback по словам — раньше фраза самого агента
+                # «возникла временная ошибка» триггерила отправку всего диалога.
                 if decision.get('needs_report'):
-                    report_text = decision.get('report_text', '')
-                    reported = True
+                    summary = (decision.get('summary') or '').strip()
+                    report_text = (decision.get('report_text') or '').strip()
+                    if report_text:
+                        reported = True
     except Exception as exc:
-        logger.error('[Support] Ошибка анализа диалога: %s', exc)
-
-    if not reported:
-        problem_words = ('баг', 'ошибк', 'не работает', 'сломал', 'сломано', 'уязвим', 'критич', 'проблем', 'не смог', 'не получается', 'завис', 'краш', 'crash', 'bug', 'error', 'fail')
-        lowered = dialog_text.lower()
-        if any(word in lowered for word in problem_words):
-            user = repo.get_user_by_id(uid)
-            username = user['username'] if user else 'неизвестен'
-            report_text = f'Пользователь {username} завершил диалог поддержки с признаками нерешённой проблемы.\n\n{dialog_text[:1800]}'
-            reported = True
+        # KEY_BUSY_301 / CTX_LIMIT / таймаут / неверный JSON — НЕ создаём отчёт.
+        # Лучше пропустить уведомление, чем спамить админа дампом переписки.
+        logger.warning('[Support] Анализ диалога не удался (отчёт не создаём): %s', exc)
 
     repo.close_support_chat(chat['id'], report_text)
 
@@ -423,13 +428,53 @@ def support_close_chat():
     if reported and report_text:
         user = repo.get_user_by_id(uid)
         username = user['username'] if user else 'неизвестен'
+        # review_text — краткое summary («одна фраза о чём был диалог») —
+        # это то, что админ видит в свёрнутом превью карточки уведомления.
+        # ai_advice — полный report_text от ИИ (детали, что нужно сделать),
+        # раскрывается по клику. Сам диалог при этом НЕ дублируется в
+        # уведомлении: админ откроет его модалкой через support_chat_id.
+        short = summary or (report_text.splitlines()[0][:140] if report_text else 'Обращение в поддержку')
         repo.create_admin_notification(
             review_id=None,
-            review_text=f"[SUPPORT] {report_text}\n\nПользователь: {username}",
+            review_text=f'Поддержка · @{username}: {short}',
             review_score=0,
             review_author=username,
-            ai_response=f"Диалог завершён. Отчёт передан администратору.",
-            ai_advice=f"Обратите внимание на обращение пользователя {username}.\n{report_text}"
+            ai_response='',
+            ai_advice=report_text,
+            support_chat_id=chat['id'],
         )
 
-    return jsonify({'ok': True, 'reported': reported, 'report_text': report_text})
+    return jsonify({'ok': True, 'reported': reported})
+
+
+# ─── Просмотр конкретного диалога поддержки админом ───
+@support_bp.route('/api/admin/support/chat/<chat_id>', methods=['GET'])
+def admin_support_chat_detail(chat_id):
+    """Возвращает диалог поддержки целиком (chat + messages) для модалки
+    «Открыть диалог» в карточке уведомления админа. Требует прав admin."""
+    uid = session.get('uid')
+    if not uid:
+        return jsonify({'error': 'unauthorized'}), 401
+    user = repo.get_user_by_id(uid)
+    if not user or not user.get('is_admin'):
+        return jsonify({'error': 'forbidden'}), 403
+    from freeapi.database import db as _db, row as _row, rows as _rows
+    with _db() as conn:
+        chat = _row(conn.execute('SELECT * FROM support_chats WHERE id=?', (chat_id,)).fetchone())
+        if not chat:
+            return jsonify({'error': 'not_found'}), 404
+        msgs = _rows(conn.execute(
+            'SELECT id, role, content, image_data, created_at FROM support_messages '
+            'WHERE chat_id=? ORDER BY created_at ASC', (chat_id,)
+        ).fetchall())
+        owner = _row(conn.execute('SELECT username FROM users WHERE id=?', (chat['user_id'],)).fetchone())
+    return jsonify({
+        'chat': {
+            'id': chat['id'],
+            'status': chat['status'],
+            'created_at': chat.get('created_at'),
+            'closed_at': chat.get('closed_at'),
+            'username': owner['username'] if owner else 'неизвестен',
+        },
+        'messages': msgs,
+    })
