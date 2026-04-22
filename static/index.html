@@ -835,6 +835,8 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .chat-logs-empty{padding:18px 14px;text-align:center;font-size:10px;color:#222;font-family:'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase}
 
 @media(max-width:640px){.container{padding:0 14px}.hero{padding-top:42px}.card-head{padding:14px 16px}.card-body{padding:16px}.chat-layout{height:calc(100dvh - 53px);min-height:420px}.chat-hdr{gap:6px}.chat-hdr-right{flex-shrink:0}.chat-select{max-width:140px}.stats-grid{grid-template-columns:1fr}.chat-msg{max-width:94%}.support-fullscreen{padding:0}.support-header{border-radius:0}
+  #chatModelSelectWrap .custom-select-trigger{height:auto;min-height:36px;padding:6px 10px}
+  #chatModelSelectWrap .custom-select-label{white-space:normal;word-break:break-word;line-height:1.3;font-size:12px}
   /* Улучшенные touch targets на мобиле */
   .star-btn{padding:4px;min-width:28px;min-height:28px}
   .img-upload-remove{width:22px;height:22px;font-size:11px}
@@ -1368,7 +1370,7 @@ body.view-no-scroll{overflow:hidden}
       <div class="custom-select-dropdown" id="chatKeyDropdown"></div>
     </div>
     <select id="chatModelSelect" class="chat-select" onchange="onChatModelChange()" style="display:none;max-width:220px"></select>
-    <div class="custom-select-wrap" id="chatModelSelectWrap" style="min-width:0;flex:1;max-width:260px;flex-shrink:1">
+    <div class="custom-select-wrap" id="chatModelSelectWrap" style="min-width:0;flex:1;flex-shrink:1">
       <div class="custom-select-trigger" tabindex="0" onclick="toggleCustomSelect('chatModelSelectWrap')">
         <span class="custom-select-label" id="chatModelLabel">Модель</span>
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -2121,17 +2123,9 @@ Rules:
   <h2>Ответить на отзыв</h2>
   <p id="adminReplyInfo" class="modal-sub" style="color:#888;margin-bottom:16px"></p>
   <input type="hidden" id="adminReplyId">
-  <div class="fgroup">
+  <div class="fgroup" style="margin-bottom:18px">
     <label>Ответ от Favorite AI Agent</label>
     <textarea id="adminReplyText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Введите ответ на отзыв..."></textarea>
-  </div>
-  <div class="fgroup" style="margin-bottom:18px">
-    <label>Статус отзыва</label>
-    <select id="adminReplyStatus" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:9px 12px;font-size:13px;color:#ccc;outline:none">
-      <option value="flagged">Отвечено (flagged)</option>
-      <option value="approved">Одобрен</option>
-      <option value="pending">На модерации</option>
-    </select>
   </div>
   <button class="btn btn-primary" style="width:100%;height:42px" onclick="submitAdminReply()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -4804,6 +4798,10 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
   window.addEventListener('resize',function(){ resize(); });
 })();
 
+/* Экспорт функций, используемых в секции Reviews (вне этого IIFE) */
+window.api=api;
+window.loadReviews=loadReviews;
+
 })();
 
 /* ═══════════════════════════════════════
@@ -5088,23 +5086,19 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
     var el=document.getElementById('adminReplyId');
     var info=document.getElementById('adminReplyInfo');
     var ta=document.getElementById('adminReplyText');
-    var sel=document.getElementById('adminReplyStatus');
     if(el) el.value=id||'';
     if(info) info.textContent='Ответ на отзыв пользователя: '+(username||'user');
     if(ta) ta.value='';
-    if(sel) sel.value='flagged';
     openModal('adminReplyModal');
   };
 
   window.submitAdminReply=function(){
     var idEl=document.getElementById('adminReplyId');
     var taEl=document.getElementById('adminReplyText');
-    var selEl=document.getElementById('adminReplyStatus');
     var id=idEl?idEl.value:'';
     var text=taEl?(taEl.value||'').trim():'';
-    var status=selEl?selEl.value:'flagged';
     if(!id){showToast('Ошибка: нет ID отзыва','err');return;}
-    api('/api/reviews/'+id+'/status','PUT',{status:status,ai_response:text||null}).then(function(d){
+    api('/api/reviews/'+id+'/status','PUT',{status:'approved',ai_response:text||null}).then(function(d){
       if(d&&d.error){showToast(d.message||'Ошибка','err');return;}
       closeModal('adminReplyModal');
       showToast('Ответ сохранён','ok');
