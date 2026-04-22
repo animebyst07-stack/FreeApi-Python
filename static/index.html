@@ -468,6 +468,30 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 @keyframes badge-shift{0%{background-position:0% center}100%{background-position:200% center}}
 .badge-moderator{display:inline-block;font-size:9px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:#0a1a2e;border:1px solid #0f2d4d;color:#60a5fa;position:relative;top:-1px}
 
+/* ─── REVIEW LIKES ─── */
+.rv-likes{display:inline-flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.rv-like-btn{background:#080808;border:1px solid #1a1a1a;border-radius:7px;padding:4px 10px;font-size:11px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:#666;transition:all .15s;line-height:1;min-height:26px}
+.rv-like-btn:hover:not(:disabled){border-color:#333;color:#aaa}
+.rv-like-btn:disabled{opacity:.45;cursor:not-allowed}
+.rv-like-btn svg{display:block}
+.rv-like-btn.active-like{border-color:#166534;color:#4ade80;background:#0a1f12}
+.rv-like-btn.active-dislike{border-color:#7f1d1d;color:#f87171;background:#1f0a0a}
+.rv-like-cnt{font-weight:600;font-size:11px;font-variant-numeric:tabular-nums}
+
+/* ─── ADMIN REPLY PHOTO UPLOAD (компакт) ─── */
+.adm-photo-zone{display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed #222;border-radius:8px;padding:10px 12px;background:#070707;cursor:pointer;position:relative;overflow:hidden;color:#666;font-size:11px;transition:all .15s}
+.adm-photo-zone:hover{border-color:#333;color:#999}
+.adm-photo-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.adm-photo-item{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;border:1px solid #1a1a1a;background:#0a0a0a}
+.adm-photo-item img{width:100%;height:100%;object-fit:cover;display:block}
+.adm-photo-rm{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.85);border:1px solid #333;color:#f88;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.adm-photo-cnt{font-size:10px;color:#555;text-align:right;margin-top:4px}
+
+/* ─── EDIT LIMIT BADGE ─── */
+.rv-edit-limit{font-size:11px;color:#666;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;background:#0a0a0a;border:1px solid #161616}
+.rv-edit-limit.warn{color:#fb923c;border-color:#3a2010}
+.rv-edit-limit.full{color:#f87171;border-color:#3a1010}
+
 /* ─── PAGINATION ─── */
 .pagination{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:22px;padding-top:18px;border-top:1px solid #0d0d0d}
 .page-btn{min-width:30px;height:30px;padding:0 8px;border-radius:7px;border:1px solid #1a1a1a;font-size:11px;font-family:inherit;color:#777;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;background:#080808;cursor:pointer;gap:4px}
@@ -2123,9 +2147,19 @@ Rules:
   <h2>Ответить на отзыв</h2>
   <p id="adminReplyInfo" class="modal-sub" style="color:#888;margin-bottom:16px"></p>
   <input type="hidden" id="adminReplyId">
-  <div class="fgroup" style="margin-bottom:18px">
-    <label>Ответ от Favorite AI Agent</label>
+  <div class="fgroup" style="margin-bottom:14px">
+    <label>Ответ от владельца <span class="badge-owner" style="margin-left:6px">Владелец</span></label>
     <textarea id="adminReplyText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Введите ответ на отзыв..."></textarea>
+  </div>
+  <div class="fgroup" style="margin-bottom:14px">
+    <label>Фото к ответу <span style="color:#555;font-size:10px">(до 10)</span></label>
+    <div class="adm-photo-zone" id="admPhotoZone" role="button" tabindex="0">
+      <input type="file" id="admPhotoInput" accept="image/*" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;margin:0;padding:0" onchange="onAdmReplyFiles(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>Прикрепить фото</span>
+    </div>
+    <div class="adm-photo-grid" id="admPhotoGrid"></div>
+    <div class="adm-photo-cnt" id="admPhotoCnt"></div>
   </div>
   <button class="btn btn-primary" style="width:100%;height:42px" onclick="submitAdminReply()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -3316,13 +3350,79 @@ function renderReviews(items){
     var adminImgs=[];try{adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]);}catch(e){}
     var adminBlock='';
     if(r.ai_response||adminImgs.length){
-      adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>'+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
+      adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div>'+renderReplyAuthor(r.reply_by)+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
     }
     var sc=r.score||0;
     var scoreClr=sc>=9?'#4ade80':sc>=7?'#86efac':sc>=4?'#f59e0b':'#ef4444';
-    return '<div class="review-card"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score" style="color:'+scoreClr+';border-color:'+scoreClr+'22">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+'</div>';
+    return '<div class="review-card" data-rv-card="'+esc(r.id)+'"><div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score" style="color:'+scoreClr+';border-color:'+scoreClr+'22">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+renderLikesBar(r)+'</div>';
   }).join('');
 }
+
+/* ─── РЕНДЕР АВТОРА ОТВЕТА (ИИ или Владелец) ─── */
+window.renderReplyAuthor=function(replyBy){
+  if(replyBy==='manual'){
+    return '<b style="color:#ddd">ReZero</b>&nbsp;<span class="badge-owner">Владелец</span>';
+  }
+  return '<b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>';
+};
+
+/* ─── РЕНДЕР ПАНЕЛИ ЛАЙКОВ/ДИЗЛАЙКОВ ─── */
+window.renderLikesBar=function(r){
+  var likes=parseInt(r.likes||0)||0;
+  var dislikes=parseInt(r.dislikes||0)||0;
+  var uv=parseInt(r.user_like||0)||0;
+  var likeCls=uv===1?'rv-like-btn active-like':'rv-like-btn';
+  var dislCls=uv===-1?'rv-like-btn active-dislike':'rv-like-btn';
+  var rid=esc(r.id);
+  return '<div class="rv-likes" data-rv-likes="'+rid+'">'
+    +'<button type="button" class="'+likeCls+'" data-rv-like-btn="'+rid+'" data-v="1" onclick="rvLike(\''+rid+'\',1)" aria-label="Лайк">'
+      +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-8.68A1.5 1.5 0 0 1 14 2.34V5.5a.5.5 0 0 0 .5.38Z"/></svg>'
+      +'<span class="rv-like-cnt" data-rv-like-cnt="'+rid+'">'+likes+'</span>'
+    +'</button>'
+    +'<button type="button" class="'+dislCls+'" data-rv-disl-btn="'+rid+'" data-v="-1" onclick="rvLike(\''+rid+'\',-1)" aria-label="Дизлайк">'
+      +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="m9 18.12 1-4.12H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 8.68A1.5 1.5 0 0 1 10 22.34V19a.5.5 0 0 0-.5-.38Z"/></svg>'
+      +'<span class="rv-like-cnt" data-rv-disl-cnt="'+rid+'">'+dislikes+'</span>'
+    +'</button>'
+  +'</div>';
+};
+
+/* ─── ОБРАБОТЧИК НАЖАТИЯ НА ЛАЙК/ДИЗЛАЙК ─── */
+window.rvLike=function(reviewId,value){
+  if(!window.user){
+    try{showToast('Войдите, чтобы оценивать отзывы','err');}catch(e){}
+    try{clog('LIKES','blocked: гость reviewId='+reviewId,'warn');}catch(e){}
+    return;
+  }
+  try{clog('LIKES','POST /api/reviews/'+reviewId+'/like value='+value);}catch(e){}
+  /* Дизейблим обе кнопки этого отзыва на время запроса */
+  var btns=document.querySelectorAll('[data-rv-like-btn="'+reviewId+'"],[data-rv-disl-btn="'+reviewId+'"]');
+  btns.forEach(function(b){b.disabled=true;});
+  rvXhr('POST','/api/reviews/'+encodeURIComponent(reviewId)+'/like',{value:value},function(d,err){
+    btns.forEach(function(b){b.disabled=false;});
+    if(err||!d){
+      try{clog('LIKES','ошибка err='+err,'error');}catch(e){}
+      try{showToast((d&&(d.message||d.error))||'Ошибка ('+err+')','err');}catch(e){}
+      return;
+    }
+    if(d.error){ try{showToast(d.message||d.error,'err');}catch(e){} return; }
+    /* Обновляем счётчики и подсветку — точечно, без перезагрузки списка */
+    try{clog('LIKES','OK likes='+d.likes+' dislikes='+d.dislikes+' user_like='+d.user_like);}catch(e){}
+    var lc=document.querySelector('[data-rv-like-cnt="'+reviewId+'"]');
+    var dc=document.querySelector('[data-rv-disl-cnt="'+reviewId+'"]');
+    if(lc) lc.textContent=d.likes;
+    if(dc) dc.textContent=d.dislikes;
+    /* Обновляем все экземпляры этого отзыва (на лендинге и на странице отзывов могут быть оба) */
+    document.querySelectorAll('[data-rv-like-btn="'+reviewId+'"]').forEach(function(b){
+      b.classList.toggle('active-like',d.user_like===1);
+    });
+    document.querySelectorAll('[data-rv-disl-btn="'+reviewId+'"]').forEach(function(b){
+      b.classList.toggle('active-dislike',d.user_like===-1);
+    });
+    /* На случай если карточка отрендерена в нескольких местах — синхронизируем счётчики тоже */
+    document.querySelectorAll('[data-rv-like-cnt="'+reviewId+'"]').forEach(function(s){s.textContent=d.likes;});
+    document.querySelectorAll('[data-rv-disl-cnt="'+reviewId+'"]').forEach(function(s){s.textContent=d.dislikes;});
+  });
+};
 
 function loadUserNotifications(){
   if(!user) return;
@@ -4845,18 +4945,23 @@ window.loadReviews=loadReviews;
       sec.innerHTML='';
       sec.appendChild(cta);
     } else {
-      /* Проверяем есть ли у пользователя уже отзыв — меняем текст кнопки и показываем статус */
+      /* Проверяем есть ли у пользователя уже отзыв — меняем текст кнопки и показываем статус + лимит правок */
       rvXhr('GET','/api/reviews/mine',null,function(d){
         var hasReview=d&&d.review;
         var r=hasReview?d.review:null;
         var bar=document.createElement('div');
         bar.className='rv-write-bar';
-        bar.style.cssText='display:flex;align-items:center;gap:12px;flex-wrap:wrap';
+        bar.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+        var isOwner=user&&user.username==='ReZero';
+        var weekEdits=r?(parseInt(r.week_edits||0)||0):0;
+        var editsLeft=Math.max(0,3-weekEdits);
+        var limitReached=hasReview && !isOwner && editsLeft<=0;
         var wbtn=document.createElement('button');
         wbtn.className='btn btn-primary';
         wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
         wbtn.textContent=hasReview?'\u270F Редактировать отзыв':'\u270F Написать отзыв';
-        wbtn.onclick=function(e){ e.stopPropagation(); if(window.openWriteReviewModal) window.openWriteReviewModal(); };
+        if(limitReached){ wbtn.disabled=true; wbtn.style.opacity='.55'; wbtn.title='Лимит правок исчерпан'; }
+        wbtn.onclick=function(e){ e.stopPropagation(); if(limitReached){ showToast('Лимит правок: 3 в 7 дней','err'); return; } if(window.openWriteReviewModal) window.openWriteReviewModal(); };
         bar.appendChild(wbtn);
         if(hasReview&&r){
           var statusMap={approved:'<span style="color:#4ade80">✓ Опубликован</span>',pending:'<span style="color:#888">⏳ На модерации</span>',flagged:'<span style="color:#fb923c">⚑ Помечен</span>'};
@@ -4865,6 +4970,15 @@ window.loadReviews=loadReviews;
           statusEl.style.cssText='font-size:12px;color:#666';
           statusEl.innerHTML='Ваш отзыв: '+scoreBadge+(statusMap[r.status]||r.status);
           bar.appendChild(statusEl);
+          /* Бейдж лимита правок (только для не-владельца) */
+          if(!isOwner){
+            var limCls='rv-edit-limit'+(editsLeft===0?' full':(editsLeft===1?' warn':''));
+            var limEl=document.createElement('span');
+            limEl.className=limCls;
+            limEl.title='Лимит редактирований: 3 в 7 дней';
+            limEl.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Правок осталось: '+editsLeft+'/3';
+            bar.appendChild(limEl);
+          }
         }
         sec.innerHTML='';
         sec.appendChild(bar);
@@ -5036,7 +5150,7 @@ window.loadReviews=loadReviews;
       var adminImgs=[]; try{ adminImgs=typeof r.admin_images==='string'?JSON.parse(r.admin_images):(r.admin_images||[]); }catch(e){}
       var adminBlock='';
       if(r.ai_response||adminImgs.length){
-        adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>'+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
+        adminBlock='<div class="review-answer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div>'+(window.renderReplyAuthor?renderReplyAuthor(r.reply_by):'<b style="color:#999">Favorite AI Agent</b>&nbsp;<span class="badge-moderator">Модератор</span>')+(r.ai_response?'<br>'+esc(r.ai_response):'')+renderReviewImgs(adminImgs)+'</div></div>';
       }
       var adminCtrl=isAdm
         ?'<div class="rv-admin-ctrl">'
@@ -5044,14 +5158,15 @@ window.loadReviews=loadReviews;
           +'<button class="btn btn-ghost btn-xs" style="color:#f88;border-color:#3a1a1a" data-rv-del="'+r.id+'">Удалить</button>'
           +'</div>'
         :'';
+      var likesBar=window.renderLikesBar?renderLikesBar(r):'';
       var _sc=r.score||0;
       var _scoreClr=_sc>=9?'#4ade80':_sc>=7?'#86efac':_sc>=4?'#f59e0b':'#ef4444';
-      return '<div class="review-card">'
+      return '<div class="review-card" data-rv-card="'+esc(r.id)+'">'
         +'<div class="review-meta"><div class="review-author"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge+'</div>'
         +'<span>'+formatDate(r.updated_at||r.created_at)+'</span>'
         +'<span class="review-score" style="color:'+_scoreClr+';border-color:'+_scoreClr+'22">'+esc(r.score)+'/10</span></div>'
         +'<div class="review-text">'+esc(r.text)+'</div>'
-        +renderReviewImgs(imgs)+adminBlock+adminCtrl
+        +renderReviewImgs(imgs)+adminBlock+likesBar+adminCtrl
         +'</div>';
     }).join('');
     if(isAdm){
@@ -5073,13 +5188,69 @@ window.loadReviews=loadReviews;
   window.goToReviews=function(){ goView('reviews'); };
 
   window.rvAdminDelete=function(id){
-    if(!confirm('Удалить этот отзыв?')) return;
-    api('/api/reviews/'+id,'DELETE').then(function(d){
-      if(d&&d.error){showToast(d.message||'Ошибка','err');return;}
-      showToast('Отзыв удалён','ok');
-      rvLoadPage(_rvPage);
-      loadReviews();
-    }).catch(function(){showToast('Ошибка при удалении','err');});
+    try{clog('RV_DEL','request id='+id);}catch(e){}
+    customConfirm('Удалить отзыв','Это действие необратимо. Удалить выбранный отзыв вместе с лайками и фото?').then(function(ok){
+      try{clog('RV_DEL','customConfirm result='+ok);}catch(e){}
+      if(!ok) return;
+      api('/api/reviews/'+id,'DELETE').then(function(d){
+        if(d&&d.error){showToast(d.message||'Ошибка','err');return;}
+        try{clog('RV_DEL','OK id='+id);}catch(e){}
+        showToast('Отзыв удалён','ok');
+        rvLoadPage(_rvPage);
+        loadReviews();
+      }).catch(function(e){
+        try{clog('RV_DEL','ERR '+e,'error');}catch(_){}
+        showToast('Ошибка при удалении','err');
+      });
+    });
+  };
+
+  /* ─── ХРАНИЛИЩЕ ФОТО АДМИН-ОТВЕТА ─── */
+  window._adminReplyImgs=[];
+
+  window.renderAdmReplyPreview=function(){
+    var grid=document.getElementById('admPhotoGrid');
+    var cnt=document.getElementById('admPhotoCnt');
+    if(!grid) return;
+    grid.innerHTML=window._adminReplyImgs.map(function(src,i){
+      return '<div class="adm-photo-item"><img src="'+src+'" alt=""><div class="adm-photo-rm" onclick="rmAdmReplyImg('+i+')" title="Удалить">×</div></div>';
+    }).join('');
+    if(cnt) cnt.textContent=window._adminReplyImgs.length?window._adminReplyImgs.length+'/10 фото':'';
+  };
+
+  window.rmAdmReplyImg=function(i){
+    try{clog('ADM_PHOTO','remove idx='+i);}catch(e){}
+    window._adminReplyImgs.splice(i,1);
+    window.renderAdmReplyPreview();
+  };
+
+  window.onAdmReplyFiles=function(input){
+    var n=input&&input.files?input.files.length:0;
+    try{clog('ADM_PHOTO','onchange files='+n);}catch(e){}
+    if(!input||!input.files||!input.files.length) return;
+    var files=Array.from(input.files);
+    var rem=10-window._adminReplyImgs.length;
+    if(rem<=0){ showToast('Максимум 10 фото в ответе','err'); input.value=''; return; }
+    var MAX_SZ=5*1024*1024;
+    var toProc=files.slice(0,rem), done=0, ok=0, skipped=0;
+    toProc.forEach(function(f,idx){
+      try{clog('ADM_PHOTO','file['+idx+'] name='+f.name+' size='+f.size);}catch(e){}
+      if(!f||f.size>MAX_SZ){ skipped++; done++; if(done===toProc.length){ if(skipped) showToast(skipped+' файл(ов) больше 5 МБ — пропущены','err'); setTimeout(function(){try{input.value='';}catch(_){}},500); } return; }
+      var reader=new FileReader();
+      reader.onload=function(ev){
+        var data=ev&&ev.target&&ev.target.result;
+        if(data){ window._adminReplyImgs.push(data); ok++; }
+        done++;
+        try{ window.renderAdmReplyPreview(); }catch(e){}
+        if(done===toProc.length){
+          try{clog('ADM_PHOTO','готово ok='+ok+' skipped='+skipped+' total='+window._adminReplyImgs.length);}catch(e){}
+          if(skipped) showToast(skipped+' файл(ов) больше 5 МБ — пропущены','err');
+          setTimeout(function(){try{input.value='';}catch(_){}},500);
+        }
+      };
+      reader.onerror=function(){ done++; if(done===toProc.length){ setTimeout(function(){try{input.value='';}catch(_){}},500); } };
+      try{ reader.readAsDataURL(f); }catch(e){ done++; }
+    });
   };
 
   window.rvAdminReply=function(id,username){
@@ -5089,6 +5260,26 @@ window.loadReviews=loadReviews;
     if(el) el.value=id||'';
     if(info) info.textContent='Ответ на отзыв пользователя: '+(username||'user');
     if(ta) ta.value='';
+    /* Сброс фото-стейта при каждом открытии */
+    window._adminReplyImgs=[];
+    /* Подгружаем уже сохранённые фото ответа (если редактируем существующий ответ) */
+    rvXhr('GET','/api/reviews?page=1',null,function(d){
+      try{
+        if(d&&d.reviews){
+          var r=d.reviews.find(function(x){return x.id===id;});
+          if(r){
+            if(r.ai_response&&ta){ ta.value=r.ai_response; }
+            try{
+              var ai=typeof r.admin_images==='string'?JSON.parse(r.admin_images||'[]'):(r.admin_images||[]);
+              window._adminReplyImgs=Array.isArray(ai)?ai.slice(0,10):[];
+            }catch(e){}
+          }
+        }
+      }catch(e){}
+      try{ window.renderAdmReplyPreview(); }catch(e){}
+    });
+    try{ window.renderAdmReplyPreview(); }catch(e){}
+    try{clog('RV_REPLY','open id='+id);}catch(e){}
     openModal('adminReplyModal');
   };
 
@@ -5098,13 +5289,25 @@ window.loadReviews=loadReviews;
     var id=idEl?idEl.value:'';
     var text=taEl?(taEl.value||'').trim():'';
     if(!id){showToast('Ошибка: нет ID отзыва','err');return;}
-    api('/api/reviews/'+id+'/status','PUT',{status:'approved',ai_response:text||null}).then(function(d){
-      if(d&&d.error){showToast(d.message||'Ошибка','err');return;}
+    var imgs=(window._adminReplyImgs||[]).slice(0,10);
+    var totalLen=0; for(var i=0;i<imgs.length;i++){ totalLen+=(imgs[i]||'').length; }
+    try{clog('RV_REPLY','submit id='+id+' text_len='+text.length+' imgs='+imgs.length+' total_b64='+totalLen);}catch(e){}
+    var payload={status:'approved', ai_response:text||null, admin_images:imgs, reply_by:'manual'};
+    rvXhr('PUT','/api/reviews/'+encodeURIComponent(id)+'/status',payload,function(d,err){
+      if(err){
+        try{clog('RV_REPLY','ERR '+err+' '+(d?JSON.stringify(d).slice(0,200):''),'error');}catch(_){}
+        showToast((d&&(d.message||d.error))||'Ошибка ('+err+')','err');
+        return;
+      }
+      if(d&&d.error){showToast(d.message||d.error||'Ошибка','err');return;}
+      try{clog('RV_REPLY','OK id='+id);}catch(_){}
       closeModal('adminReplyModal');
+      window._adminReplyImgs=[];
+      try{ window.renderAdmReplyPreview(); }catch(e){}
       showToast('Ответ сохранён','ok');
       rvLoadPage(_rvPage);
       loadReviews();
-    }).catch(function(){showToast('Ошибка','err');});
+    },60000);
   };
 
 /* ═══════════════════════════════════════
