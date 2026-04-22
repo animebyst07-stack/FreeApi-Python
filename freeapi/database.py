@@ -81,37 +81,33 @@ def _execute_migration_sql(conn, sql_text, idempotent):
 
 
 def _run_migrations(conn):
+    """Применить миграции из MIGRATIONS_DIR.
+
+    Все миграции написаны идемпотентно (CREATE TABLE/INDEX IF NOT EXISTS,
+    ALTER TABLE ADD COLUMN — ошибка «duplicate column» проглатывается).
+    Поэтому каждый файл выполняется на каждом запуске. Это:
+      • даёт корректную инициализацию свежей БД;
+      • чинит БД, где предыдущая bootstrap-маркировка пометила миграции
+        применёнными, но реально не выполнила их (баг первой выкладки шага 0.6).
+    Стоимость лишних попыток ALTER пренебрежимо мала (мс при старте процесса).
+    """
     conn.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, applied_at TEXT)')
     applied = {row_obj[0] for row_obj in conn.execute('SELECT version FROM schema_migrations').fetchall()}
-
-    has_users_row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
-    ).fetchone()
-    has_users = has_users_row is not None
-    bootstrap_mark = has_users and not applied
 
     files = _list_migration_files()
     for fname in files:
         version = os.path.splitext(fname)[0]
-        if version in applied:
-            continue
         path = os.path.join(MIGRATIONS_DIR, fname)
         with open(path, 'r', encoding='utf-8') as fp:
             sql_text = fp.read()
-        if bootstrap_mark:
+        # Всегда idempotent: каждое выражение через try/except, ошибки логируются.
+        _execute_migration_sql(conn, sql_text, idempotent=True)
+        if version not in applied:
             conn.execute(
                 'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)',
                 (version, msk_now()),
             )
-            logger.info('[MIGRATIONS] bootstrap mark %s', version)
-            continue
-        idempotent = sql_text.lstrip().startswith('-- IDEMPOTENT')
-        _execute_migration_sql(conn, sql_text, idempotent)
-        conn.execute(
-            'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)',
-            (version, msk_now()),
-        )
-        logger.info('[MIGRATIONS] applied %s', version)
+            logger.info('[MIGRATIONS] applied %s', version)
 
 
 def _seed_reference_data(conn):
