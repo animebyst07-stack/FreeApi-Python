@@ -1551,11 +1551,9 @@ var _reviewsPage=1,_reviewsPages=1;
 
 /* ───────────── VIEW ROUTER (see new goView below) ───────────── */
 
-/* ───────────── MODALS ───────────── */
-window.openModal=function(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; };
-window.closeModal=function(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; };
-window.overlayClick=function(e,el){ if(e.target===el) closeModal(el.id); };
-window.switchModal=function(from,to){ closeModal(from); setTimeout(function(){ openModal(to); },100); };
+/* ───────────── MODALS ─────────────
+   Шаг 0.5.8: вынесено в /js/ui/modal.js (window.openModal/closeModal/
+   overlayClick/switchModal остаются доступны через ESM-модуль). */
 function unlockSidebarScrollIfClosed(){
   var sb=document.getElementById('sidebar');
   var ov=document.getElementById('sidebarOverlay');
@@ -1624,65 +1622,15 @@ window.handleStartFreeClick=function(){
   });
 };
 
-/* ───────────── CUSTOM CONFIRM ───────────── */
-var _confirmResolve=null;
-window.customConfirm=function(title,message){
-  return new Promise(function(resolve){
-    _confirmResolve=resolve;
-    document.getElementById('confirmTitle').textContent=title||'Подтверждение';
-    document.getElementById('confirmMessage').textContent=message||'Вы уверены?';
-    openModal('confirmModal');
-  });
-};
-window.resolveConfirm=function(val){
-  closeModal('confirmModal');
-  if(_confirmResolve){_confirmResolve(val);_confirmResolve=null;}
-};
+/* ───────────── CUSTOM CONFIRM ─────────────
+   Шаг 0.5.8: customConfirm/resolveConfirm + _confirmResolve вынесены в
+   /js/ui/modal.js. window.customConfirm и window.resolveConfirm доступны
+   через ESM-модуль. */
 
-/* ───────────── CUSTOM DROPDOWN ───────────── */
-window.toggleCustomSelect=function(triggerOrId){
-  var wrap;
-  if(typeof triggerOrId==='string'){wrap=document.getElementById(triggerOrId);}
-  else{wrap=triggerOrId.closest('.custom-select-wrap');}
-  if(!wrap) return;
-  var wasOpen=wrap.classList.contains('open');
-  document.querySelectorAll('.custom-select-wrap.open').forEach(function(w){w.classList.remove('open');});
-  if(!wasOpen) wrap.classList.add('open');
-};
-function buildCustomSelect(wrapId,options,selectedValue,onChange){
-  var wrap=document.getElementById(wrapId);
-  if(!wrap) return;
-  var dropdown=wrap.querySelector('.custom-select-dropdown');
-  var hidden=wrap.querySelector('input[type="hidden"]');
-  var label=wrap.querySelector('.custom-select-label');
-  dropdown.innerHTML='';
-  var found=false;
-  options.forEach(function(opt){
-    var div=document.createElement('div');
-    div.className='custom-select-option'+(opt.value===selectedValue?' selected':'');
-    div.textContent=opt.label;
-    div.setAttribute('data-value',opt.value);
-    div.onclick=function(){
-      if(hidden) hidden.value=opt.value;
-      label.textContent=opt.label;
-      dropdown.querySelectorAll('.custom-select-option').forEach(function(o){o.classList.remove('selected');});
-      div.classList.add('selected');
-      wrap.classList.remove('open');
-      if(onChange) onChange(opt.value,opt.label);
-    };
-    dropdown.appendChild(div);
-    if(opt.value===selectedValue){label.textContent=opt.label;found=true;}
-  });
-  if(!found&&options.length>0){
-    label.textContent=options[0].label;
-    if(hidden) hidden.value=options[0].value;
-  }
-}
-document.addEventListener('click',function(e){
-  if(!e.target.closest('.custom-select-wrap')){
-    document.querySelectorAll('.custom-select-wrap.open').forEach(function(w){w.classList.remove('open');});
-  }
-});
+/* ───────────── CUSTOM DROPDOWN ─────────────
+   Шаг 0.5.10: toggleCustomSelect/buildCustomSelect + click-outside-handler
+   вынесены в /js/ui/select.js. Обе функции доступны через window.* для
+   classic-callsites (handlers внутри inline-блока). */
 
 window.togglePw=function(inputId,btn){
   var inp=q(inputId);
@@ -1721,7 +1669,7 @@ window.submitTfa=function(){
   });
 };
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeSidebar(); document.querySelectorAll('.overlay.open').forEach(function(el){ closeModal(el.id); }); } });
-window.addEventListener('resize',function(){ if(window.innerWidth>=900) closeSidebar(); });
+/* Шаг 0.5.9: resize-listener (auto-close сайдбара на десктопе) перенесён в /js/ui/sidebar.js */
 
 /* ───────────── AUTH ───────────── */
 window.doLogin=function(e){
@@ -1761,26 +1709,8 @@ function afterLogout(){
 }
 function updateNav(){}
 
-/* ───────────── TOAST — F-04 ───────────── */
-window.showToast=function(msg,type){
-  var wrap=q('toastWrap');
-  var t=document.createElement('div');
-  t.className='toast'+(type==='ok'?' toast-ok':type==='err'?' toast-err':'');
-  var icon=type==='ok'
-    ?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>'
-    :type==='err'
-    ?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
-    :'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-  t.innerHTML=icon+esc(msg);
-  /* Ограничение: максимум 4 одновременных тоста (старые удаляем) */
-  while(wrap.children.length>=4){
-    var oldest=wrap.firstChild;
-    if(oldest){ oldest.classList.remove('show'); wrap.removeChild(oldest); }
-  }
-  wrap.appendChild(t);
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ t.classList.add('show'); }); });
-  setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); },300); },3500);
-};
+/* ───────────── TOAST — F-04 ─────────────
+   Шаг 0.5.7: window.showToast вынесена в /js/ui/toast.js. */
 
 /* ───────────── DASHBOARD ───────────── */
 function loadDashboard(){
@@ -3731,22 +3661,10 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 });
 
-/* ───────────── SIDEBAR ───────────── */
-window.toggleSidebar=function(){
-  var sb=document.getElementById('sidebar');
-  var ov=document.getElementById('sidebarOverlay');
-  var hb=document.getElementById('hamburger');
-  var open=sb.classList.toggle('open');
-  ov.classList.toggle('open',open);
-  hb.classList.toggle('open',open);
-  document.body.classList.toggle('sidebar-locked',open);
-};
-window.closeSidebar=function(){
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('open');
-  document.getElementById('hamburger').classList.remove('open');
-  document.body.classList.remove('sidebar-locked');
-};
+/* ───────────── SIDEBAR ─────────────
+   Шаг 0.5.9: window.toggleSidebar и window.closeSidebar вынесены в
+   /js/ui/sidebar.js (вместе с resize-listener'ом). updateSidebar
+   ниже остаётся inline — зависит от user/accountState. */
 function updateSidebar(){
   var authed=!!user;
   var isAdmin=user&&user.username==='ReZero';
