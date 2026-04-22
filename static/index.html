@@ -1254,7 +1254,7 @@ Rules:
   </div>
   <div class="fgroup">
     <label>Текст отзыва</label>
-    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="var e=document.getElementById('writeReviewTextCount');if(e)e.textContent=this.value.length;try{localStorage.setItem('freeapi_review_draft',this.value);}catch(ex){}"></textarea>
+    <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="var e=document.getElementById('writeReviewTextCount');if(e)e.textContent=this.value.length;try{(window.lsSet||function(k,v){localStorage.setItem(k,v);})('freeapi_review_draft',this.value);}catch(ex){}"></textarea>
     <div style="font-size:10px;color:#444;margin-top:4px;text-align:right"><span id="writeReviewTextCount">0</span>/1000</div>
   </div>
   <div class="fgroup">
@@ -2957,14 +2957,14 @@ function saveChatHistory(){
   var key=chatStoreKey();
   if(!key) return;
   try{
-    localStorage.setItem(key,JSON.stringify((_chatMessages||[]).slice(-40)));
+    window.lsSet(key,JSON.stringify((_chatMessages||[]).slice(-40)));
   }catch(e){}
 }
 function loadChatHistory(){
   var key=chatStoreKey();
   if(!key){_chatMessages=[];return;}
   try{
-    var raw=localStorage.getItem(key);
+    var raw=window.lsGet(key,'');
     _chatMessages=raw?JSON.parse(raw):[];
     if(!Array.isArray(_chatMessages)) _chatMessages=[];
   }catch(e){
@@ -4301,7 +4301,7 @@ window.loadReviews=loadReviews;
       if(btn){ btn.disabled=false; btn.innerHTML=_btnOrigHtml; }
       if(err){ showToast((d&&(d.message||d.error))||'Ошибка соединения ('+err+')','err'); return; }
       if(d&&d.error){ showToast(d.message||d.error||'Ошибка','err'); return; }
-      try{localStorage.removeItem('freeapi_review_draft');}catch(e){}
+      window.lsDel('freeapi_review_draft');
       var status=d&&d.review&&d.review.status;
       showToast(status==='pending'?'Отзыв отправлен на модерацию':'Отзыв опубликован','ok');
       rvLoadPage(1); try{loadReviews();}catch(e){} rvRenderWriteSection();
@@ -4574,7 +4574,7 @@ window.openWriteReviewModal=function(){
     var ta=document.getElementById('writeReviewText');
     /* Восстановить черновик из localStorage */
     var draft='';
-    try{ draft=localStorage.getItem('freeapi_review_draft')||''; }catch(e){}
+    draft=window.lsGet('freeapi_review_draft','');
     if(ta){ta.value=draft;}
     var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent=draft.length||'0';
     var ip=document.getElementById('writeReviewImgPreview'); if(ip) ip.innerHTML='';
@@ -4750,7 +4750,7 @@ window.submitWriteReview=function(){
     clog('SUBMIT','успех: '+(d?JSON.stringify(d).substring(0,200):''));
     _restoreBtn();
     if(d&&d.error){showToast(d.message||d.error||'Ошибка','err');return;}
-    try{localStorage.removeItem('freeapi_review_draft');}catch(e){}
+    window.lsDel('freeapi_review_draft');
     closeModal('writeReviewModal');
     var status=d&&d.review&&d.review.status;
     if(status==='pending') showToast('Отзыв отправлен на модерацию','ok');
