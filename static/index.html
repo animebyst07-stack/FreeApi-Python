@@ -1478,12 +1478,20 @@ function formatDate(v){
 }
 function renderReviewImgs(imgs,baseId){
   if(!imgs||!imgs.length) return '';
+  /* FIX: раньше передавали JSON.stringify(imgs) прямо в onclick="..." — двойные
+     кавычки base64-data-URL ломали HTML-атрибут (Uncaught SyntaxError: Unexpected
+     end of input). Кладём массив в реестр window._lbReg по короткому ключу,
+     onclick зовёт openLightbox(window._lbReg[KEY], idx). */
+  window._lbReg = window._lbReg || {};
+  var key = String(baseId || ('rv_'+Math.random().toString(36).slice(2,10)));
+  window._lbReg[key] = imgs;
   var show=imgs.slice(0,4),more=imgs.length-4;
+  var ref="window._lbReg['"+key.replace(/'/g,"\\'")+"']";
   var html='<div class="review-imgs">';
   show.forEach(function(src,i){
-    html+='<div class="review-img-thumb" onclick="openLightbox('+JSON.stringify(imgs)+','+i+')"><img src="'+src+'" alt="фото" loading="lazy"></div>';
+    html+='<div class="review-img-thumb" onclick="openLightbox('+ref+','+i+')"><img src="'+src+'" alt="фото" loading="lazy"></div>';
   });
-  if(more>0) html+='<div class="review-img-more" onclick="openLightbox('+JSON.stringify(imgs)+',4)">+'+more+'</div>';
+  if(more>0) html+='<div class="review-img-more" onclick="openLightbox('+ref+',4)">+'+more+'</div>';
   html+='</div>';
   return html;
 }
