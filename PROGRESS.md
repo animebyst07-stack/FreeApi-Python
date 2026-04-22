@@ -21,7 +21,25 @@
 | 0.5.10   | ✓      | 8b47a98 / 24331bf | `toggleCustomSelect/buildCustomSelect` + click-outside → `ui/select.js` |
 | 0.5.11   | ✓      | ff4d049  | `goView` + `updateSidebarActive` (роутер view'ов) → `ui/view.js`. Все view-init функции (`loadDashboard/initChatView/...`) пока остаются inline (top-level classic-script ⇒ window.*). |
 | 0.5.12   | ✓      | fbcf8ceb | Уведомления: `refreshNotifBadge/loadNotifications/markAllNotifsRead/deleteUserNotification/startNotifPolling/stopNotifPolling/loadUserNotifications` + `_notifPollTimer/_notifLastUnread` → `views/notifications.js`. Прямой вызов `loadUserNotifications()` в `loadDashboard` заменён на `if(window.refreshNotifBadge) window.refreshNotifBadge();`. |
+| 0.5.13-FIX | ✓    | c8647e8 / 23ee193 | HOTFIX bootstrap → DOMContentLoaded. Раньше inline `loadModels()` падал на `api is not defined` и валил остаток скрипта (отсюда `rvAdminDelete is not defined` и пустой раздел «Модели»). Добавлены лог-каналы [BOOT], [ESM], [JS_PROMISE_REJECT]. |
+| 0.5.13-UI  | ✓    | (этот) | (а) Удалена дублирующая карточка «Отзывы» из админки (HTML + `_adminReviewImgs/renderAdminReviews/removeAdminReviewImg/onAdminReviewFilesSelected/saveAdminReviewResp/deleteAdminReview/setReviewStatus`). Все действия делаются прямо в разделе «Отзывы». (б) `api.py`: ring-buffer in-memory логов (50k записей, root logger) + сохранение в `/storage/emulated/0/Цхранилище/Мусор/logi.txt` при остановке (Ctrl+C / SIGTERM / atexit). Старый файл удаляется. Fallback в `./logi.txt` при ошибке записи. |
 | 0.5.13   | ☐      | —        | следующий: вынос блока поддержки (`views/support.js`) — `initSupportView/loadSupportHistory/sendSupportMessage/closeSupportChat/_doCloseSupportChat/appendSupportMsg/appendSupportThinking/clearSupportAttachment/_supportPending/_supportImageBase64/_supportImageName`. Внимание: зависит от `parseTgMarkdown` и `autoResizeTextarea` (общие inline-хелперы — оставить inline и звать через window.*). |
+
+## Оставшиеся подшаги 0.5 (по `plan.txt`)
+
+| Подшаг | Содержимое | Статус |
+|--------|-----------|--------|
+| 0.5a — core    | api/dom/logger/storage/state | ✓ (0.5.4–0.5.6) |
+| 0.5b — auth + dashboard | login/register/logout, loadDashboard | ☐ |
+| 0.5c — setup   | Telegram-аккаунты, выдача ключей | ☐ |
+| 0.5d — reviews | большой блок отзывов (~700 строк inline) | ☐ |
+| 0.5e — chat + support | тестовый чат + поддержка (~500 строк) | ☐ |
+| 0.5f — notifications + admin | notifications ✓ (0.5.12); админка ☐ |
+| 0.5g — docs + models + main.js + чистка inline-JS | финал | ☐ |
+
+**Итого до конца Шага 0.5: ~6 крупных подшагов.** Дальше по `plan.txt`:
+0.6 миграции · 0.7 единое логирование · 0.8 rate-limit · 1.1 push · 1.2 SSE
+· 1.3 группировка уведомлений · 1.4 драфты · 1.5 bulk-админка.
 
 ## Smoke-тест 0.5.6
 
