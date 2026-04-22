@@ -1040,7 +1040,8 @@ def register_routes(app):
             page = 1
         limit = 10
         offset = (page - 1) * limit
-        items, total = repo.get_approved_reviews(limit=limit, offset=offset)
+        viewer_uid = current_user_id()
+        items, total = repo.get_approved_reviews(limit=limit, offset=offset, viewer_uid=viewer_uid)
         avg_score = repo.get_avg_review_score()
         return jsonify({
             'reviews': items,
@@ -1078,9 +1079,17 @@ def register_routes(app):
             score = 0
         text = (data.get('text') or '').strip()
         raw_images = data.get('images') or []
-        logger.info('[REVIEWS] POST /api/reviews uid=%s score=%s text_len=%s images_in=%s body_size=%s',
+        is_edit = bool(repo.get_review_by_user(uid))
+        logger.info('[REVIEWS] POST /api/reviews uid=%s score=%s text_len=%s images_in=%s is_edit=%s body_size=%s',
                     uid, score, len(text), (len(raw_images) if isinstance(raw_images, list) else 'not_list'),
-                    request.content_length)
+                    is_edit, request.content_length)
+        # Лимит редактирований: 3 в 7 дней (не для владельца)
+        if is_edit and not is_admin:
+            week_edits = repo.get_week_edits(uid)
+            logger.info('[REVIEWS] редактирование uid=%s week_edits=%s', uid, week_edits)
+            if week_edits >= 3:
+                logger.warning('[REVIEWS] лимит правок исчерпан uid=%s week_edits=%s', uid, week_edits)
+                return error('Лимит редактирований исчерпан: не более 3 правок в 7 дней', 429)
         if score < 1 or score > 10:
             logger.warning('[REVIEWS] отклонён: невалидная оценка score=%s uid=%s', score, uid)
             return error('Оценка должна быть числом от 1 до 10', 400)
@@ -1093,8 +1102,7 @@ def register_routes(app):
         images = raw_images
         if not isinstance(images, list):
             images = []
-        # Фильтруем невалидные изображения (max 7MB base64 ≈ 5MB raw, только изображения)
-        MAX_IMG_B64 = 7 * 1024 * 1024  # 7MB base64
+        MAX_IMG_B64 = 7 * 1024 * 1024
         ALLOWED_IMG_MIME = ('data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/gif;base64,', 'data:image/webp;base64,', 'data:image/heic;base64,', 'data:image/heif;base64,')
         def _is_valid_img(img):
             if not isinstance(img, str): return False
@@ -1110,7 +1118,7 @@ def register_routes(app):
         logger.info('[REVIEWS] финально к сохранению: score=%s images=%s uid=%s', score, len(images), uid)
         agent_ready = repo.get_admin_setting('agent_enabled', '0') == '1' and bool(repo.get_admin_setting('agent_key_id', ''))
         if is_admin:
-            review = repo.create_review(uid, score, text, 'approved', images=images)
+            review = repo.create_review(uid, score, text, 'approved', images=images, is_admin=True)
         else:
             review = repo.create_review(uid, score, text, 'pending' if agent_ready else 'approved', images=images)
         if agent_ready and not is_admin:
@@ -1120,6 +1128,9 @@ def register_routes(app):
                 trigger_agent()
             except Exception as exc:
                 logger.warning('[Reviews] Не удалось разбудить AI Agent: %s', exc)
+        week_edits_after = repo.get_week_edits(uid)
+        logger.info('[REVIEWS] сохранено uid=%s week_edits_after=%s', uid, week_edits_after)
+        review['week_edits'] = week_edits_after
         return jsonify({'review': review})
 
     @app.delete('/api/reviews/<review_id>')
@@ -1130,6 +1141,7 @@ def register_routes(app):
         user = repo.get_user_by_id(current_user_id())
         if not user or user['username'] != 'ReZero':
             return error('Нет доступа', 403)
+        logger.info('[REVIEWS] DELETE review_id=%s by uid=%s', review_id, current_user_id())
         repo.delete_review(review_id)
         return jsonify({'deleted': True})
 
@@ -1146,6 +1158,9 @@ def register_routes(app):
         if status not in ('approved', 'deleted', 'pending'):
             return error('Некорректный статус', 400)
         ai_response = data.get('ai_response')
+        reply_by = data.get('reply_by', 'ai')
+        if reply_by not in ('ai', 'manual'):
+            reply_by = 'ai'
         admin_images = data.get('admin_images')
         if admin_images is not None:
             if not isinstance(admin_images, list):
@@ -1154,8 +1169,28 @@ def register_routes(app):
             _ALLOWED = ('data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/gif;base64,', 'data:image/webp;base64,', 'data:image/heic;base64,', 'data:image/heif;base64,')
             admin_images = [img for img in admin_images if isinstance(img, str) and len(img) <= MAX_IMG_B64 and any(img[:40].lower().startswith(m) for m in _ALLOWED)]
             admin_images = admin_images[:10]
-        review = repo.update_review_status(review_id, status, ai_response=ai_response, admin_images=admin_images)
+        logger.info('[REVIEWS] status_update review_id=%s status=%s reply_by=%s ai_resp_len=%s admin_imgs=%s uid=%s',
+                    review_id, status, reply_by, len(ai_response or ''), len(admin_images or []), current_user_id())
+        review = repo.update_review_status(review_id, status, ai_response=ai_response, admin_images=admin_images, reply_by=reply_by)
         return jsonify({'review': review})
+
+    @app.post('/api/reviews/<review_id>/like')
+    def like_review(review_id):
+        err = require_user()
+        if err:
+            return err
+        uid = current_user_id()
+        data = request.get_json(silent=True) or {}
+        try:
+            value = int(data.get('value', 1))
+        except (TypeError, ValueError):
+            value = 1
+        if value not in (1, -1):
+            return error('value должен быть 1 (лайк) или -1 (дизлайк)', 400)
+        result = repo.upsert_review_like(review_id, uid, value)
+        logger.info('[REVIEWS] like uid=%s review=%s value=%s → likes=%s dislikes=%s user_like=%s',
+                    uid, review_id, value, result['likes'], result['dislikes'], result['user_like'])
+        return jsonify(result)
 
     # ═══════════════════════════════════════════════
     #  USER NOTIFICATIONS
