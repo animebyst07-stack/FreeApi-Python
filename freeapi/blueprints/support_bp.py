@@ -140,23 +140,37 @@ def support_send_message():
     repo.add_support_message(chat['id'], 'user', content or '[изображение]', image_data)
 
     all_messages = repo.get_support_messages(chat['id'])
+    user_msgs_count = sum(1 for m in all_messages if m.get('role') == 'user')
+    is_first = (user_msgs_count == 1)  # только что добавленное — единственное
+
     _support_username = session.get('username') or ''
     if not _support_username and uid:
         _uobj = repo.get_user_by_id(uid)
         _support_username = _uobj.get('username') if _uobj else ''
-    support_request_text = (
-        f'{_get_support_prompt_with_context(uid)}\n\n'
-        f'{_format_support_dialog_for_ai(all_messages, _support_username)}'
-    )
-    last_user_message = next((m for m in reversed(all_messages) if m.get('role') == 'user'), None)
-    if last_user_message and last_user_message.get('image_data'):
-        ai_content = [
-            {'type': 'text', 'text': support_request_text},
-            {'type': 'image_url', 'image_url': {'url': last_user_message['image_data']}}
-        ]
-    else:
-        ai_content = support_request_text
-    ai_messages = [{'role': 'user', 'content': ai_content}]
+
+    user_label = f'Пользователь (@{_support_username})' if _support_username else 'Пользователь'
+    closer = 'Ответь на это сообщение как Favorite AI Agent | Поддержка FavoriteAPI.'
+    img_note = '\n[Пользователь приложил изображение — проанализируй его.]' if image_data else ''
+    short_user_text = f'{user_label}: {content or "[изображение]"}{img_note}\n\n{closer}'
+
+    def _build_full_text():
+        # Системный промпт + проектный контекст + текущее сообщение.
+        # Используется на первом сообщении диалога и при принудительном /reset из-за CTX_LIMIT.
+        return (
+            f'{_get_support_prompt_with_context(uid)}\n\n'
+            f'=== ТЕКУЩЕЕ СООБЩЕНИЕ ===\n'
+            f'{short_user_text}'
+        )
+
+    def _send(key, model, text):
+        if image_data:
+            ai_content = [
+                {'type': 'text', 'text': text},
+                {'type': 'image_url', 'image_url': {'url': image_data}},
+            ]
+        else:
+            ai_content = text
+        return run_chat(key, model, [{'role': 'user', 'content': ai_content}])
 
     try:
         support_key_id = repo.get_admin_setting('support_key_id', '')
@@ -170,10 +184,33 @@ def support_send_message():
             key = None
 
         if key:
-            from freeapi.tg import run_chat
             from freeapi.models import DEFAULT_MODEL_ID
             _support_model = repo.get_admin_setting('support_model', '') or key.get('default_model') or DEFAULT_MODEL_ID
-            answer = run_chat(key, _support_model, ai_messages)
+
+            # На первом сообщении диалога — гарантируем чистый контекст у Сэма
+            # (а вдруг там осталась история от прошлой сессии или другого пользователя).
+            if is_first:
+                try:
+                    run_control(key, '/reset')
+                except Exception as exc:
+                    logger.warning('[Support] /reset перед первым сообщением не удался: %s', exc)
+                text_to_send = _build_full_text()
+            else:
+                # Диалог уже идёт — Сэм помнит контекст, шлём только новое сообщение.
+                text_to_send = short_user_text
+
+            try:
+                answer = _send(key, _support_model, text_to_send)
+            except RuntimeError as exc:
+                if 'CTX_LIMIT' in str(exc):
+                    logger.warning('[Support] CTX_LIMIT — сбрасываем контекст и повторяем с полным промптом')
+                    try:
+                        run_control(key, '/reset')
+                    except Exception:
+                        pass
+                    answer = _send(key, _support_model, _build_full_text())
+                else:
+                    raise
         else:
             answer = ('Привет! Я Favorite AI Agent — ваш помощник по сервису FavoriteAPI.\n\n'
                       'Для работы AI-поддержки администратору необходимо настроить ключ агента поддержки. '
@@ -221,12 +258,12 @@ def support_close_chat():
 
     reported = False
     report_text = None
+    key = None
 
     try:
         support_key_id = repo.get_admin_setting('support_key_id', '')
         if not support_key_id:
             support_key_id = repo.get_admin_setting('agent_key_id', '')
-        key = None
         if support_key_id:
             from freeapi.database import db as _db, row as _row
             with _db() as conn:
@@ -258,6 +295,15 @@ def support_close_chat():
             reported = True
 
     repo.close_support_chat(chat['id'], report_text)
+
+    # После закрытия диалога — сбрасываем контекст у Сэма, чтобы следующий
+    # открытый диалог (этого или другого пользователя) гарантированно начался
+    # с чистого листа и получил полный системный промпт.
+    try:
+        if key:
+            run_control(key, '/reset')
+    except Exception as exc:
+        logger.warning('[Support] /reset после закрытия диалога не удался: %s', exc)
 
     if reported and report_text:
         user = repo.get_user_by_id(uid)

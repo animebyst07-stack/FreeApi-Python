@@ -42,7 +42,7 @@ _SUPPORT_PROJECT_CONTEXT_FILES = (
     'freeapi/tunnel.py',
     'static/index.html',
 )
-_SUPPORT_PROJECT_CONTEXT_LIMIT = 260000
+_SUPPORT_PROJECT_CONTEXT_LIMIT = 6000
 
 
 def support_project_context():
