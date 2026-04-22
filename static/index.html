@@ -2298,6 +2298,11 @@ Rules:
 </div>
 
 <script>
+/* ═══════════ ГЛОБАЛЬНЫЕ ХЕЛПЕРЫ (доступны везде, в т.ч. внутри IIFE) ═══════════ */
+function q(id){return document.getElementById(id);}
+function esc(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+window.q=q; window.esc=esc;
+
 /* ═══════════ РАННИЙ ГЛОБАЛЬНЫЙ ЛОГГЕР В TERMUX ═══════════ */
 (function(){
   function send(tag,msg,level){
