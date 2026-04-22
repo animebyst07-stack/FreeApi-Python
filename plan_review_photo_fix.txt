@@ -1,0 +1,81 @@
+PLAN: Фикс окна прикрепления фото к отзыву + детальное логирование в Termux
+============================================================================
+
+КОНТЕКСТ
+--------
+Юзер жалуется: в модалке "Написать отзыв" жмёшь "Нажмите чтобы выбрать фото",
+выбираешь фото — и ВИЗУАЛЬНО ничего не происходит, и функционально тоже
+(после Submit фото не уходит). Запуск — в Termux, фронтенд открывается
+в Android Chrome / WebView.
+
+ГИПОТЕЗЫ ПРОБЛЕМЫ
+-----------------
+1) В CSS для file-input стояло `all:unset !important` — в некоторых WebView
+   это ломает событие change.
+2) Внутри onchange сразу выполнялся `input.value = ''` — на части Android
+   WebView это прерывает асинхронный FileReader (он получает abort) ещё до
+   того, как успеет вызвать onload.
+3) В openWriteReviewModal параллельно с открытием модалки делается
+   GET /api/reviews/mine, в коллбэке которого _writeReviewImgs БЕЗУСЛОВНО
+   перезаписывается на старые фото из БД. Если юзер успел добавить новое
+   фото быстрее, чем приходит ответ — оно затирается.
+4) console.log не видно в Termux: на телефоне нет DevTools, поэтому диагностика
+   "вслепую".
+
+ЧТО СДЕЛАНО
+-----------
+1. БЭКЕНД: новый эндпоинт POST /api/_clog (freeapi/routes.py).
+   Принимает {tag, msg, level} и пишет через стандартный logger 'freeapi'.
+   Так каждый клиентский лог появляется в Termux-консоли запущенного процесса.
+
+2. БЭКЕНД: расширено логирование в POST /api/reviews — пишем uid, score,
+   text_len, images_in, body_size, отфильтрованные картинки, финальное число
+   к сохранению. Если запрос отклонён — пишем причину.
+
+3. ФРОНТЕНД (static/index.html):
+   • Добавлена глобальная функция window.clog(tag, msg, level) — дублирует
+     console.log + шлёт XHR на /api/_clog.
+   • Заменены console.log/console.error на clog() во всём флоу прикрепления
+     фото (openWriteReviewModal → onWriteReviewFilesSelected → FileReader →
+     renderWriteReviewPreview → submitWriteReview).
+   • В FileReader логируем onloadstart/onprogress/onload/onerror/onabort —
+     видно ровно на каком шаге всё рассыпается.
+   • Сброс input.value='' вынесен в setTimeout(800ms) — больше не прерывает
+     FileReader на Android WebView.
+   • Введён флаг _writeReviewUserTouchedImgs. Коллбэк GET /api/reviews/mine
+     теперь НЕ перетирает _writeReviewImgs, если юзер уже успел добавить
+     новое фото. Race-condition устранён.
+   • CSS .img-upload-zone input[type=file] переписан: убран опасный
+     `all:unset!important`, заменён на явный набор свойств с display:block,
+     pointer-events:auto, z-index:5. Это надёжно работает в Android WebView.
+   • На .img-upload-zone программно вешается onclick → fi.click() как
+     страховка, если оверлей перехватывает тач по самому input.
+   • На input повторно (программно) вешается onchange — чтобы декларативный
+     атрибут onchange="..." не был единственной точкой связи (на ряде WebView
+     атрибутный обработчик молча отваливается).
+
+КАК ПРОВЕРЯТЬ В TERMUX
+----------------------
+1. Запустить сервер как обычно (python api.py / по своему workflow).
+2. Открыть сайт в Android Chrome, авторизоваться, открыть модалку отзыва.
+3. Жмём "Нажмите чтобы выбрать фото", выбираем картинку.
+4. В Termux должны появиться строки вида:
+     [CLIENT][REVIEW_MODAL] open() начало
+     [CLIENT][REVIEW_MODAL] DOM: input=OK, zone=OK, preview=OK
+     [CLIENT][PHOTO] input click — открываем системный пикер
+     [CLIENT][PHOTO] onchange сработал, files.length=1
+     [CLIENT][PHOTO] file[0] name=... size=... type=image/jpeg
+     [CLIENT][PHOTO] readAsDataURL вызван для idx=0
+     [CLIENT][PHOTO] reader.onloadstart idx=0
+     [CLIENT][PHOTO] reader.onload idx=0 data.len=...
+     [CLIENT][PHOTO] PUSH ok, _writeReviewImgs.length=1
+     [CLIENT][PREVIEW] render: el=OK, imgs=1
+     [CLIENT][PREVIEW] innerHTML обновлён, длина=...
+5. По этим логам сразу видно, на каком этапе ломается — и можно прицельно
+   доисправить.
+
+ФАЙЛЫ
+-----
+- freeapi/routes.py            (+ /api/_clog, расширенные логи /api/reviews)
+- static/index.html            (clog, рефактор open/onchange/render/submit, CSS)
+- plan_review_photo_fix.txt    (этот файл)

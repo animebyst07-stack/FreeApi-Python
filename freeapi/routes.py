@@ -144,6 +144,34 @@ def register_routes(app):
     def health():
         return jsonify({'status': 'ok'})
 
+    # ─────────────────────────────────────────────────────────────────
+    # Клиентский логгер: фронтенд шлёт сюда события, чтобы они появились
+    # в Termux-консоли через стандартный logger ('freeapi'). Используется
+    # для глубокой диагностики (например, окно прикрепления фото к отзыву).
+    # ─────────────────────────────────────────────────────────────────
+    @app.post('/api/_clog')
+    def client_log():
+        try:
+            data = request.get_json(silent=True) or {}
+        except Exception:
+            data = {}
+        tag = str(data.get('tag') or 'CLIENT')[:40]
+        msg = str(data.get('msg') or '')[:2000]
+        level = str(data.get('level') or 'info').lower()
+        try:
+            uid = current_user_id() or '-'
+        except Exception:
+            uid = '-'
+        ua = (request.headers.get('User-Agent') or '')[:120]
+        line = '[CLIENT][%s] uid=%s ua=%s :: %s' % (tag, uid, ua, msg)
+        if level == 'error':
+            logger.error(line)
+        elif level == 'warn':
+            logger.warning(line)
+        else:
+            logger.info(line)
+        return jsonify({'ok': True})
+
     @app.post('/api/auth/register')
     def auth_register():
         data = request.get_json(silent=True) or {}
@@ -1049,13 +1077,20 @@ def register_routes(app):
         except (TypeError, ValueError):
             score = 0
         text = (data.get('text') or '').strip()
+        raw_images = data.get('images') or []
+        logger.info('[REVIEWS] POST /api/reviews uid=%s score=%s text_len=%s images_in=%s body_size=%s',
+                    uid, score, len(text), (len(raw_images) if isinstance(raw_images, list) else 'not_list'),
+                    request.content_length)
         if score < 1 or score > 10:
+            logger.warning('[REVIEWS] отклонён: невалидная оценка score=%s uid=%s', score, uid)
             return error('Оценка должна быть числом от 1 до 10', 400)
         if not text or len(text) < 10:
+            logger.warning('[REVIEWS] отклонён: текст слишком короткий len=%s uid=%s', len(text), uid)
             return error('Текст отзыва слишком короткий (минимум 10 символов)', 400)
         if len(text) > 1000:
+            logger.warning('[REVIEWS] отклонён: текст слишком длинный len=%s uid=%s', len(text), uid)
             return error('Текст отзыва слишком длинный (максимум 1000 символов)', 400)
-        images = data.get('images') or []
+        images = raw_images
         if not isinstance(images, list):
             images = []
         # Фильтруем невалидные изображения (max 7MB base64 ≈ 5MB raw, только изображения)
@@ -1066,8 +1101,13 @@ def register_routes(app):
             if len(img) > MAX_IMG_B64: return False
             lower = img[:40].lower()
             return any(lower.startswith(m) for m in ALLOWED_IMG_MIME)
+        before = len(images)
         images = [img for img in images if _is_valid_img(img)]
+        if len(images) != before:
+            logger.warning('[REVIEWS] отфильтровано невалидных картинок: %s (осталось %s) uid=%s',
+                           before - len(images), len(images), uid)
         images = images[:10]
+        logger.info('[REVIEWS] финально к сохранению: score=%s images=%s uid=%s', score, len(images), uid)
         agent_ready = repo.get_admin_setting('agent_enabled', '0') == '1' and bool(repo.get_admin_setting('agent_key_id', ''))
         if is_admin:
             review = repo.create_review(uid, score, text, 'approved', images=images)

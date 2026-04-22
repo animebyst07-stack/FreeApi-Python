@@ -516,7 +516,7 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 /* ─── IMAGE UPLOAD ─── */
 .img-upload-zone{border:1px dashed #1e1e1e;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#070707;margin-top:6px}
 /* КРИТИЧНО для Android WebView (Termux): сбрасываем все .fgroup input стили для file input */
-.img-upload-zone input[type=file]{all:unset!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;opacity:0!important;cursor:pointer!important;z-index:2!important;-webkit-appearance:auto!important;appearance:auto!important;background:transparent!important;border:0!important;padding:0!important;margin:0!important;font:inherit;color:inherit}
+.img-upload-zone input[type=file]{display:block!important;position:absolute!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;opacity:0!important;cursor:pointer!important;z-index:5!important;-webkit-appearance:auto!important;appearance:auto!important;background:transparent!important;border:0!important;padding:0!important;margin:0!important;font:inherit;color:inherit;pointer-events:auto!important}
 .img-upload-zone:hover{border-color:#444;background:#0a0a0a}
 .img-upload-zone p{font-size:12px;color:#555;margin-top:5px}
 .img-upload-zone svg{color:#333}
@@ -5082,6 +5082,23 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
 ═══════════════════════════════════════ */
 var _writeReviewScore=0;
 var _writeReviewImgs=[];
+var _writeReviewUserTouchedImgs=false; /* флаг: юзер уже добавлял/удалял фото в текущей сессии модала */
+
+/* ─── Клиентский логгер: дублирует console.log + шлёт в Termux через /api/_clog ─── */
+window.clog=function(tag,msg,level){
+  try{
+    var line='['+tag+'] '+msg;
+    if(level==='error'){ console.error(line); } else if(level==='warn'){ console.warn(line); } else { console.log(line); }
+  }catch(_){}
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/_clog',true);
+    xhr.withCredentials=true;
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.timeout=4000;
+    xhr.send(JSON.stringify({tag:String(tag||'CLIENT'),msg:String(msg==null?'':msg),level:level||'info'}));
+  }catch(_){}
+};
 
 window._rvStarUpdate=function(score){
   _writeReviewScore=score;
@@ -5101,8 +5118,10 @@ window._rvStarUpdate=function(score){
 
 window.openWriteReviewModal=function(){
   try {
+    clog('REVIEW_MODAL','open() начало');
     _writeReviewScore=0;
     _writeReviewImgs=[];
+    _writeReviewUserTouchedImgs=false;
     var ta=document.getElementById('writeReviewText');
     /* Восстановить черновик из localStorage */
     var draft='';
@@ -5112,113 +5131,173 @@ window.openWriteReviewModal=function(){
     var ip=document.getElementById('writeReviewImgPreview'); if(ip) ip.innerHTML='';
     var ic=document.getElementById('writeReviewImgCount'); if(ic) ic.textContent='';
     var fi=document.getElementById('writeReviewFileInput');
+    var zone=document.getElementById('writeReviewUploadZone');
+    clog('REVIEW_MODAL','DOM: input='+(fi?'OK':'NULL')+', zone='+(zone?'OK':'NULL')+', preview='+(ip?'OK':'NULL'));
     if(fi){
       fi.value='';
-      /* onchange задан прямо в атрибуте input — работает в Android WebView напрямую */
-      console.log('[MODAL] writeReviewFileInput найден, сброшен');
+      /* Пере-вешиваем onchange программно (страховка для Android WebView) */
+      fi.onchange=function(){ try{ window.onWriteReviewFilesSelected(fi); }catch(e){ clog('PHOTO','onchange handler ошибка: '+e,'error'); } };
+      /* Логируем сам факт открытия пикера */
+      fi.onclick=function(){ clog('PHOTO','input click — открываем системный пикер'); };
+      clog('REVIEW_MODAL','writeReviewFileInput сброшен, onchange/onclick привязаны');
+    } else {
+      clog('REVIEW_MODAL','writeReviewFileInput НЕ НАЙДЕН в DOM','error');
+    }
+    /* Дублирующий клик по zone -> открываем пикер программно (на случай если оверлей перехватывает тач) */
+    if(zone && fi){
+      zone.onclick=function(ev){
+        /* если кликнули по самому input — браузер сам откроет; иначе кликаем за него */
+        if(ev && ev.target===fi) return;
+        clog('PHOTO','zone click — программный fi.click()');
+        try{ fi.click(); }catch(e){ clog('PHOTO','fi.click() ошибка: '+e,'error'); }
+      };
     }
     window._rvStarUpdate(0);
     /* Pre-fill if user already has a review (XHR — надёжно на Android) */
     try{
       rvXhr('GET','/api/reviews/mine',null,function(d,err){
+        clog('REVIEW_MODAL','GET /reviews/mine ответ err='+err+', has='+(d&&d.review?'1':'0'));
         if(!err&&d&&d.review){
           var r=d.review;
           if(r.score){ window._rvStarUpdate(r.score); }
           if(r.text&&ta){ ta.value=r.text; var cc2=q('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length; }
-          try{var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);_writeReviewImgs=imgs.slice();if(window.renderWriteReviewPreview)renderWriteReviewPreview();}catch(e){}
+          try{
+            var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);
+            /* КРИТИЧНО: если юзер уже успел добавить новое фото — НЕ перетираем */
+            if(!_writeReviewUserTouchedImgs){
+              _writeReviewImgs=imgs.slice();
+              if(window.renderWriteReviewPreview)renderWriteReviewPreview();
+              clog('REVIEW_MODAL','подгружены существующие фото отзыва: '+_writeReviewImgs.length);
+            } else {
+              clog('REVIEW_MODAL','юзер уже добавил фото — не перетираем (имеется '+_writeReviewImgs.length+')','warn');
+            }
+          }catch(e){ clog('REVIEW_MODAL','parse images err: '+e,'error'); }
           var t=q('writeReviewTitle'); if(t) t.textContent='Редактировать отзыв';
         } else {
           var t=q('writeReviewTitle'); if(t) t.textContent='Написать отзыв';
         }
       });
-    }catch(e){}
+    }catch(e){ clog('REVIEW_MODAL','prefetch /reviews/mine ошибка: '+e,'error'); }
     openModal('writeReviewModal');
+    clog('REVIEW_MODAL','openModal вызван');
     /* Auto-focus textarea с небольшой задержкой (анимация открытия) */
     setTimeout(function(){
       var ta2=document.getElementById('writeReviewText');
       if(ta2){ try{ ta2.focus(); }catch(e){} }
     }, 350);
-  } catch(e){ console.error('[openWriteReviewModal]',e); openModal('writeReviewModal'); }
+  } catch(e){ clog('REVIEW_MODAL','open() FATAL: '+e,'error'); openModal('writeReviewModal'); }
 };
 
 window.onWriteReviewFilesSelected=function(input){
-  console.log('[PHOTO] onchange сработал, files.length=', input.files ? input.files.length : 'null');
-  var files=Array.from(input.files||[]);
-  if(!files.length){ console.log('[PHOTO] файлы пустые, выход'); return; }
+  var n=input&&input.files?input.files.length:-1;
+  clog('PHOTO','onchange сработал, files.length='+n);
+  if(!input||!input.files||!input.files.length){ clog('PHOTO','файлы пустые, выход','warn'); return; }
+  var files=Array.from(input.files);
+  _writeReviewUserTouchedImgs=true;
   var remaining=10-_writeReviewImgs.length;
-  if(remaining<=0){showToast('Максимум 10 фото','err');input.value='';return;}
+  if(remaining<=0){ clog('PHOTO','лимит 10 фото уже достигнут','warn'); showToast('Максимум 10 фото','err'); /* НЕ сбрасываем value тут — WebView чувствителен */ return; }
   var MAX_FILE_SIZE=5*1024*1024; /* 5 МБ на файл */
   var toProcess=files.slice(0,remaining);
-  var skipped=0;
-  console.log('[PHOTO] обрабатываем '+toProcess.length+' файл(ов)');
+  var done=0, ok=0, skipped=0;
+  clog('PHOTO','обрабатываем '+toProcess.length+' файл(ов), уже было '+_writeReviewImgs.length);
   toProcess.forEach(function(f,idx){
-    if(f.size>MAX_FILE_SIZE){
-      console.log('[PHOTO] файл '+idx+' слишком большой: '+f.size+' байт');
-      skipped++;
-      if(skipped===toProcess.length) showToast('Файл(ы) слишком большие (макс. 5 МБ)','err');
+    clog('PHOTO','file['+idx+'] name='+(f&&f.name)+' size='+(f&&f.size)+' type='+(f&&f.type));
+    if(!f||f.size>MAX_FILE_SIZE){
+      clog('PHOTO','file['+idx+'] слишком большой/невалидный — пропуск','warn');
+      skipped++; done++;
+      if(done===toProcess.length){
+        if(ok===0) showToast('Файл(ы) слишком большие (макс. 5 МБ)','err');
+        _scheduleInputReset(input);
+      }
       return;
     }
-    console.log('[PHOTO] FileReader запущен для файла '+idx+': '+f.name+' ('+f.size+' байт)');
-    var reader=new FileReader();
+    var reader;
+    try{ reader=new FileReader(); }catch(e){ clog('PHOTO','new FileReader ошибка: '+e,'error'); done++; return; }
+    reader.onloadstart=function(){ clog('PHOTO','reader.onloadstart idx='+idx); };
+    reader.onprogress=function(ev){ if(ev&&ev.lengthComputable) clog('PHOTO','reader.onprogress idx='+idx+' '+ev.loaded+'/'+ev.total); };
+    reader.onabort=function(){ clog('PHOTO','reader.onabort idx='+idx,'warn'); done++; if(done===toProcess.length) _scheduleInputReset(input); };
     reader.onload=function(ev){
-      var data=ev.target&&ev.target.result;
-      console.log('[PHOTO] FileReader.onload idx='+idx+', data длина=', data ? data.length : 'null');
-      if(!data){ console.log('[PHOTO] data пустой!'); return; }
+      var data=ev&&ev.target&&ev.target.result;
+      clog('PHOTO','reader.onload idx='+idx+' data.len='+(data?data.length:'null'));
+      if(!data){ clog('PHOTO','data пустой','error'); done++; if(done===toProcess.length) _scheduleInputReset(input); return; }
       _writeReviewImgs.push(data);
-      console.log('[PHOTO] _writeReviewImgs теперь '+_writeReviewImgs.length+' шт');
-      renderWriteReviewPreview();
+      ok++; done++;
+      clog('PHOTO','PUSH ok, _writeReviewImgs.length='+_writeReviewImgs.length);
+      try{ renderWriteReviewPreview(); }catch(e){ clog('PHOTO','render ошибка: '+e,'error'); }
+      if(done===toProcess.length){
+        clog('PHOTO','все файлы обработаны: ok='+ok+', skipped='+skipped);
+        _scheduleInputReset(input);
+      }
     };
     reader.onerror=function(e){
-      console.error('[PHOTO] FileReader.onerror:', e);
+      clog('PHOTO','reader.onerror idx='+idx+': '+(reader.error&&reader.error.name),'error');
       showToast('Не удалось прочитать файл','err');
+      done++; if(done===toProcess.length) _scheduleInputReset(input);
     };
-    reader.readAsDataURL(f);
+    try{
+      reader.readAsDataURL(f);
+      clog('PHOTO','readAsDataURL вызван для idx='+idx);
+    }catch(e){
+      clog('PHOTO','readAsDataURL THREW: '+e,'error');
+      done++;
+      if(done===toProcess.length) _scheduleInputReset(input);
+    }
   });
-  input.value='';
 };
+
+/* Сброс input.value откладываем — иначе на части Android WebView FileReader получает abort */
+function _scheduleInputReset(input){
+  setTimeout(function(){
+    try{ input.value=''; clog('PHOTO','input.value сброшен (отложенно)'); }catch(e){ clog('PHOTO','reset ошибка: '+e,'error'); }
+  }, 800);
+}
 
 function renderWriteReviewPreview(){
   var el=q('writeReviewImgPreview');
   var cnt=q('writeReviewImgCount');
-  console.log('[PREVIEW] el=', el?'найден':'НЕ НАЙДЕН', 'imgs='+_writeReviewImgs.length);
-  if(!el){ console.error('[PREVIEW] writeReviewImgPreview не найден в DOM!'); return; }
+  clog('PREVIEW','render: el='+(el?'OK':'NULL')+', imgs='+_writeReviewImgs.length);
+  if(!el){ clog('PREVIEW','writeReviewImgPreview не найден в DOM','error'); return; }
   el.innerHTML=_writeReviewImgs.map(function(src,i){
     return '<div class="img-upload-item"><img src="'+src+'" alt=""><div class="img-upload-remove" onclick="removeWriteReviewImg('+i+')">×</div></div>';
   }).join('');
   if(cnt) cnt.textContent=_writeReviewImgs.length?_writeReviewImgs.length+'/10 фото':'';
-  console.log('[PREVIEW] innerHTML обновлён');
+  clog('PREVIEW','innerHTML обновлён, длина='+(el.innerHTML?el.innerHTML.length:0));
 }
 
 window.removeWriteReviewImg=function(idx){
+  clog('PHOTO','remove idx='+idx);
+  _writeReviewUserTouchedImgs=true;
   _writeReviewImgs.splice(idx,1);
   renderWriteReviewPreview();
 };
 
 window.submitWriteReview=function(){
-  console.log('[SUBMIT] вызван, score='+_writeReviewScore+', imgs='+_writeReviewImgs.length);
+  clog('SUBMIT','вызван, score='+_writeReviewScore+', imgs='+_writeReviewImgs.length);
   if(!_writeReviewScore){
     showToast('Выберите оценку от 1 до 10','err');
     return;
   }
   var ta=q('writeReviewText');
   var text=(ta?ta.value:'').trim();
-  console.log('[SUBMIT] text.length='+text.length+', score='+_writeReviewScore);
+  clog('SUBMIT','text.length='+text.length+', score='+_writeReviewScore);
   if(text.length<10){showToast('Текст слишком короткий (минимум 10 символов)','err');return;}
   if(text.length>1000){showToast('Текст слишком длинный (максимум 1000 символов)','err');return;}
   var btn=document.getElementById('writeReviewSubmitBtn');
   var _btnOrig=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.textContent='Отправка...';}
   function _restoreBtn(){if(btn){btn.disabled=false;btn.innerHTML=_btnOrig;}}
-  console.log('[SUBMIT] отправляем POST /api/reviews через XHR...');
+  /* Подсчитаем суммарный размер base64 для логов */
+  var totalLen=0; for(var i=0;i<_writeReviewImgs.length;i++){ totalLen+=(_writeReviewImgs[i]||'').length; }
+  clog('SUBMIT','POST /api/reviews, images='+_writeReviewImgs.length+', total_b64_chars='+totalLen);
   var _submitTimeout=_writeReviewImgs.length>0?60000:20000;
   rvXhr('POST','/api/reviews',{score:_writeReviewScore,text:text,images:_writeReviewImgs},function(d,err){
     if(err){
-      console.error('[SUBMIT] XHR ошибка:', err, d);
+      clog('SUBMIT','XHR ошибка: '+err+' '+(d?JSON.stringify(d).substring(0,200):''),'error');
       _restoreBtn();
       showToast((d&&(d.message||d.error))||'Ошибка соединения ('+err+')','err');
       return;
     }
-    console.log('[SUBMIT] успех:', JSON.stringify(d).substring(0,200));
+    clog('SUBMIT','успех: '+(d?JSON.stringify(d).substring(0,200):''));
     _restoreBtn();
     if(d&&d.error){showToast(d.message||d.error||'Ошибка','err');return;}
     try{localStorage.removeItem('freeapi_review_draft');}catch(e){}
