@@ -4570,21 +4570,10 @@ var _writeReviewScore=0;
 var _writeReviewImgs=[];
 var _writeReviewUserTouchedImgs=false; /* флаг: юзер уже добавлял/удалял фото в текущей сессии модала */
 
-/* ─── Клиентский логгер: дублирует console.log + шлёт в Termux через /api/_clog ─── */
-window.clog=function(tag,msg,level){
-  try{
-    var line='['+tag+'] '+msg;
-    if(level==='error'){ console.error(line); } else if(level==='warn'){ console.warn(line); } else { console.log(line); }
-  }catch(_){}
-  try{
-    var xhr=new XMLHttpRequest();
-    xhr.open('POST','/api/_clog',true);
-    xhr.withCredentials=true;
-    xhr.setRequestHeader('Content-Type','application/json');
-    xhr.timeout=4000;
-    xhr.send(JSON.stringify({tag:String(tag||'CLIENT'),msg:String(msg==null?'':msg),level:level||'info'}));
-  }catch(_){}
-};
+/* ─── Клиентский логгер window.clog перенесён в /js/core/logger.js (шаг 0.5.4).
+     Все callsites вида `try{clog(...)}catch(_){}` продолжают работать —
+     модуль ESM регистрирует window.clog при загрузке (defer успевает
+     до event-handlers, в которых вызывается clog). ─── */
 
 window._rvStarUpdate=function(score){
   _writeReviewScore=score;
