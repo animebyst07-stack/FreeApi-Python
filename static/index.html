@@ -2298,6 +2298,43 @@ Rules:
 </div>
 
 <script>
+/* ═══════════ РАННИЙ ГЛОБАЛЬНЫЙ ЛОГГЕР В TERMUX ═══════════ */
+(function(){
+  function send(tag,msg,level){
+    try{
+      var x=new XMLHttpRequest();
+      x.open('POST','/api/_clog',true);
+      x.setRequestHeader('Content-Type','application/json');
+      x.send(JSON.stringify({tag:tag,msg:String(msg).slice(0,4000),level:level||'info'}));
+    }catch(_){}
+  }
+  window._clogRaw=send;
+  window.addEventListener('error',function(ev){
+    var m='window.onerror: '+(ev.message||'?')+' @ '+(ev.filename||'?')+':'+(ev.lineno||'?')+':'+(ev.colno||'?');
+    if(ev.error&&ev.error.stack){ m+=' || stack='+String(ev.error.stack).slice(0,1500); }
+    send('JS_ERROR',m,'error');
+    try{console.error('[JS_ERROR]',ev.error||ev.message);}catch(_){}
+  });
+  window.addEventListener('unhandledrejection',function(ev){
+    var r=ev.reason;
+    var m='unhandledrejection: '+(r&&r.message?r.message:String(r));
+    if(r&&r.stack){ m+=' || stack='+String(r.stack).slice(0,1500); }
+    send('JS_REJECT',m,'error');
+  });
+  /* Делегированный лог кликов по кнопкам/ссылкам */
+  document.addEventListener('click',function(ev){
+    try{
+      var t=ev.target;
+      var btn=t&&(t.closest?t.closest('button,a,[role=button],[onclick],.btn'):null);
+      if(!btn) return;
+      var label=(btn.textContent||'').replace(/\s+/g,' ').trim().slice(0,80);
+      var id=btn.id||btn.getAttribute('data-action')||'';
+      var cls=(btn.className&&btn.className.toString)?btn.className.toString().slice(0,80):'';
+      send('CLICK','tag='+btn.tagName+' id="'+id+'" cls="'+cls+'" txt="'+label+'"');
+    }catch(_){}
+  },true);
+})();
+
 (function(){
 'use strict';
 
@@ -3512,17 +3549,28 @@ io.observe(q('stats-section'));
 /* ───────────── UTILS ───────────── */
 function api(url,method,body){
   /* XHR-based реализация — надёжна в Android WebView/Termux, возвращает Promise */
+  var _t0=Date.now();
+  var _m=(method||'GET').toUpperCase();
+  var _bs=body?(typeof body==='string'?body.length:JSON.stringify(body).length):0;
+  try{window._clogRaw&&url.indexOf('/api/_clog')<0&&window._clogRaw('API_CALL','→ '+_m+' '+url+' body='+_bs+'b');}catch(_){}
   return new Promise(function(resolve,reject){
     var xhr=new XMLHttpRequest();
     xhr.open(method||'GET',url,true);
     xhr.withCredentials=true;
     xhr.timeout=15000;
     if(body){ xhr.setRequestHeader('Content-Type','application/json'); }
-    xhr.ontimeout=function(){ reject(new Error('timeout')); };
-    xhr.onerror=function(){ reject(new Error('network')); };
+    xhr.ontimeout=function(){
+      try{window._clogRaw&&url.indexOf('/api/_clog')<0&&window._clogRaw('API_CALL','✗ '+_m+' '+url+' TIMEOUT '+(Date.now()-_t0)+'ms','error');}catch(_){}
+      reject(new Error('timeout'));
+    };
+    xhr.onerror=function(){
+      try{window._clogRaw&&url.indexOf('/api/_clog')<0&&window._clogRaw('API_CALL','✗ '+_m+' '+url+' NETWORK '+(Date.now()-_t0)+'ms','error');}catch(_){}
+      reject(new Error('network'));
+    };
     xhr.onload=function(){
       var data={};
       try{ if(xhr.responseText) data=JSON.parse(xhr.responseText); }catch(e){}
+      try{window._clogRaw&&url.indexOf('/api/_clog')<0&&window._clogRaw('API_CALL','← '+_m+' '+url+' status='+xhr.status+' resp='+(xhr.responseText?xhr.responseText.length:0)+'b '+(Date.now()-_t0)+'ms');}catch(_){}
       if(xhr.status===401&&user){
         user=null; accountState=null; updateSidebar();
         if(['dashboard','cabinet','chat','admin'].some(function(v){
@@ -4977,7 +5025,18 @@ rvXhr('GET','/api/auth/me',null,function(d,err){
       } else if(avgEl){
         avgEl.style.display='none';
       }
-      try{ rvRenderList(items); }catch(e){ console.error('[rvRenderList]',e); listEl.innerHTML='<div class="review-empty">Ошибка отображения отзывов</div>'; }
+      try{ rvRenderList(items); }catch(e){
+        var det='rvRenderList упал: '+(e&&e.message?e.message:String(e));
+        if(e&&e.stack) det+=' || stack='+String(e.stack).slice(0,1500);
+        det+=' || items.length='+(items?items.length:'?');
+        if(items&&items[0]){
+          var k=Object.keys(items[0]).join(',');
+          det+=' || keys[0]='+k;
+        }
+        try{window._clogRaw&&window._clogRaw('RV_RENDER_ERR',det,'error');}catch(_){}
+        console.error('[rvRenderList]',e);
+        listEl.innerHTML='<div class="review-empty">Ошибка отображения отзывов</div>';
+      }
       var pag=document.getElementById('rvPagination');
       if(pag){
         pag.style.display=_rvPages>1?'flex':'none';
