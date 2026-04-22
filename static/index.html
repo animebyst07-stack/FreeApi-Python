@@ -3720,42 +3720,10 @@ function updateSidebarTg(){
     txt.textContent='Проверяем подключение';
   }
 }
-function updateSidebarActive(v){
-  document.querySelectorAll('.sb-item').forEach(function(el){ el.classList.remove('active'); });
-  var map={landing:'sbLanding',models:'sbModels',docs:'sbDocs',dashboard:'sbDashboard',chat:'sbChat',support:'sbSupport',admin:'sbAdmin',reviews:'sbReviews'};
-  var id=map[v];
-  if(id){var el=document.getElementById(id);if(el) el.classList.add('active');}
-}
-
-/* ───────────── VIEWS (updated) ───────────── */
-var views=['landing','dashboard','history','models','logcodes','chat','docs','admin','support','reviews','notifications'];
-window.goView=function(v){
-  if(v==='logcodes'){
-    goView('docs');
-    setTimeout(function(){ setDocsSection('logcodes',document.getElementById('docsNavLogcodes')); },50);
-    return;
-  }
-  if(window.innerWidth<900) closeSidebar();
-  views.forEach(function(n){
-    var el=document.getElementById('view-'+n);
-    if(el) el.classList.remove('active');
-  });
-  var target=document.getElementById('view-'+v);
-  if(target) target.classList.add('active');
-  updateSidebarActive(v);
-  var noScroll=v==='chat'||v==='support';
-  document.body.classList.toggle('view-no-scroll',noScroll);
-  if(!noScroll) scrollTo(0,0);
-  if(v==='models') renderFullModels();
-  if(v==='dashboard') loadDashboard();
-  if(v==='chat') initChatView();
-  if(v==='admin') loadAdmin();
-  if(v==='landing') loadReviews();
-  if(v==='docs') loadDocsModels();
-  if(v==='support') initSupportView();
-  if(v==='reviews'){ if(window.initReviewsView) window.initReviewsView(); else if(typeof initReviewsView==='function') initReviewsView(); }
-  if(v==='notifications'){ if(window.loadNotifications) loadNotifications(); }
-};
+/* ───────────── VIEWS (updated) ─────────────
+   Шаг 0.5.11: window.goView и updateSidebarActive вынесены в /js/ui/view.js.
+   Все view-init функции (loadDashboard, initChatView, ...) пока остаются
+   inline и доступны через window.* (top-level classic-script function). */
 
 /* ───────────── SUPPORT CHAT ───────────── */
 var _supportPending=false,_supportImageBase64='',_supportImageName='';
