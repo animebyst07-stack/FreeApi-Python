@@ -60,7 +60,13 @@ function loadSupportHistory(){
     if(empty) empty.style.display='none';
     document.getElementById('supportCloseBtn').style.display='';
     d.messages.forEach(function(m){
-      appendSupportMsg(m.role, m.content, m.image_data);
+      if(m.role==='agent_step'){
+        // Для шага агента в image_data лежит не картинка, а имена запрошенных
+        // тегов документации (через запятую). Передаём их 4-м аргументом.
+        appendSupportMsg('agent_step', m.content, null, m.image_data);
+      } else {
+        appendSupportMsg(m.role, m.content, m.image_data);
+      }
     });
     if(d.chat && d.chat.status==='closed'){
       var status=document.getElementById('supportChatStatus');
@@ -74,10 +80,38 @@ function loadSupportHistory(){
   }).catch(function(){});
 }
 
-function appendSupportMsg(role, content, imageSrc){
+function appendSupportMsg(role, content, imageSrc, docTag){
   var msgs=document.getElementById('supportMessages');
   var empty=document.getElementById('supportEmptyState');
   if(empty) empty.style.display='none';
+
+  // Промежуточный шаг агента: рисуем компактный пузырь со значком книги
+  // и пометкой «📖 Читаю документацию: NAME». Текст шага (то, что ИИ
+  // написал перед тегом, например «Сейчас уточню как работают отзывы…»)
+  // показываем под пометкой курсивом.
+  if(role==='agent_step'){
+    var sdiv=document.createElement('div');
+    sdiv.className='chat-msg assistant';
+    var sbub=document.createElement('div');
+    sbub.className='chat-bubble';
+    sbub.style.cssText='background:#1a1a1a;border:1px dashed #2a2a2a;color:#9aa0a6;font-size:12px;padding:8px 12px';
+    var head=document.createElement('div');
+    head.style.cssText='display:flex;align-items:center;gap:6px;color:#bdc1c6';
+    head.innerHTML='<span style="font-size:14px">📖</span><span>Читаю документацию: <b style="color:#e8eaed">'+(docTag||'…')+'</b></span>';
+    sbub.appendChild(head);
+    var stext=(content||'').trim();
+    if(stext && stext!=='(читаю документацию...)'){
+      var t=document.createElement('div');
+      t.style.cssText='margin-top:4px;font-style:italic;color:#9aa0a6';
+      t.textContent=stext;
+      sbub.appendChild(t);
+    }
+    sdiv.appendChild(sbub);
+    msgs.appendChild(sdiv);
+    msgs.scrollTop=msgs.scrollHeight;
+    return sdiv;
+  }
+
   var div=document.createElement('div');
   div.className='chat-msg '+(role==='user'?'user':'assistant');
   var bubble=document.createElement('div');
@@ -146,8 +180,17 @@ function sendSupportMessage(){
     document.getElementById('supportCloseBtn').style.display='';
     if(d.error){
       appendSupportMsg('agent','Извините, произошла ошибка. Попробуйте ещё раз.',null);
-    } else if(d.agent_message){
-      appendSupportMsg('agent', d.agent_message.content, null);
+    } else {
+      // Сначала отрисовываем все промежуточные шаги (если ИИ читал документацию),
+      // в порядке выполнения. Затем — финальный ответ агента.
+      if(d.steps && d.steps.length){
+        d.steps.forEach(function(s){
+          appendSupportMsg('agent_step', s.content, null, s.image_data);
+        });
+      }
+      if(d.agent_message){
+        appendSupportMsg('agent', d.agent_message.content, null);
+      }
     }
   }).catch(function(){
     thinkEl.remove();

@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 
 from flask import Blueprint, Response, jsonify, request, session, stream_with_context
@@ -27,8 +28,40 @@ from freeapi.blueprints._helpers import (
     bearer_value, authorized_key, fake_stream,
 )
 from freeapi.blueprints.admin_bp import DEFAULT_SUPPORT_PROMPT
+from freeapi.support_docs import docs_index_text, get_doc
 
 bp = Blueprint('support', __name__)
+
+# Инструкция для ИИ как пользоваться тегами документации.
+# Формат [[doc:NAME]] выбран потому, что он не встречается в обычной речи,
+# в Markdown и в коде, и его легко парсить простой регуляркой.
+_DOC_TAG_INSTRUCTIONS = """=== КАК ПОЛЬЗОВАТЬСЯ ДОКУМЕНТАЦИЕЙ ===
+Ты НЕ должен помнить устройство сайта наизусть. Когда пользователь спрашивает
+о конкретном разделе/механике, действуй как живой агент:
+
+  1) Сначала коротко напиши пользователю, что ты собираешься сделать
+     ("Сейчас посмотрю, как работают отзывы..."). Это твой «шаг работы»,
+     он отображается отдельным сообщением в чате.
+  2) Сразу после промежуточной фразы поставь тег вида [[doc:NAME]] на
+     отдельной строке. Можешь поставить несколько тегов подряд, если нужно
+     заглянуть сразу в пару разделов.
+  3) Сервер автоматически подгрузит тебе содержимое запрошенных разделов
+     и пришлёт следующим сообщением. Тогда ты пишешь полноценный ответ
+     пользователю, опираясь на свежеподгруженную документацию.
+
+Пример:
+    Сейчас уточню, как у нас работают отзывы.
+    [[doc:reviews]]
+
+После того как сервер пришлёт текст справки, отвечай по существу — без
+повторных тегов, если уже всё ясно. Если пользователь спросит про другой
+раздел — снова сделай шаг + тег.
+
+ВАЖНО: не выдумывай разделы, которых нет в списке ниже. Если подходящего
+тега нет — отвечай по общим принципам и при необходимости предложи
+завершить диалог, чтобы вопрос дошёл до администратора.
+"""
+
 
 def _get_support_prompt():
     custom = repo.get_admin_setting('support_system_prompt', '')
@@ -36,7 +69,13 @@ def _get_support_prompt():
         return custom.strip()
     return DEFAULT_SUPPORT_PROMPT
 
+
 def _get_support_prompt_with_context(uid):
+    """Полный системный промпт для первого сообщения нового диалога:
+    базовый промпт + инструкция по тегам + индекс документации + контекст
+    обращения. Тяжёлый дамп исходников (support_project_context) больше
+    не используется — вместо него ИИ сам подгружает нужную справку через
+    [[doc:NAME]] (см. freeapi/support_docs.py)."""
     base_prompt = _get_support_prompt()
     username = session.get('username') or ''
     if not username and uid:
@@ -45,11 +84,19 @@ def _get_support_prompt_with_context(uid):
     from freeapi.database import msk_now
     return (
         f'{base_prompt}\n\n'
+        f'{_DOC_TAG_INSTRUCTIONS}\n\n'
+        f'{docs_index_text()}\n\n'
         f'=== КОНТЕКСТ ТЕКУЩЕГО ОБРАЩЕНИЯ ===\n'
         f'Логин пользователя: {username or "неизвестно"}\n'
-        f'Текущие дата и время: {msk_now()} МСК\n\n'
-        f'{support_project_context()}'
+        f'Текущие дата и время: {msk_now()} МСК\n'
     )
+
+
+# Регулярка тегов документации в ответе ИИ. Регистронезависимо, имя — латиница,
+# цифры и _. Захватываем имя в группу 1.
+_DOC_TAG_RE = re.compile(r'\[\[doc:([A-Za-z0-9_]+)\]\]', re.IGNORECASE)
+# Лимит итераций, чтобы ИИ не зациклился, бесконечно перезапрашивая доки.
+_MAX_DOC_ITERATIONS = 3
 
 def _format_support_dialog_for_ai(messages, username=''):
     lines = ['=== ИСТОРИЯ ДИАЛОГА ПОДДЕРЖКИ ===']
@@ -140,8 +187,12 @@ def support_send_message():
     repo.add_support_message(chat['id'], 'user', content or '[изображение]', image_data)
 
     all_messages = repo.get_support_messages(chat['id'])
+    user_msg = all_messages[-1] if all_messages else None  # только что добавленное user-сообщение
     user_msgs_count = sum(1 for m in all_messages if m.get('role') == 'user')
     is_first = (user_msgs_count == 1)  # только что добавленное — единственное
+    # Промежуточные «шаги» агента (когда он читает документацию по тегам [[doc:NAME]]).
+    # Возвращаем фронту, чтобы он отрисовал отдельные пузыри «📖 читает документацию: X».
+    steps_added = []
 
     _support_username = session.get('username') or ''
     if not _support_username and uid:
@@ -211,6 +262,71 @@ def support_send_message():
                     answer = _send(key, _support_model, _build_full_text())
                 else:
                     raise
+
+            # Цикл подгрузки документации: ИИ может в ответе писать
+            # промежуточный текст + теги [[doc:NAME]]. Мы сохраняем шаг
+            # в БД (role='agent_step', image_data=имена через запятую),
+            # подкладываем тексты справок и просим ИИ продолжить.
+            iteration = 0
+            while iteration < _MAX_DOC_ITERATIONS:
+                tags = list(_DOC_TAG_RE.finditer(answer or ''))
+                if not tags:
+                    break
+
+                # Текст ДО первого тега — это «шаг работы», его покажем пользователю.
+                step_text = (answer[:tags[0].start()] or '').strip()
+                # Уникальный список запрошенных доков с сохранением порядка.
+                requested = []
+                seen = set()
+                for m in tags:
+                    name = m.group(1).lower()
+                    if name not in seen:
+                        seen.add(name)
+                        requested.append(name)
+
+                step_msg = repo.add_support_message(
+                    chat['id'], 'agent_step',
+                    step_text or '(читаю документацию...)',
+                    ','.join(requested),
+                )
+                steps_added.append(step_msg)
+
+                # Собираем тексты запрошенных разделов.
+                parts = []
+                for name in requested:
+                    doc = get_doc(name)
+                    if doc:
+                        parts.append(f'=== ДОКУМЕНТАЦИЯ: {name} ===\n{doc}')
+                    else:
+                        parts.append(
+                            f'=== ДОКУМЕНТАЦИЯ: {name} ===\n'
+                            '(такого раздела в реестре нет — отвечай по общим '
+                            'принципам или предложи завершить диалог.)'
+                        )
+                followup = (
+                    '\n\n'.join(parts)
+                    + '\n\nДокументация загружена. Теперь дай пользователю полноценный '
+                    'ответ по существу. Не ставь новые теги [[doc:...]], если уже всё ясно.'
+                )
+
+                try:
+                    answer = _send(key, _support_model, followup)
+                except RuntimeError as exc:
+                    if 'CTX_LIMIT' in str(exc):
+                        logger.warning('[Support] CTX_LIMIT внутри doc-loop, отдаём шаг как финальный ответ')
+                        try:
+                            run_control(key, '/reset')
+                        except Exception:
+                            pass
+                        answer = step_text or 'Извините, не получилось загрузить документацию.'
+                        break
+                    raise
+                iteration += 1
+
+            # Если ИИ так и не угомонился и продолжает выписывать теги — вычищаем
+            # их из финального текста, чтобы пользователь не видел [[doc:...]].
+            if answer:
+                answer = _DOC_TAG_RE.sub('', answer).strip()
         else:
             answer = ('Привет! Я Favorite AI Agent — ваш помощник по сервису FavoriteAPI.\n\n'
                       'Для работы AI-поддержки администратору необходимо настроить ключ агента поддержки. '
@@ -221,14 +337,13 @@ def support_send_message():
         logger.error('[Support] Ошибка AI ответа: %s', exc)
         answer = 'Извините, возникла временная ошибка. Попробуйте ещё раз или завершите диалог — я передам ваш запрос администратору.'
 
-    repo.add_support_message(chat['id'], 'agent', answer, None)
-    user_msg = repo.get_support_messages(chat['id'])[-2] if len(all_messages) > 0 else None
-    agent_msg = repo.get_support_messages(chat['id'])[-1]
+    agent_msg = repo.add_support_message(chat['id'], 'agent', answer or '', None)
 
     return jsonify({
-        'user_message': {'id': repo.get_support_messages(chat['id'])[-2]['id'] if len(repo.get_support_messages(chat['id'])) > 1 else None, 'content': content, 'role': 'user'},
+        'user_message': user_msg,
+        'steps': steps_added,
         'agent_message': agent_msg,
-        'chat': chat
+        'chat': chat,
     })
 
 
