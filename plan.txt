@@ -1,28 +1,695 @@
-ЦЕЛЬ
-Сначала сделать и проверить визуал FreeAI в отдельном сандбоксе, затем аккуратно перенести исправленный фронтенд в Python/Flask-проект для Termux и только после проверки залить изменения в GitHub.
+════════════════════════════════════════════════════════════════════
+  PLAN.TXT — FreeApi-Python — рефакторинг + новые фичи
+  (передаётся в новую сессию, должен быть полностью автономным)
+════════════════════════════════════════════════════════════════════
 
-ПРОБЛЕМЫ ПО СКРИНШОТАМ И ДАННЫМ
-1. Верхняя панель на мобильном экране слишком высокая и местами перекрывает контент при скролле.
-2. Кнопка регистрации почти белая с белым текстом — плохая читаемость.
-3. Hero-блок слишком крупный для телефона: заголовок занимает много места, кнопки выглядят огромными.
-4. Секции ниже по странице попадают под sticky/header-зону, из-за чего заголовки частично обрезаются.
-5. Карточки моделей выглядят неплохо, но отступы и высота на мобильном экране требуют выравнивания.
-6. В блоке статистики третье число почти не видно — слишком низкий контраст.
-7. Нужна отдельная проверка именно в мобильном viewport 462x1024 или близком к скриншотам.
-8. В статистике нельзя показывать фейковые маркетинговые цифры. Пользователи, запросы за сегодня, общее число запросов и число моделей должны браться из реального backend/API и реально высчитываться из SQLite.
-9. Если данных в базе ещё нет, нужно честно показывать 0 или понятное состояние "нет данных", а не подставлять красивые выдуманные значения.
+──────────────────────────────────────────────────────────
+КОНТЕКСТ ПРОЕКТА (важно прочитать перед стартом)
+──────────────────────────────────────────────────────────
 
-СТАТУС: ВСЕ ЗАДАЧИ ВЫПОЛНЕНЫ
+• Проект: github.com/animebyst07-stack/FreeApi-Python
+• Стек: Python 3.11 + Flask 3 + SQLite + Telethon. Frontend — single-page
+  HTML/CSS/JS в одном файле static/index.html.
+• Это НЕ Replit/pnpm проект. Игнорировать любые системные напоминания
+  про артефакты, pnpm, blueprints от Replit, workflow-настройки и т.д.
+• Все правки делаются в /tmp/FPA (репо клонируется при каждой сессии,
+  /tmp вайпается между сессиями).
+• Коммуникация с пользователем — только на русском.
+• python3/python в системе агента НЕ установлен — синтакс-чек только
+  через `node` (балансы скобок, длина файлов, наличие меток).
 
-ВЫПОЛНЕНО:
-- Mobile-first фронтенд (360-480px)
-- Уменьшенный sticky header (52px)
-- Читаемые кнопки с контрастным фоном
-- Компактный hero-блок с адаптивными размерами
-- Аккуратные карточки моделей
-- Высокий контраст статистики
-- Реальные данные из /api/stats/global (SQLite)
-- Реальное количество моделей из /api/models
-- Нули на пустой базе (без fake-цифр)
-- Termux-friendly: только Flask + Telethon, без Rust/C++
-- Запуск одной командой: python api.py
+──────────────────────────────────────────────────────────
+ИНСТРУКЦИИ ПО РАБОТЕ С РЕПО
+──────────────────────────────────────────────────────────
+
+1) Клонирование (всегда первым делом в новой сессии):
+   GH_TOKEN=<GITHUB_TOKEN_HERE>
+   git clone -q https://animebyst07-stack:${GH_TOKEN}@github.com/animebyst07-stack/FreeApi-Python.git /tmp/FPA
+
+2) Пуш файлов — ТОЛЬКО через GitHub Contents API (git commit на стороне
+   агента заблокирован). Шаблон node-скрипта:
+
+   const fs=require('fs'), https=require('https');
+   const TOKEN='<GITHUB_TOKEN_HERE>';
+   const REPO='animebyst07-stack/FreeApi-Python';
+   function ghReq(method,path,body){return new Promise((res,rej)=>{
+     const data=body?JSON.stringify(body):null;
+     const req=https.request({hostname:'api.github.com',path,method,
+       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json',
+       'Content-Type':'application/json','User-Agent':'agent',
+       ...(data?{'Content-Length':Buffer.byteLength(data)}:{})}},
+       r=>{let b='';r.on('data',d=>b+=d);r.on('end',()=>{
+         try{res({status:r.statusCode,body:JSON.parse(b)});}catch(e){res({status:r.statusCode,body:b});}});});
+     req.on('error',rej); if(data) req.write(data); req.end();});}
+   async function pushFile(path,msg){
+     const cur=await ghReq('GET','/repos/'+REPO+'/contents/'+path+'?ref=main');
+     const sha=cur.body && cur.body.sha; if(!sha){console.log('NO SHA',path);return;}
+     const content=fs.readFileSync(path).toString('base64');
+     const r=await ghReq('PUT','/repos/'+REPO+'/contents/'+path,
+       {message:msg,content,sha,branch:'main'});
+     console.log(r.body.commit?'OK '+path+' '+r.body.commit.sha:'ERR '+JSON.stringify(r.body).slice(0,300));}
+
+   ВАЖНО: file → base64 читать прямо в node (`fs.readFileSync(path).toString('base64')`).
+   НЕ передавать base64 как аргумент шелла — будет «Argument list too long».
+
+3) Создание НОВОГО файла — тот же PUT, но без поля sha.
+   Удаление файла — DELETE с указанием sha.
+
+4) Перед каждым PUT'ом делать sanity-check:
+   • Python — `node -e "console.log('lines',fs.readFileSync('f.py','utf8').split(chr(10)).length)"`
+   • Балансы JS-скобок в index.html: count('{') === count('}')
+   • Грубая проверка наличия добавленных меток/функций через grep.
+
+5) Один логический шаг = один коммит = один PUT (или несколько, если
+   шаг затрагивает 2-3 связанных файла). НЕ пушить полусырое состояние.
+
+──────────────────────────────────────────────────────────
+ГЛОБАЛЬНЫЕ ПРАВИЛА СТИЛЯ (применяются ВЕЗДЕ)
+──────────────────────────────────────────────────────────
+
+• Сайт держится в единой ЧЁРНО-БЕЛОЙ стилистике (оттенки чёрного,
+  белого, серого + уже существующий лиловый акцент).
+• НИКАКИХ эмодзи нигде: ни в UI-кнопках, ни в табах, ни в сообщениях
+  user_notification, ни в push-payload, ни в toast/ошибках, видимых
+  пользователю. У эмодзи свой неконтролируемый цвет.
+• Все иконки — встроенный inline SVG со stroke="currentColor" /
+  fill="currentColor", чтобы цвет наследовался от темы.
+• Цветовые исключения допустимы только для НЕкритичных мелких
+  элементов (бейдж непрочитанных, точка «новое») — лиловый акцент,
+  уже существующий в коде. Новых цветов не вводить.
+• Различие между типами/состояниями — РАЗНЫЕ SVG-иконки + opacity/
+  толщина обводки, а не разные цвета.
+• Тексты — строгие, без воскликов и смайлов. Пример: «Владелец ответил»,
+  а не «👑 Владелец ответил!».
+• При редактировании существующих сообщений с эмодзи — заменить на
+  нейтральный префикс или убрать.
+• Логирование на фронте — `clog('TAG', 'msg')` (тег заглавными). На
+  бэке — `logger.info('[TAG] msg')`. Без эмодзи.
+
+──────────────────────────────────────────────────────────
+КЛЮЧЕВЫЕ ФАЙЛЫ ПРОЕКТА
+──────────────────────────────────────────────────────────
+
+  freeapi/
+    app.py              154  — фабрика Flask-приложения
+    routes.py          1951  — ВСЕ HTTP роуты в одном файле
+    repositories.py     625  — ВСЕ репозитории в одном файле
+    database.py         260  — схема + init_db (миграции через if-not-exists)
+    agent.py            266  — AI-модератор отзывов (поток)
+    auth_service.py      25  — вход/регистрация
+    config.py            20
+    log_codes.py         44
+    memory.py           200
+    models.py            22
+    progress.py          58
+    rate_limit.py        43  — есть, но применяется не везде
+    scheduler.py         35
+    security.py          56
+    tg.py               822  — Telethon-клиент, бот, спонсоры
+    tg_notify.py        214
+    tunnel.py           190
+  static/
+    index.html         5846  — ВЕСЬ фронт (HTML+CSS+JS) одной кучей
+  api.py                    — точка входа
+  requirements.txt
+  replit.md                 — заметки проекта (можно читать для контекста)
+
+──────────────────────────────────────────────────────────
+ОБЗОР ПРОБЛЕМ КОДА (что мы исправляем рефакторингом)
+──────────────────────────────────────────────────────────
+
+A. routes.py — 1951 строка, всё вперемешку: auth, отзывы, админ,
+   поддержка, чат, ключи, уведомления, telegram-настройки.
+B. index.html — 5846 строк, HTML+CSS(900+)+JS(3500+) в одном файле.
+C. ДУБЛИ ФУНКЦИЙ (вторая версия молча перезаписывает первую):
+   • formatDate — определён 2 раза (строки ~2388 и ~3724)
+   • q          — 2 раза (~2386 и ~3866)
+   • esc        — 2 раза (~2387 и ~3867)
+   • renderReviewImgs — 2 раза (~2394 и ~3392)
+D. repositories.py — 625 строк всех сущностей в одном неймспейсе.
+E. Нет нормальной системы миграций (только if-not-exists в init_db).
+F. Уведомления — поллинг каждые 60 сек на каждого юзера.
+G. Логирование разнобой: clog, logger, print, разные теги.
+H. Бизнес-логика смешана с HTTP в routes.py — нельзя переиспользовать.
+I. rate_limit.py существует, но применён фрагментарно.
+
+══════════════════════════════════════════════════════════════════════
+                          ЭТАП 0 — РЕФАКТОРИНГ
+══════════════════════════════════════════════════════════════════════
+Цель: сделать код пригодным для дальнейшего развития. Без новых фич.
+Каждый шаг — отдельный коммит, чтобы можно было откатить.
+
+────────────────────────────────────────
+ШАГ 0.1 — Удалить дубли функций (фронт)
+────────────────────────────────────────
+Сложность: тривиальная. Риск: минимальный.
+
+• В static/index.html найти и удалить ВТОРЫЕ определения:
+  - formatDate (~3724) — оставить версию ~2388
+  - q          (~3866) — оставить ~2386
+  - esc        (~3867) — оставить ~2387
+  - renderReviewImgs (~3392) — оставить ~2394
+• Сравнить тела двух версий — если различаются, перенести улучшения
+  в первую и удалить вторую. Если идентичны — просто удалить.
+• Проверка: grep -c "function formatDate" должен дать 1, не 2.
+• Балансы { } должны сойтись.
+• Push: один коммит «refactor: убраны дубли formatDate/q/esc/renderReviewImgs».
+
+────────────────────────────────────────
+ШАГ 0.2 — Расщепить routes.py на Blueprints
+────────────────────────────────────────
+Сложность: средняя. Риск: средний (большой объём перемещений).
+
+Создать каталог freeapi/blueprints/:
+  __init__.py
+  auth_bp.py            — /api/login, /api/register, /api/logout, /api/me
+  keys_bp.py            — /api/keys/*, /api/v1/chat
+  tg_bp.py              — /api/tg/*, setup-flow
+  reviews_bp.py         — /api/reviews/*, лайки
+  notifications_bp.py   — /api/notifications/*
+  admin_bp.py           — /api/admin/*
+  support_bp.py         — /api/support/*
+  chat_bp.py            — /api/chat/test
+  misc_bp.py            — /api/clog, /api/stats и прочее мелкое
+
+В каждом bp.py:
+  from flask import Blueprint
+  bp = Blueprint('auth', __name__)
+  @bp.post('/api/login') ...
+
+В app.py / api.py:
+  from freeapi.blueprints import auth_bp, keys_bp, ...
+  app.register_blueprint(auth_bp.bp)
+  ...
+
+routes.py оставить ПУСТЫМ файлом (или удалить register_routes и
+оставить тонкий шим, если где-то импортируется). Шары (helpers
+error/current_user_id/require_user/bearer_value/authorized_key)
+вынести в freeapi/blueprints/_helpers.py.
+
+ВАЖНО: API НЕ МЕНЯЕТСЯ. Те же URL, те же методы, те же тела ответов.
+Только реорганизация. Тестировать руками после миграции.
+
+Проверка после: запустить `node` чек что все упомянутые в blueprints
+URL встречаются хотя бы один раз. Затем юзер тестирует основные
+сценарии вручную (login → создать ключ → отправить отзыв → админ).
+
+Push: один коммит «refactor(routes): расщепление на Blueprints».
+
+────────────────────────────────────────
+ШАГ 0.3 — Расщепить repositories.py на пакет repos/
+────────────────────────────────────────
+Сложность: средняя. Риск: низкий (чистая реорганизация).
+
+Создать каталог freeapi/repos/:
+  __init__.py     — реэкспорт всех функций для обратной совместимости:
+                    from .users import *
+                    from .keys import *
+                    from .reviews import *
+                    ...
+  users.py        — create_user, get_user_by_*, touch_login
+  tg_accounts.py  — *tg_account*, *setup_session*
+  keys.py         — *_api_key, get_user_keys, create_request,
+                    finish_request, get_key_logs, get_key_month_stats,
+                    increment_context_tokens, *_pending_restore, etc.
+  reviews.py      — *_review, _enrich_reviews_with_likes, get_pending_*,
+                    upsert_review_like, *_user_ban, week_edits
+  notifications.py — *_user_notification(s), *_admin_notification(s),
+                     mark_*_read, count_unread_notifications
+  support.py      — *_support_chat, *_support_message
+  admin.py        — *_admin_setting, get_all_keys_for_admin
+  stats.py        — get_global_stats, get_model_stats, update_model_stats,
+                    get_log_codes
+
+freeapi/repositories.py заменить на:
+  # Backwards-compat shim
+  from freeapi.repos import *  # noqa
+
+Все существующие импорты вида `from freeapi import repositories as repo`
+продолжают работать.
+
+Проверка: grep по всем местам где используется `repo.имя_функции` —
+все имена должны разрешаться через repos/__init__.py.
+
+Push: один коммит «refactor(repo): repositories.py → пакет freeapi/repos/».
+
+────────────────────────────────────────
+ШАГ 0.4 — Вынести CSS из index.html
+────────────────────────────────────────
+Сложность: низкая. Риск: низкий.
+
+• Найти первый <style> и последний </style> в index.html.
+• Вырезать всё содержимое в static/css/main.css.
+• Заменить блок <style>...</style> на:
+  <link rel="stylesheet" href="/static/css/main.css">
+• Если нужно version-busting — `?v=YYYYMMDD-HHMM`.
+• Никаких изменений селекторов, только перенос.
+• Flask по умолчанию отдаёт /static/* — должен работать без правки routes.
+
+Проверка: открыть страницу — стили должны применяться. grep по
+index.html на «#080808» должен дать 0 (всё ушло в css).
+
+Push: коммит «refactor(front): CSS вынесен в /static/css/main.css».
+
+────────────────────────────────────────
+ШАГ 0.5 — Вынести JS из index.html в модули
+────────────────────────────────────────
+Сложность: высокая. Риск: средний (легко сломать). Делать аккуратно.
+
+Структура:
+  static/js/
+    core.js          — q, esc, formatDate, api(), showToast,
+                       customConfirm, openModal, closeModal, clog
+    auth.js          — doLogin, doRegister, _logout, syncAuthState
+    dashboard.js     — loadDashboard, renderKeys, createKey, regenKey,
+                       deleteKey, copyKeyVal, openKeySettings, history
+    setup.js         — setSetupTab, startSetup, trackProgress,
+                       pollProgress, applyProgress, submitCode,
+                       cancelSetup, retrySetup, importSessionFile,
+                       toggleLogConsole
+    reviews.js       — loadReviews, renderReviews, renderReviewImgs,
+                       renderReplyAuthor, renderLikesBar, rvLike,
+                       changeReviewsPage, _rvStarUpdate
+    chat.js          — initChatView, populateChatKeySelect/Model,
+                       sendChatMessage, save/loadChatHistory,
+                       chat-canvas-bg
+    support.js       — startNewSupportDialog, sendSupportMessage,
+                       closeSupportChat
+    notifications.js — refreshNotifBadge, loadNotifications,
+                       markAllNotifsRead, deleteUserNotification,
+                       startNotifPolling, stopNotifPolling
+    admin.js         — loadAdmin, renderAdminNotifications,
+                       renderAdminReviews, saveAdminReviewResp,
+                       deleteAdminReview, deleteAdminNotification,
+                       saveModeratorSettings, saveSupportSettings
+    docs.js          — loadDocsLogCodes, loadDocsModels, setDocsSection
+    models.js        — loadModels, renderLandingModels, modelCard,
+                       filterModels, searchModels
+    main.js          — bootstrap: DOMContentLoaded, init, роутинг
+                       view'ов, регистрация resize-обработчиков
+
+Принципы:
+• Никаких ES-модулей (import/export) — простой `<script>` подключение.
+  Все публичные API навешиваются на window (как сейчас).
+• Порядок подключения важен: core.js первым, main.js последним.
+• Дублирующиеся внутренние имена удалить ещё на шаге 0.1.
+
+Подключение в index.html (в конце <body>):
+  <script src="/static/js/core.js?v=..."></script>
+  <script src="/static/js/auth.js?v=..."></script>
+  ... (в нужном порядке)
+  <script src="/static/js/main.js?v=..."></script>
+
+Делать ИНКРЕМЕНТАЛЬНО, по одному файлу за коммит:
+  0.5a — core.js
+  0.5b — auth.js + dashboard.js
+  0.5c — setup.js
+  0.5d — reviews.js
+  0.5e — chat.js + support.js
+  0.5f — notifications.js + admin.js
+  0.5g — docs.js + models.js + main.js + удаление inline-JS
+
+После каждого подшага юзер делает быстрый smoke-тест соответствующей
+секции, и только тогда переходим к следующему.
+
+────────────────────────────────────────
+ШАГ 0.6 — Простая система миграций
+────────────────────────────────────────
+Сложность: низкая. Риск: низкий.
+
+Создать freeapi/migrations/:
+  001_init.sql               — текущая полная схема (CREATE TABLE IF NOT EXISTS)
+  002_likes.sql              — таблица review_likes (уже есть в init_db)
+  003_week_edits.sql         — колонка edit_timestamps
+  004_user_notifications.sql — таблица user_notifications
+  ... (последовательно отразить всё, что было добавлено через
+       if-not-exists)
+
+В database.py вместо одного init_database():
+  • Создать таблицу schema_migrations(version TEXT PRIMARY KEY, applied_at TEXT).
+  • При старте: для каждого .sql файла из migrations/ по алфавиту,
+    если version не в schema_migrations — выполнить и записать.
+• Старый init_database() переписать как «применить все миграции».
+
+Проверка: на чистой БД должна получиться идентичная схема. На
+существующей — все миграции должны быть помечены как применённые
+(seed). Для этого: при первом запуске после деплоя, если
+schema_migrations пустая, но в БД уже есть users — пометить все
+существующие миграции применёнными.
+
+Push: коммит «refactor(db): пронумерованные миграции в /migrations».
+
+────────────────────────────────────────
+ШАГ 0.7 — Унифицировать логирование
+────────────────────────────────────────
+Сложность: низкая. Риск: минимальный.
+
+Бэк (freeapi/__init__.py или logging_setup.py):
+  import logging
+  logger = logging.getLogger('freeapi')
+  handler = logging.StreamHandler()
+  handler.setFormatter(logging.Formatter('%(asctime)s [%(name)s][%(levelname)s] %(message)s'))
+  logger.addHandler(handler)
+  logger.setLevel(logging.INFO)
+
+• Заменить все `print(...)` в проекте на `logger.info(...)` /
+  `logger.warning(...)` / `logger.error(...)`.
+• Все теги в сообщениях — единый формат: `'[TAG] message'`.
+
+Фронт:
+• `clog(tag, msg, level='info')` — единственная функция логирования
+  (есть уже в core.js после шага 0.5).
+• Удалить разрозненные console.log в боевом коде, оставить только
+  через clog.
+
+Push: коммит «refactor(log): унифицированный logger + clog».
+
+────────────────────────────────────────
+ШАГ 0.8 — Доводка rate_limit
+────────────────────────────────────────
+Сложность: низкая.
+
+• Применить декоратор rate_limit ко ВСЕМ публично-доступным endpoint'ам:
+  - /api/login, /api/register (брутфорс-защита)
+  - /api/reviews POST/PUT
+  - /api/support/message
+  - /api/chat/test
+• Описать лимиты единым конфигом в rate_limit.py.
+
+Push: коммит «refactor(security): rate_limit на все publicly-doable роуты».
+
+══════════════════════════════════════════════════════════════════════
+                          ЭТАП 1 — НОВЫЕ ФИЧИ
+══════════════════════════════════════════════════════════════════════
+Делается ТОЛЬКО после полного завершения Этапа 0.
+
+────────────────────────────────────────
+ШАГ 1.1 — Browser Push API (нативные push)
+────────────────────────────────────────
+Цель: уведомления автору отзыва о ответе владельца приходят даже
+при закрытой вкладке браузера.
+
+Зависимости:
+  pip add: pywebpush>=1.14.0, cryptography>=41.0
+  Добавить в requirements.txt.
+
+База данных (миграция 010_push_subscriptions.sql):
+  CREATE TABLE push_subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    user_agent TEXT,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT,
+    failed_count INTEGER DEFAULT 0
+  );
+  CREATE INDEX idx_push_subs_user ON push_subscriptions(user_id);
+
+VAPID:
+• При первом запуске сгенерировать через py_vapid (входит в pywebpush)
+  и сохранить в admin_settings: vapid_public_key, vapid_private_key,
+  vapid_subject (mailto:noreply@example.com).
+• Endpoint GET /api/push/vapid_public_key → {key: '...'}.
+
+Repos (freeapi/repos/push.py):
+  save_push_subscription(user_id, endpoint, p256dh, auth, user_agent)
+    → INSERT OR REPLACE по endpoint, обнуляет failed_count
+  get_push_subscriptions(user_id) → list
+  delete_push_subscription_by_endpoint(endpoint)
+  increment_push_failed(endpoint) → если failed_count >= 3 — удалить
+  update_push_last_seen(endpoint)
+
+Helper freeapi/push.py:
+  send_push_to_user(user_id, title, body, url='/', tag=None):
+    payload = json.dumps({'title':title,'body':body,'url':url,'tag':tag})
+    for sub in repo.get_push_subscriptions(user_id):
+      try:
+        webpush(subscription_info={'endpoint':sub.endpoint,
+                'keys':{'p256dh':sub.p256dh,'auth':sub.auth}},
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE,
+                vapid_claims={'sub':VAPID_SUBJECT})
+        repo.update_push_last_seen(...)
+      except WebPushException as ex:
+        if ex.response.status_code in (404,410):
+          repo.delete_push_subscription_by_endpoint(...)
+        else:
+          repo.increment_push_failed(...)
+        logger.warning('[PUSH] fail status=%s', ex.response.status_code)
+
+Endpoints (notifications_bp):
+  POST /api/push/subscribe  body: {endpoint, keys:{p256dh, auth}}
+  POST /api/push/unsubscribe body: {endpoint}
+  GET  /api/push/vapid_public_key
+
+Service Worker static/sw.js:
+  self.addEventListener('push', e => {
+    const d = e.data ? e.data.json() : {};
+    e.waitUntil(self.registration.showNotification(
+      d.title || 'Уведомление',
+      {body: d.body || '', tag: d.tag || 'default',
+       icon: '/static/icon-192.png', data:{url: d.url || '/'}}));
+  });
+  self.addEventListener('notificationclick', e => {
+    e.notification.close();
+    const url = (e.notification.data && e.notification.data.url) || '/';
+    e.waitUntil(clients.matchAll({type:'window'}).then(list => {
+      for (const c of list) if (c.url.includes(url)) return c.focus();
+      return clients.openWindow(url);
+    }));
+  });
+
+Раздача sw.js (chat_bp или misc_bp):
+  @app.get('/sw.js')  # обязательно с КОРНЯ, не из /static
+  def sw():
+    resp = send_from_directory('static','sw.js',
+                               mimetype='application/javascript', max_age=0)
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
+
+Frontend (notifications.js):
+  • На странице view-notifications добавить блок «Браузерные push»
+    с состояниями: «включить» / «включено» / «отключить» / «заблокировано».
+  • Функция enablePush():
+    1. Notification.requestPermission()
+    2. navigator.serviceWorker.register('/sw.js')
+    3. fetch('/api/push/vapid_public_key')
+    4. reg.pushManager.subscribe({userVisibleOnly:true,
+       applicationServerKey: urlBase64ToUint8Array(key)})
+    5. POST /api/push/subscribe
+  • Функция disablePush(): unsubscribe + DELETE на бэке.
+  • urlBase64ToUint8Array — стандартная утилита 5 строк.
+
+Интеграция (reviews_bp PUT /api/reviews/<id>/status):
+  После repo.create_user_notification(...) при reply_by=='manual':
+    threading.Thread(target=push.send_push_to_user, args=(target_uid,
+      'Владелец ответил', snippet, '/?view=notifications', 'review_'+rid),
+      daemon=True).start()
+
+Иконка для уведомлений:
+  • Создать static/icon-192.png — монохромный favicon 192×192.
+    Если нет — использовать существующий favicon.
+
+Edge cases:
+  • iOS Safari требует PWA на главный экран (16.4+). В UI добавить
+    тонкую подсказку при платформе iOS.
+  • HTTPS обязателен (есть).
+
+Push: один большой коммит «feat(push): нативные браузерные push-уведомления».
+
+────────────────────────────────────────
+ШАГ 1.2 — SSE вместо 60-сек поллинга
+────────────────────────────────────────
+Цель: убрать polling, мгновенная доставка при открытой вкладке,
+снизить нагрузку.
+
+Бэк (notifications_bp):
+  GET /api/notifications/stream
+    • Server-Sent Events: Content-Type: text/event-stream.
+    • Держит соединение, шлёт keep-alive каждые 25 сек.
+    • При создании нового user_notification (через единую функцию
+      repo.create_user_notification) кладёт событие в очередь конкретного
+      user_id (in-memory dict {user_id: queue.Queue}).
+    • Слушающий генератор форматирует:
+      data: {"type":"notification","unread":N,"item":{...}}\n\n
+    • При закрытии соединения — удалить очередь.
+
+Хелпер freeapi/sse.py:
+  _bus = defaultdict(list)  # user_id -> list[Queue]
+  def subscribe(user_id) -> Queue
+  def unsubscribe(user_id, q)
+  def publish(user_id, event_dict)
+
+Все места, где сейчас вызывается create_user_notification, должны
+после успешной записи вызывать sse.publish(user_id, {...}).
+
+Frontend (notifications.js):
+  • Заменить startNotifPolling/stopNotifPolling на:
+    function startNotifStream(){
+      if (window._es) return;
+      window._es = new EventSource('/api/notifications/stream');
+      _es.onmessage = e => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'notification') {
+          updateBadge(d.unread);
+          if (currentView === 'notifications') prependNotif(d.item);
+          showToast(d.item.message_short, 'notif');
+        }
+      };
+      _es.onerror = () => { /* EventSource сам реконнектит */ };
+    }
+    function stopNotifStream(){ if(_es){ _es.close(); _es=null; } }
+
+Поллинг 60 сек — удалить полностью.
+
+Push: коммит «feat(notif): SSE-поток вместо 60-сек поллинга».
+
+────────────────────────────────────────
+ШАГ 1.3 — Группировка уведомлений по типам
+────────────────────────────────────────
+(детали в старой версии плана, повтор для самодостаточности)
+
+Миграция 011_notif_kind.sql:
+  ALTER TABLE user_notifications ADD COLUMN kind TEXT NOT NULL DEFAULT 'system';
+  ALTER TABLE user_notifications ADD COLUMN ref_id TEXT;
+  CREATE INDEX idx_user_notif_user_kind ON user_notifications(user_id, kind);
+
+Типы (kind):
+  review  — ответ владельца/модератора, удаление, бан, фидбек
+  support — ответ поддержки
+  system  — служебные (ключи, лимиты, настройки)
+
+Repos (notifications.py):
+  • create_user_notification(user_id, message, kind='system', ref_id=None)
+  • get_user_notifications(user_id, kind=None, limit=50, offset=0)
+  • count_unread_notifications(user_id, kind=None)
+  • mark_all_notifications_read(user_id, kind=None)
+  • Возвращать kind/ref_id в каждой записи.
+
+Endpoints:
+  • GET /api/notifications?kind=review|support|system&limit=&offset=
+    Ответ: {items:[...], unread:{all:N, review:N, support:N, system:N}}
+  • POST /api/notifications/read_all?kind=
+
+Все вызовы create_user_notification в коде — проставить kind и ref_id:
+  • agent.py APPROVE/FEEDBACK/DELETE  → kind='review', ref_id=review_id
+  • routes/reviews PUT status (manual) → kind='review', ref_id=review_id
+  • support-чат при ответе владельца   → kind='support', ref_id=thread_id
+  • остальные служебные                → kind='system'
+
+Frontend (notifications.js + main.css):
+  • Sticky-табы над списком: Все / Отзывы / Поддержка / Система.
+  • Различие табов — РАЗНЫЕ SVG-иконки (звезда/спич-баббл/шестерёнка),
+    БЕЗ цвета, БЕЗ эмодзи. Активный таб — белая обводка, неактивный —
+    серая. Бейдж непрочитанных по типу.
+  • Карточки получают data-kind и иконку слева.
+  • setNotifFilter(kind) → перезагружает список + меняет активный таб.
+  • refreshNotifBadge — теперь хранит per-kind счётчики, обновляет
+    бейдж колокольчика и бейджи табов.
+  • Дип-линк по клику на карточку:
+      review  + ref_id → goView('reviews') (+ scroll к карточке)
+      support          → goView('support')
+      system           → goView('dashboard')
+
+Push payload: tag = kind+'_'+ref_id (новый push того же объекта
+заменяет предыдущий, не плодит дубликаты).
+
+Push: коммит «feat(notif): группировка по kind + фильтры».
+
+────────────────────────────────────────
+ШАГ 1.4 — Smart Drafts отзывов
+────────────────────────────────────────
+Цель: при случайном закрытии вкладки набранный текст отзыва не теряется.
+
+Frontend (reviews.js):
+  • При вводе в textarea отзыва — каждые 3 сек saveDraft():
+    localStorage.setItem('rv_draft_'+userId, JSON.stringify({
+      text, score, ts: Date.now()
+    }));
+  • При открытии view-reviews / формы:
+    const d = JSON.parse(localStorage.getItem('rv_draft_'+userId)||'null');
+    if (d && Date.now()-d.ts < 7*86400000 && !currentReview) {
+      // показать неблокирующий баннер «Найден черновик от <дата>.
+      // [Восстановить] [Удалить]»
+    }
+  • После успешной отправки или удаления отзыва — очистить черновик.
+  • Баннер — монохромный, без эмодзи.
+
+(Опционально на бэк — пока не нужно, localStorage достаточно.)
+
+Push: коммит «feat(reviews): автосохранение черновика».
+
+────────────────────────────────────────
+ШАГ 1.5 — Bulk-операции в админке
+────────────────────────────────────────
+Цель: ускорить модерацию большого числа отзывов.
+
+Backend (admin_bp):
+  • POST /api/admin/reviews/bulk
+    body: {ids:[...], action: 'approve'|'delete'|'flag'}
+    → возвращает {ok:N, fail:[]}.
+
+Frontend (admin.js):
+  • К каждой карточке в adminReviewsList добавить чекбокс (без эмодзи,
+    стандартный custom-checkbox в монохроме).
+  • При выборе ≥1 — снизу появляется sticky-панель:
+    «Выбрано: N → [Одобрить] [Удалить] [Сброс]».
+  • Все действия идут одним POST на /api/admin/reviews/bulk.
+  • После — обновление списка и тоаст «Обработано: N».
+
+Push: коммит «feat(admin): массовые операции с отзывами».
+
+══════════════════════════════════════════════════════════════════════
+                          ЭТАП 2 — ОПЦИОНАЛЬНО
+══════════════════════════════════════════════════════════════════════
+Делать только если пользователь явно попросит.
+
+• Inline-история редактирования отзыва (показывать diff «было/стало»).
+• Аудио-оповещение при новом уведомлении (тумблер в настройках, off
+  по умолчанию).
+• Webhook-зеркало уведомлений в собственный TG-бот юзера.
+• Per-type настройки push (отдельные тумблеры для review/support/system).
+• Server status в footer (latency/uptime/version).
+• Эфемерные инвайт-ссылки для друзей.
+
+Эти фичи СПЕЦИАЛЬНО отложены — на текущем размере проекта они дают
+мало ценности по сравнению с трудозатратами.
+
+══════════════════════════════════════════════════════════════════════
+                          ЧТО СОЗНАТЕЛЬНО НЕ ДЕЛАЕМ
+══════════════════════════════════════════════════════════════════════
+Эти идеи рассматривались и отвергнуты как преждевременные:
+
+• Command Palette (Ctrl+K) — фича уровня Linear, но в проекте всего
+  ~7 view, реальной пользы мало. Имеет смысл когда страниц 30+.
+• Heat-map активности (GitHub-style) — декорация, не решает проблем.
+• Split-view чат с двумя моделями — много кода, тестовый чат
+  используется редко.
+• PNG-шеринг отзыва — органический трафик при текущем размере = 0.
+• Live Pulse в шапке — добавляет нагрузку, нулевая функциональная
+  ценность.
+• Trust Level / Reputation — геймификация при десятке юзеров избыточна.
+• Similarity-антиспам — пока спама нет, преждевременная оптимизация.
+
+══════════════════════════════════════════════════════════════════════
+                          ПОРЯДОК В НОВОЙ СЕССИИ
+══════════════════════════════════════════════════════════════════════
+
+1. Прочитать этот plan.txt полностью.
+2. Спросить пользователя: «На каком шаге останавливались, какой
+   следующий?» (или см. git log в репо после клонирования).
+3. Клонировать репо в /tmp/FPA по инструкции выше.
+4. Сделать выбранный шаг. Один шаг = один коммит = один push.
+5. После каждого шага — короткий отчёт пользователю по-русски,
+   без технического жаргона, и предложение следующего шага.
+6. Если что-то ломается — откатывать через GitHub UI или новый коммит-
+   реверт; НЕ пытаться чинить долгим перебором.
+
+ОТСЛЕЖИВАНИЕ ПРОГРЕССА
+Можно вести в репо файл PROGRESS.md (создавать только если пользователь
+попросит). Иначе ориентироваться на git log и комментарии коммитов
+с префиксами refactor(...) и feat(...).
+
+КОНЕЦ ПЛАНА.
