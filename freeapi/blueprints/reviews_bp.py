@@ -115,7 +115,12 @@ def submit_review():
                        before - len(images), len(images), uid)
     images = images[:10]
     logger.info('[REVIEWS] финально к сохранению: score=%s images=%s uid=%s', score, len(images), uid)
-    agent_ready = repo.get_admin_setting('agent_enabled', '0') == '1' and bool(repo.get_admin_setting('agent_key_id', ''))
+    # FIX: UI «Модератор отзывов» сохраняет настройки в moderator_*; старые
+    # ключи agent_* остаются как fallback для совместимости. Без этого новый
+    # отзыв всегда создавался как approved и AI-модерация не срабатывала.
+    _mod_enabled = repo.get_admin_setting('moderator_enabled', repo.get_admin_setting('agent_enabled', '0'))
+    _mod_key_id  = repo.get_admin_setting('moderator_key_id',  repo.get_admin_setting('agent_key_id',  ''))
+    agent_ready = (_mod_enabled == '1') and bool(_mod_key_id)
     if is_admin:
         review = repo.create_review(uid, score, text, 'approved', images=images, is_admin=True)
     else:
