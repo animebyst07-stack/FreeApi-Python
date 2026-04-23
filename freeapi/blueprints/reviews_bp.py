@@ -120,12 +120,22 @@ def submit_review():
     # отзыв всегда создавался как approved и AI-модерация не срабатывала.
     _mod_enabled = repo.get_admin_setting('moderator_enabled', repo.get_admin_setting('agent_enabled', '0'))
     _mod_key_id  = repo.get_admin_setting('moderator_key_id',  repo.get_admin_setting('agent_key_id',  ''))
+    # FIX: новый флаг moderator_force_admin (по умолчанию '0') — когда '1',
+    # отзывы владельца тоже проходят AI-модерацию. По умолчанию админ-отзывы
+    # публикуются мгновенно без модерации (старое поведение).
+    _force_admin = repo.get_admin_setting('moderator_force_admin', '0') == '1'
     agent_ready = (_mod_enabled == '1') and bool(_mod_key_id)
-    if is_admin:
+    _moderate_this = agent_ready and (not is_admin or _force_admin)
+    if is_admin and not _force_admin:
         review = repo.create_review(uid, score, text, 'approved', images=images, is_admin=True)
     else:
-        review = repo.create_review(uid, score, text, 'pending' if agent_ready else 'approved', images=images)
-    if agent_ready and not is_admin:
+        review = repo.create_review(
+            uid, score, text,
+            'pending' if _moderate_this else 'approved',
+            images=images,
+            is_admin=is_admin,
+        )
+    if _moderate_this:
         try:
             from freeapi.agent import start_agent, trigger_agent
             start_agent()
