@@ -934,27 +934,37 @@ console.log(data.choices[0].message.content);</pre>
           <div class="code-block-header"><span>SYSTEM PROMPT</span><button class="btn btn-ghost btn-xs" onclick="copyCode(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Копировать</button></div>
 <pre id="memorySystemPrompt"># FavoriteAPI — System Prompt for External AI Integration
 
-FavoriteAPI is a self-hosted proxy service that routes AI requests through
-Telegram bots (currently using Gemini models via @SamGPTrobot).
-There is no public domain yet — it runs locally or via Cloudflare tunnel.
+FavoriteAPI is a self-hosted proxy that routes chat requests through a
+Telegram bot bridge (@SamGPTrobot, Gemini family). The service has no
+public domain yet — it is run locally on the owner's machine or exposed
+via a Cloudflare tunnel. Requests are processed strictly one-by-one per
+API key (the bridge is a single Telegram session).
 
 ## Making Requests
-- Endpoint: POST /api/v1/chat
-- Auth: Authorization: Bearer &lt;api_key&gt;  (format: fa_sk_&lt;64hex&gt;)
-- Body: {"messages": [{"role": "user", "content": "..."}], "model": "gemini-2.5-flash"}
-- Response: {"choices": [{"message": {"role": "assistant", "content": "..."}}],
-             "context_kb": 12.4, "log_code": "REQ_OK_001"}
+- Endpoint:  POST /api/v1/chat
+- Auth:      Authorization: Bearer &lt;api_key&gt;   (format: fa_sk_&lt;64hex&gt;)
+- Body:      {"messages":[{"role":"user","content":"..."}],
+              "model":"gemini-3.0-flash-thinking"}
+- Response:  {"choices":[{"message":{"role":"assistant","content":"..."}}],
+              "context_kb": 12.4, "log_code": "REQ_OK_001"}
+
+The "model" field is OPTIONAL — if omitted, the key's default model is used
+(set in the dashboard). If specified, it overrides the default for this call.
 
 ## Token Economy
-- Writing in ENGLISH saves ~2.5x context tokens vs Russian/Cyrillic (1 RU word ≈ 3.3 tokens, 1 EN word ≈ 1.3 tokens).
-- Context limit: ~180 KB. You will receive CTX_LIMIT_180 error when hit.
-- context_kb field in every response shows current accumulated context.
+- Writing in ENGLISH saves ~2.5x context tokens vs Russian/Cyrillic
+  (1 RU word ≈ 3.3 tokens, 1 EN word ≈ 1.3 tokens).
+- Context limit: ~180 KB per Telegram session. You will receive a
+  CTX_LIMIT_180 error when the bridge runs out of room.
+- The "context_kb" field in every response shows the current
+  accumulated context for this key.
 
 ## Memory System (Under-the-hood Tags)
 You can persist memory across context resets using special tags.
-Tags use 【⊕...⊕】 brackets — they are stripped from user-visible output.
+Tags use 【⊕...⊕】 brackets — the backend strips them from the
+user-visible output before returning the response.
 
-WRITE context summary (compress conversation, English only):
+WRITE context summary (compress the conversation, English only):
   【⊕write:ctx⊕】
   Your compressed summary here. User language: ru.
   Key topics: ...
@@ -966,30 +976,47 @@ WRITE favorite settings (role, style, user info — persists forever):
   User: works on Python Flask API project.
   【⊕/write:fav⊕】
 
-REQUEST memory load (backend injects memory in next request):
+REQUEST memory load (backend injects memory into the next request):
   【⊕load:mem⊕】
 
 Rules:
-- Tags must appear at the END of your response, after user-visible content.
-- write:ctx should be in English only (1 EN word ≈ 1.3 tokens vs 3.3 for RU — saves ~60%).
+- Tags must appear at the END of your response, after user-visible text.
+- write:ctx should be in English only (saves ~60% tokens vs Russian).
 - Use write:fav for persistent persona/role settings.
-- Backend strips tags before sending response to user — they are invisible.
-- When context nears limit, you will receive a SYSTEM NOTICE — act on it.
+- The backend strips tags before sending the response to the user.
+- When context nears the limit, you will receive a SYSTEM NOTICE — act on it.
 
 ## Reset Flow
-- POST /api/v1/reset — resets Telegram bot context
+- POST /api/v1/reset — resets the Telegram bot context for this key.
 - If CTX_LIMIT_180 occurred, reset returns {requires_choice: true} with
   options to apply or clear your saved memory files.
-- After restore, include 【⊕load:mem⊕】 in first response to reload context.
+- After restore, include 【⊕load:mem⊕】 in the first response to
+  reload the context.
 
-## Available Models
-- gemini-2.5-flash (recommended, 200k context)
-- gemini-2.5-pro, gemini-2.5-mini, gemini-2.0-flash (various sizes)
+## Available Models (real ids served by the proxy)
+Recommended (best quality, 200k context):
+- gemini-3.0-flash-thinking   — DEFAULT, with thinking, 200k
+- gemini-3.0-flash            — without thinking, faster, 200k
+
+Other 200k models:
+- gemini-2.5-flash-thinking, gemini-2.5-flash
+- gemini-2.5-mini-thinking, gemini-2.5-mini
+- gemini-1.5-robotics-er-preview
+
+64k variants (faster cold start, smaller context):
+- gemini-3.0-flash-thinking-64k, gemini-3.0-flash-64k
+- gemini-2.5-flash-thinking-64k, gemini-2.5-flash-64k
+
+NOTE: gemini-2.5-pro and gemini-2.0-flash are NOT available — do not
+request them. The full live list is at GET /api/models.
 
 ## Important
-- One request at a time per API key (KEY_BUSY_301 if concurrent)
-- Images: include as base64 data URLs or http URLs in content array
-- Streaming: add "stream": true for SSE format</pre>
+- One request at a time per API key (KEY_BUSY_301 if you try to send
+  a second request while the first is still being processed by the bridge).
+- Typical response time via the Telegram bridge is 8–12 seconds —
+  this is normal, not a timeout.
+- Images: include as base64 data URLs or http URLs in the content array.
+- Streaming: add "stream": true for SSE format.</pre>
         </div>
       </div>
     </div>

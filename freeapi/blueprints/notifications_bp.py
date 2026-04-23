@@ -71,11 +71,14 @@ def get_notifications():
         offset = 0
     items = repo.get_user_notifications(uid, kind=kind, limit=limit, offset=offset)
     unread_breakdown = repo.count_unread_notifications_by_kind(uid)
-    # Совместимость: поле 'unread' оставляем числом (общий счётчик), плюс новый объект 'unread_by_kind'.
+    total_breakdown = repo.count_notifications_by_kind(uid)
+    # Совместимость: поле 'unread' оставляем числом (общий счётчик),
+    # плюс объекты 'unread_by_kind' (B2) и 'total_by_kind' (D2-4).
     return jsonify({
         'notifications': items,
         'unread': unread_breakdown.get('all', 0),
         'unread_by_kind': unread_breakdown,
+        'total_by_kind': total_breakdown,
         'kind': kind or 'all',
     })
 

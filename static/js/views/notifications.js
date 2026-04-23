@@ -72,10 +72,14 @@ export function loadNotifications(){
     var items = d.notifications || [];
     var adminItems = ad.notifications || [];
     var unread = parseInt(d.unread || 0) || 0;
-    /* B2: разбивка по типам — обновляем счётчики на табах. */
+    /* B2: разбивка непрочитанных (нужна для бейджа колокольчика).
+       D2-4: для счётчиков на табах используем total_by_kind — общее число
+       уведомлений (а не только непрочитанных), т.к. пользователь видит
+       вкладку и ожидает там цифру даже после прочтения. */
     var byKind = d.unread_by_kind || { all: unread, review: 0, support: 0, system: 0 };
+    var totalByKind = d.total_by_kind || byKind;
     window._notifUnreadByKind = byKind;
-    _renderNotifTabsCounts(byKind);
+    _renderNotifTabsCounts(totalByKind);
     _renderActiveTab();
     _clog('NOTIF', 'OK total=' + items.length + ' admin=' + adminItems.length + ' unread=' + unread + ' kind=' + (window._notifKindFilter || 'all'));
     if (unreadEl) {

@@ -73,6 +73,24 @@ def count_unread_notifications(user_id, kind=None):
         return r['cnt'] if r else 0
 
 
+def count_notifications_by_kind(user_id):
+    """D2-4: возвращает {'all': N, 'review': N, 'support': N, 'system': N} —
+    общее число уведомлений (без фильтра is_read), для счётчиков на табах."""
+    with db() as conn:
+        rs = conn.execute(
+            'SELECT kind, COUNT(*) as cnt FROM user_notifications '
+            'WHERE user_id=? GROUP BY kind',
+            (user_id,)
+        ).fetchall()
+    out = {'all': 0, 'review': 0, 'support': 0, 'system': 0}
+    for r in rs:
+        k = _norm_kind(r['kind'])
+        c = int(r['cnt'] or 0)
+        out[k] = out.get(k, 0) + c
+        out['all'] += c
+    return out
+
+
 def count_unread_notifications_by_kind(user_id):
     """B2: возвращает {'all': N, 'review': N, 'support': N, 'system': N}."""
     with db() as conn:
