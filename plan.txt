@@ -93,13 +93,68 @@
     _forceSetupFlowVisible, _setupSkipTraining) остаются объявлены
     top-level в inline-скрипте — модуль читает/пишет через window.*.
 
+• Сделано в апреле 2026 (продолжение):
+  - 0.5d — ВЫПОЛНЕНО. Созданы static/js/views/models.js
+    (loadModels, renderLandingModels, renderFullModels, filterModels,
+    searchModels, modelCard) и static/js/views/docs.js
+    (loadDocsLogCodes, renderLogCodesHtml). Подключены в
+    static/js/main.js. Inline-блоки удалены из index.html. Все имена
+    дублируются на window.* для совместимости с inline-вызовами.
+    `var allModels` остаётся объявлен в inline top-level скрипте,
+    модуль читает/пишет через window.allModels. Полноразмерный
+    loadLogCodes() для отдельного view #view-logcodes пока остаётся
+    inline (свои категории/иконки) — будет вынесен в 0.5e.
+
+  - UI-фиксы (апрель 2026):
+      • Telegram-настройка вынесена из дашборда в центрированную
+        модалку #setupModal (modal-lg). Кнопка «+ Новый ключ» теперь
+        всегда видна, она же открывает модалку «свежей»
+        (_setupModalDismissed сбрасывается). Если ключей нет — модалка
+        открывается автоматически при загрузке дашборда.
+      • Удалён tgStatusBar — статус Telegram-аккаунта виден только
+        в сайдбаре (updateTgStatus теперь обновляет accountState
+        и сайдбар, не пишет в DOM дашборда).
+      • Дашборд теперь полностью чёрный: правила в main.css —
+        body:has(#view-dashboard.active){background:#000!important}
+        и .bg-wrap:has(~ #view-dashboard.active){display:none}
+        (анимированная mesh-сетка отключается только на дашборде).
+      • Отступ сверху на дашборде: 36px (десктоп) / 24px (моб).
+      • Toast: убран white-space:nowrap, добавлены word-break,
+        line-height:1.4, box-sizing:border-box — длинные тосты
+        теперь переносятся и не вылезают за экран.
+
+  - Bug-fix (апрель 2026): support-стрим (worker thread) —
+    `RuntimeError: Working outside of request context`.
+    В support_bp.py: добавлены параметры username_override
+    в _get_support_prompt_with_context и username в _support_run_ai;
+    в support_send_message_stream username извлекается из session
+    ДО старта _threading.Thread и пробрасывается явным аргументом;
+    оставшиеся вызовы session.get обёрнуты в try/except RuntimeError.
+
+  - Bug-fix (апрель 2026): AI-модерация отзывов не запускалась.
+    В reviews_bp.py проверка agent_ready смотрела старые ключи
+    agent_enabled/agent_key_id, но новый UI «Модератор отзывов»
+    сохраняет в moderator_enabled/moderator_key_id (со старыми как
+    fallback). Из-за этого новый отзыв сразу создавался как approved,
+    и фоновый агент его не получал. Исправлено: agent_ready теперь
+    читает moderator_* с fallback на agent_*.
+
+  - Feature (апрель 2026): новая admin-настройка moderator_force_admin
+    (по умолчанию '0'). Когда '1' — отзывы владельца (ReZero) тоже
+    проходят AI-модерацию (по умолчанию админские отзывы публикуются
+    мгновенно как approved). Управляется тогглом «Модерировать также
+    отзывы владельца» в admin-панели (карточка «Модератор отзывов»).
+    Нужно для тестирования модерации с собственного аккаунта.
+
 • Следующий шаг:
-  - 0.5d — views/models.js + views/docs.js: вынос loadModels,
-    renderLandingModels, renderFullModels, filterModels, searchModels,
-    modelCard, loadDocsLogCodes, renderLogCodesHtml.
-    Это последняя крупная разгрузка фронта; после неё в inline-скрипте
-    останутся только bootstrap-IIFE и мелкие хелперы (logToConsole-stub
-    нет, console уже модульный).
+  - 0.5e — вынести оставшийся inline-блок loadLogCodes() (для
+    отдельного раздела #view-logcodes — со своим набором категорий
+    «Промокоды», «Изображения», «Подсказки» и т.д.) в
+    static/js/views/logcodes.js. После этого в inline-скрипте
+    остаются только bootstrap-IIFE, глобальные state-переменные
+    (user, accountState, allKeys, allModels, currentKeyId,
+    setupId, setupTab, sseSource, _tfaCode и пр.) и мелкие хелперы
+    (q/esc/formatDate уже дублированы в core/dom.js).
 
 
 ──────────────────────────────────────────────────────────
