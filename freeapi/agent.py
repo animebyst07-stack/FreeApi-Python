@@ -146,21 +146,43 @@ class FavoriteAIAgent:
         review_author = review.get('username', 'аноним')
         user_id = review.get('user_id')
 
-        logger.info('[Agent] Отзыв %s (score=%s, len=%s) → отправляю в AI на модерацию', review_id, review_score, len(review_text))
+        raw_images = review.get('images')
+        review_images = []
+        if isinstance(raw_images, list):
+            review_images = raw_images
+        elif isinstance(raw_images, str) and raw_images.strip():
+            try:
+                import json as _json
+                parsed = _json.loads(raw_images)
+                if isinstance(parsed, list):
+                    review_images = [str(x) for x in parsed if isinstance(x, str) and x]
+            except Exception:
+                review_images = []
+        review_images = review_images[:10]
+
+        logger.info('[Agent] Отзыв %s (score=%s, len=%s, images=%s) → отправляю в AI на модерацию', review_id, review_score, len(review_text), len(review_images))
 
         system_prompt = _get_moderator_prompt()
-        messages = [
-            {
-                'role': 'user',
-                'content': (
-                    f'{system_prompt}\n\n'
-                    f'Проанализируй следующий отзыв о платформе FavoriteAPI:\n\n'
-                    f'Оценка: {review_score}/10\n'
-                    f'Автор: {review_author}\n'
-                    f'Текст: {review_text}\n'
-                )
-            }
-        ]
+        prompt_text = (
+            f'{system_prompt}\n\n'
+            f'Проанализируй следующий отзыв о платформе FavoriteAPI:\n\n'
+            f'Оценка: {review_score}/10\n'
+            f'Автор: {review_author}\n'
+            f'Текст: {review_text}\n'
+        )
+        if review_images:
+            prompt_text += (
+                f'\nК отзыву прикреплено {len(review_images)} '
+                f'фото — обязательно посмотри их и учти содержимое в решении '
+                f'(подтверждают ли они слова автора, есть ли там оскорбления, '
+                f'NSFW, утечки приватных данных и т.п.).\n'
+            )
+            content_parts = [{'type': 'text', 'text': prompt_text}]
+            for img_url in review_images:
+                content_parts.append({'type': 'image_url', 'image_url': {'url': img_url}})
+            messages = [{'role': 'user', 'content': content_parts}]
+        else:
+            messages = [{'role': 'user', 'content': prompt_text}]
 
         try:
             model = key.get('default_model') or DEFAULT_MODEL_ID

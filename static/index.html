@@ -3020,7 +3020,10 @@ window.loadReviews=loadReviews;
         wbtn.onclick=function(e){ e.stopPropagation(); if(limitReached){ showToast('Лимит правок: 3 в 7 дней','err'); return; } if(isPending){ showToast('Отзыв на модерации — дождитесь решения','err'); return; } if(window.openWriteReviewModal) window.openWriteReviewModal(); };
         bar.appendChild(wbtn);
         if(hasReview&&r){
-          var statusMap={approved:'<span style="color:#4ade80">✓ Опубликован</span>',pending:'<span style="color:#888">⏳ На модерации</span>',flagged:'<span style="color:#fb923c">⚑ Помечен</span>'};
+          var _icoCheck='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M20 6 9 17l-5-5"/></svg>';
+          var _icoHourglass='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>';
+          var _icoFlag='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>';
+          var statusMap={approved:'<span style="color:#4ade80">'+_icoCheck+'Опубликован</span>',pending:'<span style="color:#888">'+_icoHourglass+'На модерации</span>',flagged:'<span style="color:#fb923c">'+_icoFlag+'Помечен</span>'};
           var scoreBadge=r.score?'<b style="color:#ccc">'+r.score+'/10</b> · ':'';
           var statusEl=document.createElement('span');
           statusEl.style.cssText='font-size:12px;color:#666';
