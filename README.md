@@ -80,12 +80,22 @@ python api.py
 | GET | `/api/stats/global` | Глобальная статистика |
 | GET | `/api/models` | Список моделей (`totalRequests`, `supportsVision`) |
 
-### Чат / API v1
+### Чат / API v1 (Bearer)
 | Метод | Путь | Описание |
 |-------|------|----------|
-| POST | `/api/v1/chat` | Запрос к ИИ. Добавь `"stream":true` для SSE-имитации |
+| POST | `/api/v1/chat` | Запрос к ИИ. Добавь `"stream":true` для SSE-имитации. Поле `model` опционально (берётся `default_model` ключа) |
 | POST | `/api/v1/stop` | Прервать TG-запрос (актуально при streaming) |
-| POST | `/api/v1/reset` | Сброс контекста диалога |
+| POST | `/api/v1/reset` | Сброс контекста диалога. При CTX_LIMIT_180 вернёт `requires_choice` |
+| POST | `/api/v1/reset/apply` | Применить выбор `save` / `discard` после `requires_choice` |
+| GET  | `/api/v1/me` | Контекст ключа за один запрос (имя, модель, context_kb, лимиты, владелец, статистика) |
+| GET  | `/api/v1/models` | Каноничный список моделей под ключ + `keyDefaultModelId` + `recommended` |
+
+### Внутренний чат (cookie-сессия, для веб-UI)
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/api/chat/test` | Тестовый прогон из встроенного чата (не Bearer) |
+| POST | `/api/chat/reset` | Сброс контекста из встроенного чата |
+| POST | `/api/chat/reset/apply` | Применение выбора после `requires_choice` |
 
 ### Telegram-мост
 | Метод | Путь | Описание |
@@ -95,17 +105,18 @@ python api.py
 | GET | `/api/tg/setup/:id/status` | Статус настройки (JSON или SSE) |
 | POST | `/api/tg/setup/:id/retry` | Повторить упавший шаг |
 | POST | `/api/tg/setup/:id/cancel` | Отменить настройку |
+| POST | `/api/tg/session/import` | Загрузить готовый `.session`-файл Telethon (StringSession base64 / SQLite) |
 | DELETE | `/api/tg/account` | Удалить Telegram-аккаунт |
 
 ### API-ключи
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/api/keys` | Список API-ключей |
-| POST | `/api/keys` | Создать API-ключ |
+| POST | `/api/keys` | **Всегда 409**: ключ создаётся как побочный эффект `/api/tg/setup` (см. ниже), прямого создания нет |
 | GET | `/api/keys/:id` | Детали ключа + история запросов |
-| PUT | `/api/keys/:id` | Обновить имя / модель / skipHints |
-| DELETE | `/api/keys/:id` | Деактивировать ключ (мягкое удаление) |
-| POST | `/api/keys/:id/regen` | Перегенерировать значение ключа |
+| PUT | `/api/keys/:id` | Обновить `name` / `defaultModel` / `skipHints` / `dualMode` / `translatorAccountId` |
+| DELETE | `/api/keys/:id` | Деактивировать ключ (мягкое удаление, `is_active=0`) |
+| POST | `/api/keys/:id/regen` | Перегенерировать значение ключа (`rawKey` показывается один раз) |
 | GET | `/api/keys/:id/logs` | История запросов по ключу |
 | GET | `/api/keys/:id/session` | Скачать Telethon-сессию (.session / .txt) |
 
