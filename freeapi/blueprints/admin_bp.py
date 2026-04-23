@@ -198,22 +198,25 @@ Telegram-ботов. Сервис позволяет использовать AI
 Аутентификация: заголовок Authorization: Bearer <ваш-ключ>
 Формат ключа: fa_sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-━━━ 4.1. POST /api/v1/chat/completions ━━━
-Главный эндпоинт. ПОЛНОСТЬЮ совместим с OpenAI Chat Completions API.
-Можно использовать любой OpenAI SDK, просто поменяв base_url и api_key.
+━━━ 4.1. POST /api/v1/chat ━━━
+Главный эндпоинт. Формат вдохновлён OpenAI Chat Completions, но это
+НЕ полная совместимость: путь /api/v1/chat (без /completions),
+поле "model" опционально (если не указано — берётся default ключа,
+см. /api/v1/me и /api/v1/models), ответ упрощённый — без полей
+usage / object / finish_reason / index. Поэтому стандартный OpenAI
+SDK работать «из коробки» не будет, нужен прямой HTTP-запрос.
 
 Минимальный запрос:
-  POST /api/v1/chat/completions
+  POST /api/v1/chat
   Authorization: Bearer fa_sk_...
   Content-Type: application/json
   {
-"model": "gemini-3.0-flash-thinking",
 "messages": [
   {"role": "user", "content": "Привет! Как дела?"}
 ]
   }
 
-Расширенный запрос с system message:
+Расширенный запрос с system message и явной моделью:
   {
 "model": "gemini-2.5-flash",
 "messages": [
@@ -238,22 +241,19 @@ Telegram-ботов. Сервис позволяет использовать AI
 
 Ответ (200 OK):
   {
-"id": "chatcmpl-abc123",
-"object": "chat.completion",
+"id": "<request_id>",
 "model": "gemini-3.0-flash-thinking",
 "choices": [{
-  "index": 0,
-  "message": {"role": "assistant", "content": "Привет! Всё хорошо."},
-  "finish_reason": "stop"
+  "message": {"role": "assistant", "content": "Привет! Всё хорошо."}
 }],
-"usage": {
-  "prompt_tokens": 45,
-  "completion_tokens": 28,
-  "total_tokens": 73
-}
+"response_time_ms": 1234,
+"log_code": "REQ_OK_001",
+"context_kb": 12.4,
+"context_warn": false
   }
 
-ВАЖНО: параметр "stream": true НЕ поддерживается (стриминг отсутствует).
+Поле "stream": true поддерживается — сервер вернёт SSE-имитацию
+(text/event-stream) с тем же текстом ответа, разбитым на чанки.
 
 ━━━ 4.2. GET /api/models ━━━
 Список всех доступных моделей. Авторизация НЕ нужна.
@@ -290,20 +290,47 @@ Body: {"name": "Название ключа"}
 Глобальная статистика сервиса. Авторизация НЕ нужна.
 Ответ: {"users": 123, "todayRequests": 456}
 
-━━━ Примеры использования с Python (OpenAI SDK) ━━━
-  import openai
-  client = openai.OpenAI(
-  base_url="https://<домен>/api/v1",
-  api_key="fa_sk_ваш_ключ"
+━━━ 4.9. GET /api/v1/models ━━━
+Каноничный список моделей под текущий ключ. Требует Bearer.
+Ответ: {
+  "models": [{"id": "...", "displayName": "...", "contextK": 200,
+              "supportsVision": true, "isDefault": false,
+              "isPopular": true, "isRecommended": true}, ...],
+  "defaultModelId": "gemini-3.0-flash-thinking",
+  "keyDefaultModelId": "<модель ключа>",
+  "recommended": ["gemini-3.0-flash-thinking", "gemini-3.0-flash"]
+}
+Используется внешними клиентами/ИИ для получения актуального списка
+без захода в дашборд. keyDefaultModelId — модель, которая будет
+использована, если в /api/v1/chat не указано поле "model".
+
+━━━ 4.10. GET /api/v1/me ━━━
+Контекст ключа за один запрос. Требует Bearer.
+Ответ: {
+  "key": {"name", "masked", "default_model", "dual_mode",
+          "context_kb", "context_warn_kb", "context_limit_kb",
+          "context_warn", "limit_hit", "is_busy", "created_at"},
+  "owner": {"username", "is_admin"},
+  "stats": {"monthly_requests", "avg_response_ms"},
+  "service": {"default_model_id", "recommended", "models_endpoint"}
+}
+Никогда не возвращает чистый key_value, user_id, key_id или
+session-данные Telegram-аккаунта. Рекомендуется внешним клиентам
+вызывать один раз в начале сессии.
+
+━━━ Пример с Python (requests) ━━━
+  import requests
+  r = requests.post(
+  "https://<домен>/api/v1/chat",
+  headers={"Authorization": "Bearer fa_sk_ваш_ключ"},
+  json={"messages": [{"role": "user", "content": "Привет!"}]},
+  timeout=120,
   )
-  response = client.chat.completions.create(
-  model="gemini-3.0-flash-thinking",
-  messages=[{"role": "user", "content": "Привет!"}]
-  )
-  print(response.choices[0].message.content)
+  data = r.json()
+  print(data["choices"][0]["message"]["content"])
 
 ━━━ Пример с curl ━━━
-  curl -X POST https://<домен>/api/v1/chat/completions \
+  curl -X POST https://<домен>/api/v1/chat \
 -H "Authorization: Bearer fa_sk_ваш_ключ" \
 -H "Content-Type: application/json" \
 -d '{"model":"gemini-3.0-flash","messages":[{"role":"user","content":"Привет"}]}'

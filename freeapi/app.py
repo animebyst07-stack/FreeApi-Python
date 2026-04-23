@@ -50,7 +50,7 @@ _RATE_LIMIT_RULES = (
     # support чат — отправка сообщений
     (('POST',), ('/api/support/',), 30, 60),
     # тестовый chat playground
-    (('POST',), ('/api/chat/test', '/api/v1/chat/completions'), 30, 60),
+    (('POST',), ('/api/chat/test', '/api/v1/chat'), 30, 60),
 )
 
 
