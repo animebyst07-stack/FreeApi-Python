@@ -1001,3 +1001,11 @@ body:has(#view-dashboard.active){background:#000!important}
 .notif-tab-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:#7eb6ff;color:#0a0a0a;font-size:11px;font-weight:700;line-height:1}
 .notif-tab.active .notif-tab-cnt{background:#a8d0ff}
 @media(max-width:520px){.notif-tabs{gap:4px;padding:3px}.notif-tab{padding:6px 9px;font-size:12px}}
+
+/* D1 — Дип-линк по уведомлению об отзыве. */
+.notif-card.notif-card-link{cursor:pointer;transition:border-color .15s,background .15s}
+.notif-card.notif-card-link:hover{border-color:#2a2a2a;background:#0f0f0f}
+.notif-card.notif-card-link:focus-visible{outline:2px solid #7eb6ff;outline-offset:2px}
+.notif-card.notif-card-link .notif-card-msg::after{content:' →';color:#7eb6ff;font-weight:600;margin-left:4px}
+.rv-card-flash{animation:rvCardFlash 2.2s ease-out 1;border-color:#7eb6ff !important;box-shadow:0 0 0 2px rgba(126,182,255,.25)}
+@keyframes rvCardFlash{0%{background:rgba(126,182,255,.18)}40%{background:rgba(126,182,255,.10)}100%{background:transparent}}

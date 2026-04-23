@@ -90,11 +90,18 @@ export function loadNotifications(){
 
     var html = items.map(function(n){
       var unr = !n.is_read;
-      return '<div class="notif-card' + (unr ? ' unread' : '') + '" data-notif-id="' + esc(n.id) + '">'
+      /* B2/D1: дип-линк по уведомлению об отзыве. */
+      var nKind = (n.kind || 'system');
+      var nRef = n.ref_id || '';
+      var hasLink = (nKind === 'review' && nRef);
+      var linkAttrs = hasLink
+        ? ' data-notif-kind="' + esc(nKind) + '" data-notif-ref="' + esc(nRef) + '" onclick="openNotifTarget(\'' + esc(nKind) + '\',\'' + esc(nRef) + '\',\'' + esc(n.id) + '\',event)" role="link" tabindex="0" title="Открыть отзыв"'
+        : '';
+      return '<div class="notif-card' + (unr ? ' unread' : '') + (hasLink ? ' notif-card-link' : '') + '" data-notif-id="' + esc(n.id) + '"' + linkAttrs + '>'
         + '<div class="notif-card-msg">' + esc(n.message || '') + '</div>'
         + '<div class="notif-card-foot">'
           + '<span>' + (unr ? '<span class="ndot"></span>Новое · ' : '') + formatDate(n.created_at) + '</span>'
-          + '<button class="btn btn-ghost btn-xs" type="button" onclick="deleteUserNotification(\'' + esc(n.id) + '\')" aria-label="Удалить уведомление">'
+          + '<button class="btn btn-ghost btn-xs" type="button" onclick="event.stopPropagation();deleteUserNotification(\'' + esc(n.id) + '\')" aria-label="Удалить уведомление">'
             + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
             + 'Удалить'
           + '</button>'
@@ -215,6 +222,49 @@ export function openSupportChatModal(chatId){
   });
 }
 
+/* B2/D1: открытие связанной сущности по клику на уведомление.
+   Сейчас поддержан только kind='review' (ref_id = review_id). */
+export function openNotifTarget(kind, refId, notifId, ev){
+  try {
+    if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+    /* Игнорируем клики по дочерним кнопкам (Удалить и т.п.). */
+    var tgt = ev && ev.target;
+    if (tgt && tgt.closest && tgt.closest('button')) return;
+  } catch(_) {}
+  if (!kind || !refId) return;
+  /* Помечаем как прочитанное (если ещё нет). */
+  try {
+    var card = document.querySelector('[data-notif-id="' + refId.replace(/"/g,'') + '"]');
+    if (notifId && card && card.classList.contains('unread')) {
+      _api()('/api/notifications/' + notifId + '/read', 'POST', {}).catch(function(){});
+      card.classList.remove('unread');
+    }
+  } catch(_) {}
+  if (kind !== 'review') return;
+  var nav = window.goView || function(){};
+  try { nav('reviews'); } catch(_) {}
+  /* Ждём загрузку списка отзывов и подсвечиваем целевую карточку. */
+  var attempts = 0;
+  var maxAttempts = 12; /* ~3 секунды */
+  function tryFocus(){
+    attempts++;
+    var el = document.querySelector('#rvList [data-rv-card="' + refId.replace(/"/g,'') + '"]')
+          || document.querySelector('[data-rv-card="' + refId.replace(/"/g,'') + '"]');
+    if (el) {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(_) { el.scrollIntoView(); }
+      el.classList.add('rv-card-flash');
+      setTimeout(function(){ try { el.classList.remove('rv-card-flash'); } catch(_) {} }, 2200);
+      return;
+    }
+    if (attempts < maxAttempts) {
+      setTimeout(tryFocus, 250);
+    } else {
+      _toast('Отзыв не найден на текущей странице — попробуйте пролистать ленту', 'warn');
+    }
+  }
+  setTimeout(tryFocus, 300);
+}
+
 /* B2: переключение вкладки фильтра. */
 export function setNotifKind(kind){
   var k = (kind || 'all').toString();
@@ -316,3 +366,4 @@ window.toggleAdminNotifDetails = toggleAdminNotifDetails;
 window.deleteAdminNotifFromPage = deleteAdminNotifFromPage;
 window.openSupportChatModal    = openSupportChatModal;
 window.setNotifKind            = setNotifKind;
+window.openNotifTarget         = openNotifTarget;
