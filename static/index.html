@@ -1265,6 +1265,13 @@ Rules:
   </div>
   <div class="fgroup">
     <label>Текст отзыва</label>
+    <div id="writeReviewDraftBanner" class="rv-draft-banner" style="display:none">
+      <span id="writeReviewDraftBannerText">Найден сохранённый черновик отзыва.</span>
+      <span style="display:inline-flex;gap:6px">
+        <button type="button" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:11px" onclick="restoreReviewDraft()">Восстановить</button>
+        <button type="button" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:11px" onclick="discardReviewDraft()">Удалить черновик</button>
+      </span>
+    </div>
     <textarea id="writeReviewText" rows="4" style="width:100%;background:#070707;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;font-size:13px;color:#ccc;resize:vertical;min-height:90px;font-family:inherit" placeholder="Расскажите о своём опыте... (минимум 10 символов)" maxlength="1000" oninput="var e=document.getElementById('writeReviewTextCount');if(e)e.textContent=this.value.length;try{(window.lsSet||function(k,v){localStorage.setItem(k,v);})('freeapi_review_draft',this.value);}catch(ex){}"></textarea>
     <div style="font-size:10px;color:#444;margin-top:4px;text-align:right"><span id="writeReviewTextCount">0</span>/1000</div>
   </div>
@@ -3402,6 +3409,27 @@ window._rvStarUpdate=function(score){
   if(lbl) lbl.textContent=score?score+'/10':'—';
 };
 
+/* B1: Smart Drafts — управление баннером */
+window.restoreReviewDraft=function(){
+  try{
+    var d=window.lsGet('freeapi_review_draft','');
+    var ta=document.getElementById('writeReviewText');
+    if(ta && d){
+      ta.value=d;
+      var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent=d.length;
+      try{ ta.focus(); }catch(e){}
+    }
+    var b=document.getElementById('writeReviewDraftBanner'); if(b) b.style.display='none';
+  }catch(e){ clog&&clog('REVIEW_DRAFT','restore err: '+e,'error'); }
+};
+window.discardReviewDraft=function(){
+  try{
+    if(window.lsDel) window.lsDel('freeapi_review_draft');
+    else try{localStorage.removeItem('freeapi_review_draft');}catch(_){}
+    var b=document.getElementById('writeReviewDraftBanner'); if(b) b.style.display='none';
+  }catch(e){ clog&&clog('REVIEW_DRAFT','discard err: '+e,'error'); }
+};
+
 window.openWriteReviewModal=function(){
   try {
     clog('REVIEW_MODAL','open() начало');
@@ -3409,11 +3437,26 @@ window.openWriteReviewModal=function(){
     _writeReviewImgs=[];
     _writeReviewUserTouchedImgs=false;
     var ta=document.getElementById('writeReviewText');
-    /* Восстановить черновик из localStorage */
-    var draft='';
-    draft=window.lsGet('freeapi_review_draft','');
-    if(ta){ta.value=draft;}
-    var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent=draft.length||'0';
+    /* B1: текст не восстанавливаем автоматически — показываем баннер «Найден черновик». */
+    if(ta){ta.value='';}
+    var cc=document.getElementById('writeReviewTextCount'); if(cc) cc.textContent='0';
+    /* Баннер черновика */
+    try{
+      var _draft=window.lsGet('freeapi_review_draft','');
+      var _banner=document.getElementById('writeReviewDraftBanner');
+      if(_banner){
+        if(_draft && _draft.length>=10){
+          _banner.style.display='flex';
+          var _bt=document.getElementById('writeReviewDraftBannerText');
+          if(_bt){
+            var _snip=_draft.length>60?_draft.slice(0,60).replace(/\s+/g,' ')+'…':_draft.replace(/\s+/g,' ');
+            _bt.textContent='Найден черновик: «'+_snip+'»';
+          }
+        } else {
+          _banner.style.display='none';
+        }
+      }
+    }catch(ex){ clog&&clog('REVIEW_DRAFT','banner err: '+ex,'error'); }
     var ip=document.getElementById('writeReviewImgPreview'); if(ip) ip.innerHTML='';
     var ic=document.getElementById('writeReviewImgCount'); if(ic) ic.textContent='';
     var fi=document.getElementById('writeReviewFileInput');
@@ -3446,7 +3489,7 @@ window.openWriteReviewModal=function(){
         if(!err&&d&&d.review){
           var r=d.review;
           if(r.score){ window._rvStarUpdate(r.score); }
-          if(r.text&&ta){ ta.value=r.text; var cc2=document.getElementById('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length; }
+          if(r.text&&ta){ ta.value=r.text; var cc2=document.getElementById('writeReviewTextCount'); if(cc2) cc2.textContent=(r.text||'').length; var _b=document.getElementById('writeReviewDraftBanner'); if(_b) _b.style.display='none'; }
           try{
             var imgs=typeof r.images==='string'?JSON.parse(r.images):(r.images||[]);
             /* КРИТИЧНО: если юзер уже успел добавить новое фото — НЕ перетираем */

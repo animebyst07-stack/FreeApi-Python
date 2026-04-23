@@ -988,3 +988,7 @@ body:has(#view-dashboard.active){background:#000!important}
   .docs-table{min-width:480px}
   .model-card{padding:14px}
 }
+
+/* B1 — Smart Drafts: баннер «Найден черновик» */
+.rv-draft-banner{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:10px 14px;font-size:12px;color:#888;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.rv-draft-banner #writeReviewDraftBannerText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
