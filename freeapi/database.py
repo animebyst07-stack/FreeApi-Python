@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -51,63 +52,154 @@ def _list_migration_files():
     return files
 
 
-def _execute_migration_sql(conn, sql_text, idempotent):
-    """Выполнить SQL миграции. Если idempotent=True — глушить ошибки на отдельных
-    statement'ах (нужно для ALTER TABLE ADD COLUMN, который в SQLite не имеет
-    IF NOT EXISTS до 3.35)."""
-    if not idempotent:
-        conn.executescript(sql_text)
+def _column_exists(conn, table, column):
+    """Проверить наличие колонки в таблице через PRAGMA table_info."""
+    rows = conn.execute(f'PRAGMA table_info({table})').fetchall()
+    return any(r['name'] == column for r in rows)
+
+
+def _table_exists(conn, table):
+    """Проверить наличие таблицы."""
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()
+    return row is not None
+
+
+_ALTER_RE = re.compile(
+    r'ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)',
+    re.IGNORECASE,
+)
+
+
+def _apply_migration(conn, sql_text):
+    """Применить SQL одной миграции.
+
+    Стратегия:
+    - Выполняем `executescript` целиком (быстро, транзакционно для DDL).
+    - Единственный нюанс SQLite: ALTER TABLE ADD COLUMN не поддерживает
+      IF NOT EXISTS. Поэтому перед executescript проверяем каждый
+      ALTER TABLE ADD COLUMN через PRAGMA table_info. Если колонка
+      уже есть — удаляем statement из текста, не спамим логами.
+    - Все остальные конструкции (CREATE TABLE IF NOT EXISTS,
+      CREATE INDEX IF NOT EXISTS, INSERT OR IGNORE, DELETE, CREATE TABLE
+      review_likes и т.п.) уже идемпотентны сами по себе.
+    """
+    statements = _split_sql(sql_text)
+    filtered = []
+    for stmt in statements:
+        m = _ALTER_RE.match(stmt.lstrip())
+        if m:
+            table, column = m.group(1), m.group(2)
+            if _column_exists(conn, table, column):
+                logger.debug('[MIGRATIONS] колонка %s.%s уже существует, пропускаем', table, column)
+                continue
+        filtered.append(stmt)
+
+    if not filtered:
         return
+
+    combined = ';\n'.join(filtered) + ';'
+    conn.executescript(combined)
+
+
+def _split_sql(sql_text):
+    """Разбить SQL-текст на отдельные statement'ы (разделитель ';')."""
     statements = []
     buf = []
     for line in sql_text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith('--'):
-            buf.append(line)
             continue
         buf.append(line)
         if stripped.endswith(';'):
-            statements.append('\n'.join(buf).strip())
+            stmt = '\n'.join(buf).strip().rstrip(';').strip()
+            if stmt:
+                statements.append(stmt)
             buf = []
-    if buf and ''.join(buf).strip():
-        statements.append('\n'.join(buf).strip())
-    for stmt in statements:
-        if not stmt:
-            continue
-        try:
-            conn.execute(stmt)
-        except sqlite3.OperationalError as exc:
-            logger.info('[MIGRATIONS] idempotent skip: %s (%s)', stmt.split('\n', 1)[0][:80], exc)
+    if buf:
+        tail = '\n'.join(buf).strip().rstrip(';').strip()
+        if tail:
+            statements.append(tail)
+    return statements
 
 
 def _run_migrations(conn):
-    """Применить миграции из MIGRATIONS_DIR.
+    """Применить только новые миграции из MIGRATIONS_DIR.
 
-    Все миграции написаны идемпотентно (CREATE TABLE/INDEX IF NOT EXISTS,
-    ALTER TABLE ADD COLUMN — ошибка «duplicate column» проглатывается).
-    Поэтому каждый файл выполняется на каждом запуске. Это:
-      • даёт корректную инициализацию свежей БД;
-      • чинит БД, где предыдущая bootstrap-маркировка пометила миграции
-        применёнными, но реально не выполнила их (баг первой выкладки шага 0.6).
-    Стоимость лишних попыток ALTER пренебрежимо мала (мс при старте процесса).
+    Логика:
+    1. Создать таблицу schema_migrations, если её нет.
+    2. Загрузить список уже применённых версий.
+    3. Для каждого .sql файла (отсортированного по имени):
+       - Если версия уже в schema_migrations → пропустить целиком (без
+         единой строки в логах).
+       - Иначе → применить через _apply_migration, записать версию.
+
+    Таким образом:
+    - Свежая БД: все миграции применяются последовательно, по одной.
+    - Существующая БД: только новые файлы (которых ещё нет в таблице).
+    - Повторный запуск: ни одна уже применённая миграция не трогается,
+      логи чистые.
     """
-    conn.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, applied_at TEXT)')
-    applied = {row_obj[0] for row_obj in conn.execute('SELECT version FROM schema_migrations').fetchall()}
+    conn.execute(
+        'CREATE TABLE IF NOT EXISTS schema_migrations('
+        'version TEXT PRIMARY KEY, applied_at TEXT)'
+    )
+    applied = {
+        r[0] for r in conn.execute('SELECT version FROM schema_migrations').fetchall()
+    }
 
     files = _list_migration_files()
     for fname in files:
         version = os.path.splitext(fname)[0]
+        if version in applied:
+            continue
+
         path = os.path.join(MIGRATIONS_DIR, fname)
         with open(path, 'r', encoding='utf-8') as fp:
             sql_text = fp.read()
-        # Всегда idempotent: каждое выражение через try/except, ошибки логируются.
-        _execute_migration_sql(conn, sql_text, idempotent=True)
-        if version not in applied:
+
+        try:
+            _apply_migration(conn, sql_text)
             conn.execute(
                 'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)',
                 (version, msk_now()),
             )
-            logger.info('[MIGRATIONS] applied %s', version)
+            logger.info('[MIGRATIONS] применена: %s', version)
+        except Exception as exc:
+            logger.error('[MIGRATIONS] ошибка в %s: %s', fname, exc)
+            raise
+
+
+def _ensure_legacy_migrations_recorded(conn):
+    """Одноразовая процедура для баз данных, обновившихся с pre-0.6 версии.
+
+    До шага 0.6 миграции прогонялись idempotent при каждом старте,
+    НО в schema_migrations ничего не писалось (или писалось непоследовательно).
+    Чтобы не пытаться применить уже существующие столбцы/таблицы
+    как «новые», здесь проверяем: если таблица users (из 001) уже
+    существует, а schema_migrations пуста → значит это старая БД,
+    все известные файлы помечаем как применённые без повторного выполнения.
+    """
+    applied_count = conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0]
+    if applied_count > 0:
+        return
+
+    if not _table_exists(conn, 'users'):
+        return
+
+    files = _list_migration_files()
+    for fname in files:
+        version = os.path.splitext(fname)[0]
+        conn.execute(
+            'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)',
+            (version, msk_now()),
+        )
+    if files:
+        logger.info(
+            '[MIGRATIONS] старая БД обнаружена — помечено %d миграций как уже применённых '
+            '(без повторного выполнения)', len(files)
+        )
 
 
 def _seed_reference_data(conn):
@@ -153,6 +245,11 @@ def _seed_reference_data(conn):
 
 def init_database():
     with db() as conn:
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_migrations('
+            'version TEXT PRIMARY KEY, applied_at TEXT)'
+        )
+        _ensure_legacy_migrations_recorded(conn)
         _run_migrations(conn)
         _seed_reference_data(conn)
 
