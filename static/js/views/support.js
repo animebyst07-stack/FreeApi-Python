@@ -226,10 +226,10 @@ function _doCloseSupportChat(){
   var btn=document.getElementById('supportCloseBtn');
   window._supportClosing = true;
   btn.disabled=true; btn.textContent='Завершение...';
-  /* Таймаут 90с — чтобы фронт не сдавался раньше Сэма; toast'ов больше
-     не показываем (по требованию: все статусы — только в чате и на
-     странице уведомлений). */
-  api('/api/support/close','POST',{},{timeout:90000}).then(function(d){
+  /* timeout:0 — без ограничения. Бот при загруженном контексте может
+     думать до 5 минут; ставить любые конкретные секунды бессмысленно.
+     toast'ов не показываем — все статусы только в чате и в уведомлениях. */
+  api('/api/support/close','POST',{},{timeout:0}).then(function(d){
     document.getElementById('supportInput').disabled=true;
     document.getElementById('supportSendBtn').disabled=true;
     document.getElementById('supportCloseBtn').style.display='none';
