@@ -117,7 +117,10 @@ def _format_support_dialog_for_ai(messages, username=''):
     lines.append(closer)
     return '\n\n'.join(lines)
 
-SUPPORT_CLOSE_PROMPT = """Ты — Favorite AI Agent. Проанализируй следующий диалог поддержки и реши:
+SUPPORT_CLOSE_PROMPT = """Ты — Favorite AI Agent. ВАЖНО: сейчас это служебный
+запрос на анализ — не отвечай пользователю, не учитывай свою текущую память
+о других активных диалогах. Анализируй ТОЛЬКО приведённый ниже диалог
+(пользователь там обозначен своим логином `Пользователь (@username)`) и реши:
 нужно ли отправить отчёт администратору (ReZero)?
 
 Отправляй отчёт ТОЛЬКО если:
@@ -238,13 +241,11 @@ def support_send_message():
             from freeapi.models import DEFAULT_MODEL_ID
             _support_model = repo.get_admin_setting('support_model', '') or key.get('default_model') or DEFAULT_MODEL_ID
 
-            # На первом сообщении диалога — гарантируем чистый контекст у Сэма
-            # (а вдруг там осталась история от прошлой сессии или другого пользователя).
+            # На первом сообщении диалога шлём полный системный промпт + контекст
+            # проекта (но БЕЗ /reset — Сэм может в этот момент общаться с другими
+            # пользователями, и сброс затрёт чужие диалоги). Сэм различает юзеров
+            # по логину `Пользователь (@username): ...` в каждом сообщении.
             if is_first:
-                try:
-                    run_control(key, '/reset')
-                except Exception as exc:
-                    logger.warning('[Support] /reset перед первым сообщением не удался: %s', exc)
                 text_to_send = _build_full_text()
             else:
                 # Диалог уже идёт — Сэм помнит контекст, шлём только новое сообщение.
@@ -362,8 +363,13 @@ def support_close_chat():
         repo.close_support_chat(chat['id'], None)
         return jsonify({'ok': True, 'reported': False})
 
+    # Логин юзера в каждой реплике — чтобы AI-анализ (а потом и админ в
+    # уведомлении) видел, кто именно писал. Сэм без этого не различает диалоги.
+    _user = repo.get_user_by_id(uid)
+    _uname = (_user or {}).get('username') or 'неизвестен'
+    _user_label = f'Пользователь (@{_uname})'
     dialog_text = '\n'.join([
-        f"{'Пользователь' if m['role'] == 'user' else 'Агент'}: {m['content']}" + (' [прикреплено изображение]' if m.get('image_data') else '')
+        f"{_user_label if m['role'] == 'user' else 'Агент'}: {m['content']}" + (' [прикреплено изображение]' if m.get('image_data') else '')
         for m in messages
     ])
 
@@ -390,12 +396,10 @@ def support_close_chat():
             from freeapi.models import DEFAULT_MODEL_ID
             import json as _json
             _support_model_close = repo.get_admin_setting('support_model', '') or key.get('default_model') or DEFAULT_MODEL_ID
-            # На входе в close-анализ обязательно сбрасываем контекст у Сэма —
-            # иначе он отвечает с учётом памяти диалога, что путает анализ.
-            try:
-                run_control(key, '/reset')
-            except Exception:
-                pass
+            # БЕЗ /reset: в этот момент с Сэмом могут разговаривать другие
+            # пользователи, и сброс затрёт их контекст. В SUPPORT_CLOSE_PROMPT
+            # уже сказано «проанализируй ТОЛЬКО приведённый ниже диалог», а сам
+            # диалог содержит логины — Сэм не путает с активными чатами.
             raw = run_chat(key, _support_model_close, close_messages)
             start = raw.find('{')
             end = raw.rfind('}')
@@ -416,14 +420,10 @@ def support_close_chat():
 
     repo.close_support_chat(chat['id'], report_text)
 
-    # После закрытия диалога — сбрасываем контекст у Сэма, чтобы следующий
-    # открытый диалог (этого или другого пользователя) гарантированно начался
-    # с чистого листа и получил полный системный промпт.
-    try:
-        if key:
-            run_control(key, '/reset')
-    except Exception as exc:
-        logger.warning('[Support] /reset после закрытия диалога не удался: %s', exc)
+    # /reset после закрытия НЕ делаем: Сэм может прямо сейчас отвечать другим
+    # пользователям, сброс затёр бы их контексты. Новый диалог любого юзера
+    # сам пришлёт полный системный промпт на is_first=True, а от переполнения
+    # памяти страхует обработка CTX_LIMIT в ветке отправки сообщения.
 
     if reported and report_text:
         user = repo.get_user_by_id(uid)

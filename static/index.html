@@ -630,30 +630,28 @@
   <div id="supportChatWrap" class="support-chat-container" style="display:none">
     <!-- Agent info bar -->
     <div class="support-header">
-      <div style="display:flex;align-items:center;gap:12px;flex:1">
-        <div style="width:36px;height:36px;border-radius:10px;background:#111;border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <div class="support-header-avatar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <div class="support-header-info">
+        <div class="support-header-title">
+          <span class="support-header-name">Favorite AI Agent</span>
+          <span class="badge-moderator support-header-badge">Поддержка</span>
         </div>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:#ccc;display:flex;align-items:center;gap:7px">
-            Favorite AI Agent
-            <span class="badge-moderator">Поддержка</span>
-          </div>
-          <div style="font-size:11px;color:#666;margin-top:1px;display:flex;align-items:center;gap:5px">
-            <span style="width:5px;height:5px;border-radius:50%;background:#22c55e;display:inline-block"></span>
-            Онлайн — готов помочь
-          </div>
+        <div class="support-header-sub">
+          <span class="support-header-dot"></span>
+          <span class="support-header-status-text">Онлайн — готов помочь</span>
+          <span id="supportChatStatus" class="support-header-chat-status"></span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:11px;color:#666" id="supportChatStatus"></span>
+      <div class="support-header-actions">
         <button class="btn btn-outline btn-xs" id="supportNewChatBtn" onclick="startNewSupportDialog()" style="display:none">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Новый диалог
+          <span class="support-header-btn-label">Новый диалог</span>
         </button>
         <button class="btn btn-outline btn-xs" id="supportCloseBtn" onclick="closeSupportChat()" style="display:none">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          Завершить
+          <span class="support-header-btn-label">Завершить</span>
         </button>
       </div>
     </div>
