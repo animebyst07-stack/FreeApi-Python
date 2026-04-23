@@ -448,7 +448,7 @@ def support_close_chat():
 
 
 # ─── Просмотр конкретного диалога поддержки админом ───
-@support_bp.route('/api/admin/support/chat/<chat_id>', methods=['GET'])
+@bp.route('/api/admin/support/chat/<chat_id>', methods=['GET'])
 def admin_support_chat_detail(chat_id):
     """Возвращает диалог поддержки целиком (chat + messages) для модалки
     «Открыть диалог» в карточке уведомления админа. Требует прав admin."""
