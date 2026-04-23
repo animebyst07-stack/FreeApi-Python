@@ -10,9 +10,10 @@
      window.updateSidebar, window.goView, window.showToast — UI-помощники
    Все обращения через window.* — модуль ESM не имеет прямого доступа к ним. */
 
-/* opts.timeout — кастомный таймаут в мс (по умолчанию 15000). Нужен для
-   длительных операций вроде /api/support/close, где Сэм через Telethon
-   спокойно отвечает 30+ секунд, и стандартные 15с дают ложный TIMEOUT. */
+/* opts.timeout — кастомный таймаут в мс (по умолчанию 15000).
+   - Для длительных операций (поддержка через Telethon отвечает 15-90 секунд)
+     передавать большое значение или 0 = без ограничения.
+   - XMLHttpRequest.timeout=0 означает "ждать сколько угодно". */
 export function api(url, method, body, opts){
   var _t0 = Date.now();
   var _m  = (method || 'GET').toUpperCase();

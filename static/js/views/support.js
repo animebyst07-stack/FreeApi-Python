@@ -176,7 +176,7 @@ function sendSupportMessage(){
   var thinkEl=appendSupportThinking();
   _supportPending=true;
   document.getElementById('supportSendBtn').disabled=true;
-  api('/api/support/chat','POST',{content:text||null, image_data:imageData||null}).then(function(d){
+  api('/api/support/chat','POST',{content:text||null, image_data:imageData||null},{timeout:0}).then(function(d){
     thinkEl.remove();
     document.getElementById('supportCloseBtn').style.display='';
     if(d.error){
