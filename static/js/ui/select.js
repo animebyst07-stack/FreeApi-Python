@@ -52,7 +52,17 @@ export function buildCustomSelect(wrapId, options, selectedValue, onChange){
       if (onChange) onChange(opt.value, opt.label);
     };
     dropdown.appendChild(div);
-    if (opt.value === selectedValue) { label.textContent = opt.label; found = true; }
+    if (opt.value === selectedValue) {
+      label.textContent = opt.label;
+      /* FIX (апрель 2026, 0.5f-fix): без этой строки скрытый input
+         оставался пустым после первичной отрисовки селекта — значение
+         подставлялось только при клике пользователя. В результате
+         saveModeratorSettings() читал q('adminModeratorKey').value === ''
+         и затирал moderator_key_id в БД пустой строкой, после чего
+         AI-агент тикал и не мог модерировать (key_id пустой). */
+      if (hidden) hidden.value = opt.value;
+      found = true;
+    }
   });
   if (!found && options.length > 0) {
     label.textContent = options[0].label;
