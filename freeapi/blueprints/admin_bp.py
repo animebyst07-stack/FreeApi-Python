@@ -56,6 +56,7 @@ def admin_update_settings():
     allowed = (
         'agent_enabled', 'agent_key_id',
         'moderator_enabled', 'moderator_key_id', 'moderator_model', 'moderator_system_prompt',
+        'moderator_force_admin',
         'support_enabled', 'support_key_id', 'support_model', 'support_system_prompt',
     )
     for k, v in data.items():
