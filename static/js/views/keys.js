@@ -28,28 +28,32 @@
       window.allKeys = keys;
       renderKeys(keys);
       var hasKeys = keys.length > 0;
-      _q('setupSection').style.display = (hasKeys && !window._forceSetupFlowVisible) ? 'none' : '';
-      _q('btnNewKey').style.display    = hasKeys ? '' : 'none';
+      // Кнопка «Новый ключ» — теперь видна ВСЕГДА: при пустом списке ключей
+      // setup-форма больше не торчит inline на дашборде, а открывается
+      // модалкой по этой кнопке (или авто-открытием ниже). Иначе юзер
+      // без ключей не увидит как начать.
+      _q('btnNewKey').style.display = '';
+      // Если ключей нет и юзер не закрывал модалку только что — авто-открыть.
+      if (!hasKeys && !window._setupModalDismissed && !_isSetupModalOpen()) {
+        _openSetupModalFresh();
+      }
     });
   }
 
-  /* TG Status — F-06: верхняя плашка кабинета о состоянии Telegram-аккаунта. */
+  function _isSetupModalOpen(){
+    var m = _q('setupModal');
+    return !!(m && m.classList && m.classList.contains('open'));
+  }
+
+  /* TG Status — F-06: статус Telegram-аккаунта.
+     Сама плашка #tgStatusBar по требованию убрана с дашборда; сейчас этот
+     метод нужен только для обновления window.accountState и для
+     updateSidebarTg() (значок в сайдбаре). DOM-элемента tgStatusBar в HTML
+     больше нет, поэтому НИЧЕГО не пишем в него. */
   function updateTgStatus(){
     window.api('/api/auth/me').then(function(d){
       window.accountState = d || null;
       if (typeof window.updateSidebarTg === 'function') window.updateSidebarTg();
-      var bar = _q('tgStatusBar');
-      if (!d || !d.user) { bar.style.display = 'none'; return; }
-      bar.style.display = '';
-      var cls = 'none', text = 'Telegram-аккаунт не подключён', detail = 'Настройте аккаунт ниже для получения ключа';
-      if (d.has_tg_account) {
-        cls = 'ok'; text = 'Telegram подключён';
-        detail = d.has_keys ? 'API ключи активны' : 'Аккаунт подключён, ключ можно создать';
-      }
-      bar.innerHTML = '<div class="tg-status ' + cls + '" style="display:flex;align-items:center;gap:10px">' +
-        '<div class="tg-status-dot"></div>' +
-        '<div style="flex:1"><div class="tg-status-text">' + text + '</div><div style="font-size:11px;color:#555;margin-top:2px">' + detail + '</div></div>' +
-      '</div>';
     }).catch(function(){});
   }
 
@@ -140,12 +144,13 @@
     });
   }
 
-  function createKey(){
+  /* Сброс полей и запуск модалки настройки. Используется и для авто-открытия
+     при пустом списке ключей, и для кнопки «Новый ключ». */
+  function _openSetupModalFresh(){
     window._forceSetupFlowVisible = true;
     if (window.sseSource) { window.sseSource.close(); window.sseSource = null; }
     window.setupId = null;
     window._tfaCode = null;
-    var sec = _q('setupSection');
     if (_q('setupFormCard'))     _q('setupFormCard').style.display = '';
     if (_q('setupProgressCard')) _q('setupProgressCard').style.display = 'none';
     if (_q('setupErr'))          _q('setupErr').textContent = '';
@@ -158,12 +163,24 @@
     if (_q('sPhone'))            _q('sPhone').value = '';
     if (_q('sSession'))          _q('sSession').value = '';
     if (_q('btnSetup'))         { _q('btnSetup').disabled = false; _q('btnSetup').textContent = 'Запустить настройку'; }
-    if (sec) {
-      sec.style.display = '';
-      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    if (window.openModal) window.openModal('setupModal');
+  }
+
+  function createKey(){
+    window._setupModalDismissed = false;
+    _openSetupModalFresh();
     window.showToast('Введите данные нового Telegram-аккаунта — ключ создастся после завершения настройки', 'ok');
   }
+
+  /* Закрытие модалки. Если в этой сессии у юзера уже есть ключи — просто
+     закрываем; если ключей нет, ставим флаг _setupModalDismissed, чтобы
+     loadDashboard() её не открывал заново автоматически до перезагрузки. */
+  function closeSetupModal(){
+    window._setupModalDismissed = true;
+    window._forceSetupFlowVisible = false;
+    if (window.closeModal) window.closeModal('setupModal');
+  }
+  window.closeSetupModal = closeSetupModal;
 
   /* Raw key copy — F-01 (используется в модалке после регенерации). */
   function copyRawKey(){
@@ -184,7 +201,7 @@
     if (goDash) {
       loadDashboard();
       if (_q('setupProgressCard')) _q('setupProgressCard').style.display = 'none';
-      if (_q('setupSection'))      _q('setupSection').style.display = 'none';
+      if (window.closeModal) window.closeModal('setupModal');
     }
   }
 
