@@ -975,7 +975,7 @@ body:has(#view-dashboard.active){background:#000!important}
 .bg-wrap:has(~ #view-dashboard.active){display:none}
 /* Дополнительный отступ сверху на дашборде, чтобы заголовок «API Ключи»
    и кнопка «Новый ключ» не упирались в шапку (особенно на мобильных). */
-#view-dashboard .dash{padding-top:96px}
+#view-dashboard .dash{padding-top:72px}
 @media (max-width:640px){
-  #view-dashboard .dash{padding-top:80px}
+  #view-dashboard .dash{padding-top:56px}
 }
