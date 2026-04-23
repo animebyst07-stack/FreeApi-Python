@@ -2961,12 +2961,17 @@ window.loadReviews=loadReviews;
         var weekEdits=r?(parseInt(r.week_edits||0)||0):0;
         var editsLeft=Math.max(0,3-weekEdits);
         var limitReached=hasReview && !isOwner && editsLeft<=0;
+        /* FIX (апрель 2026, 0.5f-fix2): пока отзыв на модерации, нельзя
+           отправить новый — кнопка дизейблится. Бэкенд тоже возвращает 429
+           при попытке POST с pending-отзывом. */
+        var isPending=hasReview && r && r.status==='pending';
         var wbtn=document.createElement('button');
         wbtn.className='btn btn-primary';
         wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
         wbtn.textContent=hasReview?'\u270F Редактировать отзыв':'\u270F Написать отзыв';
         if(limitReached){ wbtn.disabled=true; wbtn.style.opacity='.55'; wbtn.title='Лимит правок исчерпан'; }
-        wbtn.onclick=function(e){ e.stopPropagation(); if(limitReached){ showToast('Лимит правок: 3 в 7 дней','err'); return; } if(window.openWriteReviewModal) window.openWriteReviewModal(); };
+        else if(isPending){ wbtn.disabled=true; wbtn.style.opacity='.55'; wbtn.title='Отзыв на модерации — дождитесь решения'; }
+        wbtn.onclick=function(e){ e.stopPropagation(); if(limitReached){ showToast('Лимит правок: 3 в 7 дней','err'); return; } if(isPending){ showToast('Отзыв на модерации — дождитесь решения','err'); return; } if(window.openWriteReviewModal) window.openWriteReviewModal(); };
         bar.appendChild(wbtn);
         if(hasReview&&r){
           var statusMap={approved:'<span style="color:#4ade80">✓ Опубликован</span>',pending:'<span style="color:#888">⏳ На модерации</span>',flagged:'<span style="color:#fb923c">⚑ Помечен</span>'};
@@ -3203,6 +3208,11 @@ window.loadReviews=loadReviews;
         showToast('Отзыв удалён','ok');
         rvLoadPage(_rvPage);
         loadReviews();
+        /* FIX (апрель 2026, 0.5f-fix2): после удаления собственного отзыва
+           блок «Ваш отзыв … ✓ Опубликован» оставался висеть до F5.
+           Перерисовываем write-bar через /api/reviews/mine — если отзыва
+           больше нет, бэк вернёт review:null и UI станет «Написать отзыв». */
+        try{ rvRenderWriteSection(); }catch(e){}
       }).catch(function(e){
         try{clog('RV_DEL','ERR '+e,'error');}catch(_){}
         showToast('Ошибка при удалении','err');

@@ -78,10 +78,22 @@ def submit_review():
         score = 0
     text = (data.get('text') or '').strip()
     raw_images = data.get('images') or []
-    is_edit = bool(repo.get_review_by_user(uid))
+    existing_review = repo.get_review_by_user(uid)
+    is_edit = bool(existing_review)
     logger.info('[REVIEWS] POST /api/reviews uid=%s score=%s text_len=%s images_in=%s is_edit=%s body_size=%s',
                 uid, score, len(text), (len(raw_images) if isinstance(raw_images, list) else 'not_list'),
                 is_edit, request.content_length)
+    # FIX (апрель 2026, 0.5f-fix2): anti-spam — если у юзера уже висит
+    # отзыв в очереди модерации, не даём отправить ещё один до решения
+    # AI-агента. Без этой проверки пользователь мог жать «Написать отзыв»
+    # сколько угодно раз и каждый раз перезаписывать свой pending,
+    # засоряя очередь и логи. Распространяется и на админа: если
+    # moderator_force_admin='1', то его отзыв тоже сначала идёт в pending
+    # — двойной POST не допускается.
+    if is_edit and existing_review.get('status') == 'pending':
+        logger.warning('[REVIEWS] anti-spam: uid=%s уже имеет pending-отзыв id=%s, POST отклонён',
+                       uid, existing_review.get('id'))
+        return error('Ваш отзыв уже на модерации, дождитесь решения', 429)
     # Лимит редактирований: 3 в 7 дней (не для владельца)
     if is_edit and not is_admin:
         week_edits = repo.get_week_edits(uid)
