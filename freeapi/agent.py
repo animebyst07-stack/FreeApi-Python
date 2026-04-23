@@ -198,18 +198,30 @@ class FavoriteAIAgent:
         try:
             answer = run_chat(key, model, messages)
             decision = self._parse_decision(answer)
+            elapsed_ms = int((_time.time() - _t0) * 1000)
             if req_record is not None:
                 try:
-                    repo.finish_request(req_record['id'], 'ok', 'REQ_OK_001', response_ms=int((_time.time() - _t0) * 1000))
+                    repo.finish_request(req_record['id'], 'ok', 'REQ_OK_001', response_ms=elapsed_ms)
                 except Exception:
                     pass
+            try:
+                from freeapi.repos.stats import update_model_stats
+                update_model_stats(model, elapsed_ms, ok=True)
+            except Exception:
+                pass
         except Exception as exc:
+            elapsed_ms = int((_time.time() - _t0) * 1000)
             logger.error('[Agent] Ошибка run_chat для отзыва %s: %s', review_id, exc)
             if req_record is not None:
                 try:
-                    repo.finish_request(req_record['id'], 'error', 'REQ_ERR_500', response_ms=int((_time.time() - _t0) * 1000), error_msg=str(exc)[:500])
+                    repo.finish_request(req_record['id'], 'error', 'REQ_ERR_500', response_ms=elapsed_ms, error_msg=str(exc)[:500])
                 except Exception:
                     pass
+            try:
+                from freeapi.repos.stats import update_model_stats
+                update_model_stats(model, elapsed_ms, ok=False)
+            except Exception:
+                pass
             return
 
         action = str(decision.get('action', 'FEEDBACK')).upper()

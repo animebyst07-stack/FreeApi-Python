@@ -188,8 +188,8 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .reveal.visible{opacity:1;transform:translateY(0)}
 
 /* DASHBOARD */
-.dash{padding:36px 0 64px;position:relative;z-index:1}
-@media (max-width:640px){.dash{padding-top:24px}}
+.dash{padding:52px 0 64px;position:relative;z-index:1}
+@media (max-width:640px){.dash{padding-top:40px}}
 .dash-grid{display:grid;grid-template-columns:1fr;gap:24px}
 .dash-main{}
 .dash-section-title{font-size:13px;font-weight:600;color:#666;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}

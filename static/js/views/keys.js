@@ -298,11 +298,13 @@
       _q('histList').innerHTML = logs.map(function(r){
         var sc = r.status === 'ok' ? 'ok' : r.status === 'processing' ? 'proc' : 'err';
         var dt = r.request_at ? r.request_at.replace('T', ' ').slice(0, 16) : '—';
+        var _ms = r.response_ms;
+        var _msColor = _ms == null ? '#555' : (_ms < 4000 ? '#22c55e' : (_ms < 8000 ? '#eab308' : '#ef4444'));
         return '<div class="hist-row">' +
           '<div class="hist-status ' + sc + '"></div>' +
           '<div class="hist-info"><div class="hist-model">' + _esc(r.model || '—') + '</div><div class="hist-code">' + _esc(r.log_code || '—') + (r.error_msg ? '&nbsp;·&nbsp;<span style="color:#ef4444;font-size:10px">' + _esc(r.error_msg.slice(0, 60)) + '</span>' : '') + '</div></div>' +
           '<div class="hist-time">' + dt + '</div>' +
-          '<div class="hist-ms">' + (r.response_ms != null ? r.response_ms + ' мс' : '—') + '</div>' +
+          '<div class="hist-ms" style="color:' + _msColor + '">' + (_ms != null ? _ms + ' мс' : '—') + '</div>' +
         '</div>';
       }).join('');
     }).catch(function(){ _q('histList').innerHTML = '<div class="hist-empty">Ошибка загрузки</div>'; });

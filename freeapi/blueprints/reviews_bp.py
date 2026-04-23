@@ -222,13 +222,13 @@ def set_review_status(review_id):
                 snippet = snippet[:200].rstrip() + '…'
             has_imgs = bool(admin_images)
             if snippet and has_imgs:
-                msg = f'👑 Владелец ответил на ваш отзыв (с фото): {snippet}'
+                msg = f'Владелец ответил на ваш отзыв (с фото): {snippet}'
             elif snippet:
-                msg = f'👑 Владелец ответил на ваш отзыв: {snippet}'
+                msg = f'Владелец ответил на ваш отзыв: {snippet}'
             elif has_imgs:
-                msg = '👑 Владелец прикрепил фото к ответу на ваш отзыв.'
+                msg = 'Владелец прикрепил фото к ответу на ваш отзыв.'
             else:
-                msg = '👑 Владелец отметил ваш отзыв.'
+                msg = 'Владелец отметил ваш отзыв.'
             try:
                 repo.create_user_notification(target_uid, msg)
                 logger.info('[REVIEWS] user_notification создано: target_uid=%s review_id=%s len=%s',
