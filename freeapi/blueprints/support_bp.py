@@ -70,14 +70,22 @@ def _get_support_prompt():
     return DEFAULT_SUPPORT_PROMPT
 
 
-def _get_support_prompt_with_context(uid):
+def _get_support_prompt_with_context(uid, username_override=None):
     """Полный системный промпт для первого сообщения нового диалога:
     базовый промпт + инструкция по тегам + индекс документации + контекст
     обращения. Тяжёлый дамп исходников (support_project_context) больше
     не используется — вместо него ИИ сам подгружает нужную справку через
-    [[doc:NAME]] (см. freeapi/support_docs.py)."""
+    [[doc:NAME]] (см. freeapi/support_docs.py).
+
+    username_override — обязателен, если функция вызывается ВНЕ контекста
+    Flask-запроса (например, из фонового worker-потока SSE-стрима).
+    Без него мы пытаемся достать username из session, что в потоке
+    приведёт к 'Working outside of request context'."""
     base_prompt = _get_support_prompt()
-    username = session.get('username') or ''
+    if username_override is not None:
+        username = username_override or ''
+    else:
+        username = session.get('username') or ''
     if not username and uid:
         user = repo.get_user_by_id(uid)
         username = user.get('username') if user else ''
@@ -190,14 +198,25 @@ def _support_pick_key():
     return key, model
 
 
-def _support_run_ai(uid, chat, content, image_data, on_step=None):
+def _support_run_ai(uid, chat, content, image_data, on_step=None, username=None):
     """Главный AI-цикл: первое сообщение → возможные итерации с документацией → финальный ответ.
 
     on_step(step_msg_dict) — необязательный колбэк, вызывается СРАЗУ после
     сохранения каждого промежуточного шага «Читаю документацию: ...»
     в БД (для SSE-стрима). Возвращает (steps_list, final_answer_text).
+
+    username — желательно передавать из endpoint'а (request-context).
+    Если функция запускается в фоновом потоке (SSE-worker), доступа к
+    session нет, и попытка прочитать его упадёт с 'Working outside of
+    request context'. См. _get_support_prompt_with_context().
     """
-    _support_username = session.get('username') or ''
+    _support_username = (username or '').strip()
+    if not _support_username:
+        # Fallback: пытаемся достать из session (только если есть request-контекст).
+        try:
+            _support_username = session.get('username') or ''
+        except RuntimeError:
+            _support_username = ''
     if not _support_username and uid:
         _uobj = repo.get_user_by_id(uid)
         _support_username = _uobj.get('username') if _uobj else ''
@@ -209,7 +228,7 @@ def _support_run_ai(uid, chat, content, image_data, on_step=None):
 
     def _build_full_text():
         return (
-            f'{_get_support_prompt_with_context(uid)}\n\n'
+            f'{_get_support_prompt_with_context(uid, username_override=_support_username)}\n\n'
             f'=== ТЕКУЩЕЕ СООБЩЕНИЕ ===\n'
             f'{short_user_text}'
         )
@@ -336,6 +355,12 @@ def support_send_message_stream():
 
     user_msg = repo.add_support_message(chat['id'], 'user', content or '[изображение]', image_data)
 
+    # Капчуем username ДО запуска фонового потока: внутри _worker() нет
+    # request-контекста Flask, и любое обращение к session.* упадёт с
+    # 'Working outside of request context' (этот баг ловили в логах
+    # как [Support][stream] worker error).
+    _username_for_worker = session.get('username') or ''
+
     import json as _json
     import queue as _queue
     import threading as _threading
@@ -350,6 +375,7 @@ def support_send_message_stream():
             steps, answer = _support_run_ai(
                 uid, chat, content, image_data,
                 on_step=lambda step_msg: _emit('step', step_msg),
+                username=_username_for_worker,
             )
             agent_msg = repo.add_support_message(chat['id'], 'agent', answer or '', None)
             _emit('final', {'agent_message': agent_msg, 'chat': chat})
