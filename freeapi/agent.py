@@ -146,17 +146,7 @@ class FavoriteAIAgent:
         review_author = review.get('username', 'аноним')
         user_id = review.get('user_id')
 
-        if _is_gibberish(review_text):
-            logger.info('[Agent] Отзыв %s — мусорный текст, авто-удаление', review_id)
-            self._do_delete(review_id, user_id, 'Мусорный текст (набор символов)', repo)
-            return
-
-        if review_score < 8:
-            words = re.findall(r'\w+', review_text)
-            if len(words) < 5:
-                logger.info('[Agent] Отзыв %s — низкая оценка без аргументов, авто-удаление', review_id)
-                self._do_delete(review_id, user_id, 'Низкая оценка без аргументов', repo)
-                return
+        logger.info('[Agent] Отзыв %s (score=%s, len=%s) → отправляю в AI на модерацию', review_id, review_score, len(review_text))
 
         system_prompt = _get_moderator_prompt()
         messages = [
