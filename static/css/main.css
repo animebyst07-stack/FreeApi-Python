@@ -965,3 +965,10 @@ body.view-no-scroll{overflow:hidden}
 .admin-prompt-textarea::placeholder{color:#333}
 
 @keyframes viewFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* DASHBOARD: чёрный фон вместо общего mesh/glow.
+   Требование пользователя: на дашборде фон должен быть полностью чёрным,
+   без анимированной сетки/искажений из главного экрана. Используем :has(),
+   чтобы скрыть .bg-wrap только когда активна view #view-dashboard. */
+body:has(#view-dashboard.active){background:#000!important}
+.bg-wrap:has(~ #view-dashboard.active){display:none}
