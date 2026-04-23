@@ -978,3 +978,13 @@ body:has(#view-dashboard.active){background:#000!important}
    .dash выше (padding-top:36px, на мобильных 24px). Это нужно, чтобы
    первая строка любого раздела (заголовок, кнопка «Назад» и т.п.)
    не упиралась в шапку. */
+
+/* A4 — мобильная адаптация */
+.bg-wrap{min-height:100vh;min-height:100dvh}
+.btn-icon{flex-shrink:0}
+@media(max-width:640px){
+  .btn-icon{min-width:28px;min-height:28px}
+  .docs-table-wrap{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .docs-table{min-width:480px}
+  .model-card{padding:14px}
+}
