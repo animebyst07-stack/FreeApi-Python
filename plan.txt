@@ -82,10 +82,24 @@
     для совместимости с inline onclick/onsubmit. Setup-блок (importSession,
     startSetup, trackProgress, copyProgKey) НЕ тронут — он идёт шагом 0.5c.
 
+• Сделано в апреле 2026 (продолжение):
+  - 0.5c — ВЫПОЛНЕНО. Настройка Telegram-аккаунта вынесена в
+    /js/views/setup.js: togglePw, submitTfa, importSessionFile,
+    downloadSession, copyProgKey, setSetupTab, startSetup,
+    toggleLogConsole, copyConsoleLogs, trackProgress, pollProgress,
+    applyProgress, cancelSetup, retrySetup, submitCode + локальный
+    буфер _consoleLogs. index.html: 4077 → 3793 строк (-284).
+    Глобальные state (setupId, setupTab, sseSource, _tfaCode,
+    _forceSetupFlowVisible, _setupSkipTraining) остаются объявлены
+    top-level в inline-скрипте — модуль читает/пишет через window.*.
+
 • Следующий шаг:
-  - 0.5c — views/setup.js: вынос setSetupTab, startSetup, trackProgress,
-    submitTfa, importSessionFile, downloadSession, copyProgKey, togglePw
-    из inline-скрипта в отдельный модуль.
+  - 0.5d — views/models.js + views/docs.js: вынос loadModels,
+    renderLandingModels, renderFullModels, filterModels, searchModels,
+    modelCard, loadDocsLogCodes, renderLogCodesHtml.
+    Это последняя крупная разгрузка фронта; после неё в inline-скрипте
+    останутся только bootstrap-IIFE и мелкие хелперы (logToConsole-stub
+    нет, console уже модульный).
 
 
 ──────────────────────────────────────────────────────────

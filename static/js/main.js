@@ -21,6 +21,7 @@ import './ui/view.js';
 
 import './views/auth.js';
 import './views/keys.js';
+import './views/setup.js';
 import './views/chat.js';
 import './views/reviews.js';
 import './views/notifications.js';
