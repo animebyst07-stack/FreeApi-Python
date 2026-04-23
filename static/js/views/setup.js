@@ -81,19 +81,11 @@
     input.blur();
   }
 
-  function downloadSession(){
-    window.api('/api/tg/account/session').then(function(d){
-      if (d.error) { window.showToast(d.message || 'Сессия не найдена', 'err'); return; }
-      var blob = new Blob([d.session_string], { type: 'text/plain' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'session_string.txt';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.showToast('Сессия скачана как session_string.txt', 'ok');
-    }).catch(function(){ window.showToast('Ошибка загрузки сессии', 'err'); });
-  }
+  /* Прим.: бывшая downloadSession() удалена — она ходила в
+     несуществующий /api/tg/account/session и нигде не была
+     привязана к UI. Скачивание .session-файла теперь делается
+     с дашборда ключей кнопкой downloadKeySession() через
+     рабочий /api/keys/<id>/session. */
 
   /* Prog key copy — F-02. */
   function copyProgKey(btn){
@@ -327,7 +319,6 @@
   window.togglePw           = togglePw;
   window.submitTfa          = submitTfa;
   window.importSessionFile  = importSessionFile;
-  window.downloadSession    = downloadSession;
   window.copyProgKey        = copyProgKey;
   window.setSetupTab        = setSetupTab;
   window.startSetup         = startSetup;
