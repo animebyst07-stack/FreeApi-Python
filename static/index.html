@@ -2932,10 +2932,54 @@ window.loadReviews=loadReviews;
     xhr.send(body?JSON.stringify(body):null);
   }
 
+  /* FIX (апрель 2026, 0.5f-fix3): поллинг /api/reviews/mine пока отзыв
+     юзера висит в pending. Без него после отправки на модерацию UI
+     показывал «⏳ На модерации» вечно — даже когда AI-агент в фоне уже
+     удалил отзыв или одобрил его. Опрашиваем раз в 5 сек, только пока
+     юзер на странице отзывов и статус всё ещё pending. */
+  var _rvPendingPollTimer=null;
+  function _rvStopPendingPoll(){
+    if(_rvPendingPollTimer){ clearInterval(_rvPendingPollTimer); _rvPendingPollTimer=null; }
+  }
+  function _rvStartPendingPoll(initialReviewId){
+    _rvStopPendingPoll();
+    var lastId=initialReviewId||null;
+    _rvPendingPollTimer=setInterval(function(){
+      var view=document.getElementById('view-reviews');
+      if(!view||!view.classList.contains('active')){ _rvStopPendingPoll(); return; }
+      rvXhr('GET','/api/reviews/mine',null,function(d,err){
+        if(err) return;
+        var r=d&&d.review;
+        if(!r){
+          /* Отзыв исчез (удалён агентом) — стоп поллинга, перерисовать всё */
+          _rvStopPendingPoll();
+          try{ showToast('Ваш отзыв был отклонён модератором','err'); }catch(e){}
+          try{ _rvRenderWriteBar(); }catch(e){}
+          try{ rvLoadPage(_rvPage||1); }catch(e){}
+          try{ if(window.loadReviews) window.loadReviews(); }catch(e){}
+          return;
+        }
+        if(r.status!=='pending'){
+          /* Статус сменился (approved/flagged) — стоп, тост, перерисовка */
+          _rvStopPendingPoll();
+          try{ showToast(r.status==='approved'?'Ваш отзыв опубликован':'Статус отзыва изменён','ok'); }catch(e){}
+          try{ _rvRenderWriteBar(); }catch(e){}
+          try{ rvLoadPage(_rvPage||1); }catch(e){}
+          try{ if(window.loadReviews) window.loadReviews(); }catch(e){}
+          return;
+        }
+        /* Всё ещё pending — продолжаем тикать. Если id вдруг изменился
+           (юзер где-то умудрился пересоздать) — обновим lastId. */
+        if(r.id) lastId=r.id;
+      });
+    },5000);
+  }
+
   function _rvRenderWriteBar(){
     var sec=document.getElementById('rvWriteSection');
-    if(!sec) return;
+    if(!sec){ _rvStopPendingPoll(); return; }
     if(!user){
+      _rvStopPendingPoll();
       var cta=document.createElement('div');
       cta.className='rv-auth-cta';
       var p=document.createElement('p');
@@ -2965,6 +3009,8 @@ window.loadReviews=loadReviews;
            отправить новый — кнопка дизейблится. Бэкенд тоже возвращает 429
            при попытке POST с pending-отзывом. */
         var isPending=hasReview && r && r.status==='pending';
+        /* FIX (0.5f-fix3): авто-поллинг пока pending; иначе гарантированно стоп. */
+        if(isPending){ _rvStartPendingPoll(r&&r.id); } else { _rvStopPendingPoll(); }
         var wbtn=document.createElement('button');
         wbtn.className='btn btn-primary';
         wbtn.style.cssText='height:40px;padding:0 22px;gap:8px';
