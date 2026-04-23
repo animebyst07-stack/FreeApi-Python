@@ -85,6 +85,56 @@ def models_list():
 RECOMMENDED_MODEL_IDS = ('gemini-3.0-flash-thinking', 'gemini-3.0-flash')
 
 
+@bp.get('/api/v1/me')
+def v1_me():
+    """E2 — самодиагностика для внешнего ИИ.
+
+    Возвращает все полезные «контекстные» поля ключа за один запрос:
+    кому он принадлежит, какая модель используется по умолчанию, занят
+    ли он, сколько KB контекста уже накопил и где пороги предупреждения
+    /лимита. Внешний клиент может вызвать /api/v1/me один раз, понять
+    окружение, и потом слать /api/v1/chat без model/без догадок.
+
+    Чувствительные поля наружу не уходят: сам api-key маскируется,
+    user_id/key_id не возвращаются.
+    """
+    key, blocked = authorized_key()
+    if blocked:
+        return blocked
+    from freeapi.security import mask_key as _mask_key
+    owner = repo.get_user_by_id(key.get('user_id')) or {}
+    stats = repo.get_key_month_stats(key['id'])
+    ctx_kb = float(key.get('context_kb') or 0.0)
+    return jsonify({
+        'key': {
+            'name': key.get('name') or '—',
+            'masked': _mask_key(key.get('key_value') or ''),
+            'default_model': key.get('default_model') or DEFAULT_MODEL_ID,
+            'dual_mode': bool(key.get('dual_mode') and key.get('translator_account_id')),
+            'context_kb': round(ctx_kb, 1),
+            'context_warn_kb': CONTEXT_WARN_KB,
+            'context_limit_kb': CONTEXT_LIMIT_KB,
+            'context_warn': ctx_kb >= CONTEXT_WARN_KB,
+            'limit_hit': bool(key.get('limit_hit')),
+            'is_busy': bool(key.get('is_busy')),
+            'created_at': key.get('created_at'),
+        },
+        'owner': {
+            'username': owner.get('username') or '—',
+            'is_admin': (owner.get('username') == 'ReZero'),
+        },
+        'stats': {
+            'monthly_requests': stats.get('monthlyRequests', 0),
+            'avg_response_ms': stats.get('avgResponseMs', 0),
+        },
+        'service': {
+            'default_model_id': DEFAULT_MODEL_ID,
+            'recommended': list(RECOMMENDED_MODEL_IDS),
+            'models_endpoint': '/api/v1/models',
+        },
+    })
+
+
 @bp.get('/api/v1/models')
 def v1_models_list():
     key, blocked = authorized_key()

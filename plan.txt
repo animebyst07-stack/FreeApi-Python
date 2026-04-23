@@ -561,6 +561,52 @@ Push: «docs: C2 — актуализирован README.md».
   Push: «feat(api): E1 — GET /api/v1/models под Bearer + обновлён
   system prompt и таблица документации».
 
+  ══════════════════════════════════════════════════════════
+  E2 — GET /api/v1/me (контекст ключа за один запрос) (✓ ВЫПОЛНЕНО)
+  ══════════════════════════════════════════════════════════
+
+  Зачем: даже после E1 у внешнего ИИ нет дешёвого способа узнать,
+  «а кто я вообще, какой у меня ключ, не висит ли он, насколько
+  забит контекст». Раньше пришлось бы парсить ошибки CTX_LIMIT_180
+  и KEY_BUSY_301 постфактум. Теперь — один GET /api/v1/me на старте
+  сессии.
+
+  Реализация (freeapi/blueprints/misc_bp.py):
+    • Авторизация — authorized_key() (Bearer <api_key>).
+    • Используется repo.get_user_by_id и repo.get_key_month_stats
+      (оба уже есть, экспортируются через repos/__init__.py).
+    • Маска ключа — security.mask_key (импорт внутри функции, чтобы
+      не плодить module-level зависимости).
+    • Никогда не возвращаются: чистый key_value, user_id, key_id,
+      tg_account_id, password_hash. Это «потребительский» вид.
+
+  Структура ответа:
+    {
+      key: {
+        name, masked, default_model, dual_mode, context_kb,
+        context_warn_kb, context_limit_kb, context_warn,
+        limit_hit, is_busy, created_at
+      },
+      owner: { username, is_admin (=username=='ReZero') },
+      stats: { monthly_requests, avg_response_ms },
+      service: {
+        default_model_id, recommended, models_endpoint
+      }
+    }
+
+  Документация:
+    • static/index.html — таблица Bearer-эндпоинтов: добавлена строка
+      GET /api/v1/me с описанием.
+    • #memorySystemPrompt: блок NOTE про эндпоинты переписан.
+      Теперь упомянуты все три (/api/models, /api/v1/models,
+      /api/v1/me) и явно сказано: «recommended bootstrap — вызвать
+      /api/v1/me один раз в начале сессии». Это закрывает кейсы,
+      когда внешний ИИ не знает, какая модель ключа default,
+      сколько KB уже накопилось и не занят ли ключ.
+
+  Push: «feat(api): E2 — GET /api/v1/me (контекст ключа: владелец,
+  default model, context_kb, dual_mode, лимиты) + документация».
+
 ══════════════════════════════════════════════════════════
 КОНЕЦ ПЛАНА
 ══════════════════════════════════════════════════════════

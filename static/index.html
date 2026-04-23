@@ -646,6 +646,7 @@
               <tr><td><span class="docs-method post">POST</span></td><td><code>/api/v1/reset</code></td><td>Сбросить контекст (если лимит — вернёт requires_choice)</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
               <tr><td><span class="docs-method post">POST</span></td><td><code>/api/v1/reset/apply</code></td><td>Применить выбор памяти после CTX_LIMIT_180</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
               <tr><td><span class="docs-method get">GET</span></td><td><code>/api/v1/models</code></td><td>Список моделей + рекомендованные + default ключа</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
+              <tr><td><span class="docs-method get">GET</span></td><td><code>/api/v1/me</code></td><td>Контекст ключа: владелец, default model, context_kb, dual_mode, лимиты</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
               <tr><td><span class="docs-method get">GET</span></td><td><code>/api/models</code></td><td>Список всех доступных моделей (публичный, со статистикой)</td><td>--</td></tr>
               <tr><td><span class="docs-method get">GET</span></td><td><code>/api/stats/global</code></td><td>Глобальная статистика сервиса</td><td>--</td></tr>
               <tr><td><span class="docs-method get">GET</span></td><td><code>/api/healthz</code></td><td>Проверка состояния сервера</td><td>--</td></tr>
@@ -1009,13 +1010,22 @@ Other 200k models:
 - gemini-2.5-flash-thinking-64k, gemini-2.5-flash-64k
 
 NOTE: gemini-2.5-pro and gemini-2.0-flash are NOT available — do not
-request them. Two ways to fetch the live list:
-- GET /api/models           — public, includes usage stats
-- GET /api/v1/models        — Bearer-authenticated, returns
-  {models, defaultModelId, keyDefaultModelId, recommended}.
-  Use this one before sending requests if you need the canonical
-  list scoped to the current key (it tells you which model the key
-  defaults to when the "model" field is omitted).
+request them. Three live endpoints to introspect the environment:
+- GET /api/models     — public, includes usage stats
+- GET /api/v1/models  — Bearer-authenticated, returns
+  {models, defaultModelId, keyDefaultModelId, recommended}
+- GET /api/v1/me      — Bearer-authenticated, one-shot context for
+  the current key:
+    {key{name, masked, default_model, dual_mode, context_kb,
+         context_warn_kb, context_limit_kb, context_warn,
+         limit_hit, is_busy, created_at},
+     owner{username, is_admin},
+     stats{monthly_requests, avg_response_ms},
+     service{default_model_id, recommended, models_endpoint}}
+  Recommended bootstrap: call /api/v1/me once at session start.
+  It tells you which model the key defaults to (so you can omit
+  "model" in /api/v1/chat), how full the context already is, and
+  whether the key is currently busy.
 
 ## Important
 - One request at a time per API key (KEY_BUSY_301 if you try to send
