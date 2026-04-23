@@ -1,17 +1,60 @@
 ════════════════════════════════════════════════════════════════════
   PLAN.TXT — FreeApi-Python
-  Актуален на: 23 апреля 2026
-  Все прочие пункты закрыты. Здесь только реально нужное.
+  Полностью перечитан и актуализирован: 23 апреля 2026
+  Основан на детальном прочтении ВСЕХ файлов проекта.
 ════════════════════════════════════════════════════════════════════
 
 ──────────────────────────────────────────────────────────
-ТЕКУЩИЙ СТАТУС
+АКТУАЛЬНЫЙ СТЕК И СТРУКТУРА
 ──────────────────────────────────────────────────────────
 
-ВЫПОЛНЕНО ДО ЭТОЙ СЕССИИ:
-  ✓ Этап 0 (0.1–0.6) — рефакторинг JS/CSS/бэкенда полностью закрыт.
-  ✓ Шаг 0.6 — честная система миграций БД (schema_migrations).
-  ✓ 0.5f-серия — модератор отзывов, поллинг pending, SVG-иконки.
+  Python 3.11 + Flask 3 + SQLite + Telethon
+  Фронт: SPA, static/index.html + static/js/* + static/css/main.css
+  Запуск: python api.py (Termux, порт 5000)
+  Репо: github.com/animebyst07-stack/FreeApi-Python
+  Git push: только через GitHub API (токен в scratchpad)
+
+  Ключевые директории:
+    freeapi/
+      app.py              — Flask-приложение, регистрация blueprint'ов
+      agent.py            — FavoriteAIAgent (AI-модератор отзывов, фоновый поток)
+      database.py         — SQLite, система миграций schema_migrations
+      models.py           — AI_MODELS (11 моделей), DEFAULT_MODEL_ID
+      support_docs.py     — реестр документации для агента поддержки
+      repos/              — репо-функции (keys, stats, notifications, reviews, ...)
+      blueprints/         — Flask blueprint'ы (chat, reviews, notifications, admin, support, ...)
+      migrations/         — 001..006 SQL-миграции (006 = review_likes)
+    static/
+      index.html          — главный SPA (большой объём inline JS/CSS)
+      css/main.css        — весь CSS
+      js/
+        core/             — api.js, dom.js, logger.js, storage.js, state.js
+        ui/               — modal.js, select.js, sidebar.js, toast.js, topbar.js, view.js
+        views/            — keys.js, notifications.js, support.js, auth.js, ...
+                            ВНИМАНИЕ: reviews.js — только заглушка (export {}),
+                            реальный код отзывов пока в inline-скрипте index.html.
+
+  Модели: 11 моделей Gemini 1.5/2.5/3.0 (Flash, Pro, Thinking, Robotics).
+  Оценка отзывов: 1–10 (НЕ 1–5, несмотря на устаревшие комментарии в docs).
+  Админ: username = 'ReZero' (хардкод во всех проверках).
+
+──────────────────────────────────────────────────────────
+ВЫПОЛНЕНО ДО ЭТОЙ СЕССИИ
+──────────────────────────────────────────────────────────
+
+  ✓ Этап 0 (0.1–0.6) — рефакторинг JS/CSS/бэкенда закрыт.
+  ✓ 0.6 — честная система миграций schema_migrations в database.py.
+  ✓ 0.5.12 — уведомления вынесены в views/notifications.js.
+  ✓ 0.5.13 — поддержка вынесена в views/support.js.
+  ✓ reviews_bp.py — лайки, score 1-10, avg_score, фото, модератор.
+  ✓ agent.py — FavoriteAIAgent, AI-модерация pending-отзывов.
+  ✓ support_bp.py — SSE-стрим, doc-теги [[doc:NAME]], SUPPORT_CLOSE_PROMPT.
+  ✓ support_docs.py — реестр документации для поддержки.
+  ✓ localStorage autosave черновика отзыва (уже есть в index.html):
+      oninput → lsSet('freeapi_review_draft', value)
+      после отправки → lsDel('freeapi_review_draft')
+      при открытии формы → lsGet('freeapi_review_draft', '')
+      НО: баннер «Найден черновик [Восстановить] [Удалить]» ещё не сделан.
 
 ──────────────────────────────────────────────────────────
 ЗАДАЧИ ЭТОЙ СЕССИИ
@@ -22,270 +65,393 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ────────────────────────────────────────
+A0 — Эмодзи в уведомлениях (нарушение правила)
+────────────────────────────────────────
+Статус: [ ] НЕ НАЧАТО
+Сложность: минимальная (1 файл, 4 строки).
+
+Проблема:
+  В freeapi/blueprints/reviews_bp.py строки 225, 227, 229, 231 содержат
+  символ 👑 в текстах уведомлений — нарушение правила «эмодзи запрещены».
+  Тексты попадают в user_notifications.message и отображаются в /notifications.
+
+Текущий код:
+  msg = f'👑 Владелец ответил на ваш отзыв (с фото): {snippet}'
+  msg = f'👑 Владелец ответил на ваш отзыв: {snippet}'
+  msg = '👑 Владелец прикрепил фото к ответу на ваш отзыв.'
+  msg = '👑 Владелец отметил ваш отзыв.'
+
+Решение:
+  Заменить 👑 на «[Владелец]» (или убрать вовсе — без обозначения):
+  msg = f'Владелец ответил на ваш отзыв (с фото): {snippet}'
+  msg = f'Владелец ответил на ваш отзыв: {snippet}'
+  msg = 'Владелец прикрепил фото к ответу на ваш отзыв.'
+  msg = 'Владелец отметил ваш отзыв.'
+
+Push: «fix(reviews): A0 — убраны эмодзи из текстов уведомлений».
+
+────────────────────────────────────────
 A1 — Отступ сверху: «Новый ключ» и «Назад к дашборду»
 ────────────────────────────────────────
 Статус: [ ] НЕ НАЧАТО
+Сложность: минимальная (1 CSS-файл, 2 строки).
 
-Проблема (видно на скриншотах):
-  • Кнопка «+ Новый ключ» и заголовок «API КЛЮЧИ» прилипают к шапке.
-  • Кнопка «Назад к дашборду» тоже вплотную к шапке.
-  • Текущий .dash{padding-top:36px} → недостаточно, ощущается как 0 из-за
-    шапки высотой 52px + сама строка заголовка. На мобиле ещё хуже (24px).
+Проблема:
+  Кнопка «+ Новый ключ» / заголовок «API КЛЮЧИ» прилипают к шапке.
+  Кнопка «Назад к дашборду» тоже вплотную к шапке.
+  Шапка занимает 53px (class .topbar height). .dash{padding-top:36px}
+  на практике ощущается как слишком малый отступ.
+
+Файл: static/css/main.css
+  Строка 191: .dash{padding:36px 0 64px;position:relative;z-index:1}
+  Строка 192: @media (max-width:640px){.dash{padding-top:24px}}
 
 Решение:
-  В static/css/main.css:
-    .dash { padding: 52px 0 64px }          /* ← было 36px */
-    @media(max-width:640px) { .dash { padding-top: 40px } }  /* было 24px */
+  .dash { padding: 52px 0 64px; position: relative; z-index: 1 }
+  @media (max-width:640px) { .dash { padding-top: 40px } }
 
-  Дополнительно — кнопка «Назад к дашборду»:
-    В index.html найти элемент .back-btn (или аналог) и добавить ему
-    margin-top или убедиться что он внутри .dash контейнера.
-    Если он снаружи — перенести внутрь .dash.
-
-Push: один коммит «fix(ui): A1 — увеличен padding-top для dash».
+Push: «fix(ui): A1 — увеличен padding-top для .dash».
 
 ────────────────────────────────────────
 A2 — Статистика моделей показывает 0 req
 ────────────────────────────────────────
 Статус: [ ] НЕ НАЧАТО
+Сложность: малая (1 файл, ~4 строки добавить).
 
 Проблема:
-  В разделе «Топ модели» (главная) и «Доступные модели» (документация)
-  у всех моделей стоит «0 req» / «ЗАПРОСОВ: 0», хотя в истории ключа
-  видны реальные запросы.
+  «Топ модели» и «Доступные модели» показывают 0 req у всех моделей.
+  В истории ключа реальные запросы видны.
 
-Корень (предположение после анализа кода):
-  • update_model_stats() вызывается из finish_request() в repos/keys.py?
-    → Нужно проверить. Если НЕ вызывается — это и есть баг.
-  • Возможно update_model_stats вообще не вызывается ни из одного места.
-  • Модель в запросах — «gemini-3.0-flash», но в AI_MODELS id может
-    отличаться — тогда UPDATE не совпадает по model_id.
+РЕАЛЬНЫЙ корень (установлен при чтении кода):
+  В freeapi/blueprints/chat_bp.py: update_model_stats() УЖЕ вызывается
+  после каждого finish_request (строки 80, 99, 279, 306, 321).
+  НО в freeapi/agent.py (AI-модератор): finish_request вызывается
+  (строки 203, 210), а update_model_stats — НЕТ вообще.
+  Значит, запросы через AI-агента (модерация отзывов) не учитываются в статистике.
 
-Диагностика:
-  1. grep -rn "update_model_stats" freeapi/ — найти все вызовы.
-  2. Сравнить model['id'] из AI_MODELS с тем, что записывается в requests.model.
-  3. Если вызовов нет → добавить вызов update_model_stats внутрь finish_request.
-  4. Если id не совпадают → исправить маппинг.
+  Вторая возможная причина: model_stats заполняется ТОЛЬКО для текущего месяца.
+  При пустой БД или на старте месяца — строки вставляются через _seed_reference_data
+  (INSERT OR IGNORE), но total_requests = 0. Запросы из chat_bp должны накапливаться.
 
-Решение (ожидаемое):
-  В freeapi/repos/keys.py в функции finish_request после UPDATE requests:
-    repo.update_model_stats(model_id, response_ms, ok=(status == 'ok'))
-  Но model_id нужно брать из запроса (сделать SELECT model FROM requests WHERE id=?).
-  Либо передавать model_id параметром в finish_request (изменить сигнатуру и все вызовы).
+  Дополнительная проверка: в _seed_reference_data() — row для каждой модели
+  создаётся INSERT OR IGNORE, т.е. при уже существующей строке ничего не вставится.
+  Если запросы уже делались, статистика должна быть ненулевой. Если нет — баг в agent.py.
 
-Push: один коммит «fix(stats): A2 — update_model_stats теперь вызывается из finish_request».
+Решение — добавить вызовы update_model_stats в agent.py:
+
+  В freeapi/agent.py, функция _moderate(), блок try/except (≈строки 198-212):
+
+  # Успешный ответ (строка ≈203):
+  repo.finish_request(req_record['id'], 'ok', 'REQ_OK_001',
+                      response_ms=int((_time.time() - _t0) * 1000))
+  # ДОБАВИТЬ:
+  try:
+      from freeapi.repos.stats import update_model_stats
+      update_model_stats(model, int((_time.time() - _t0) * 1000), ok=True)
+  except Exception:
+      pass
+
+  # Ошибка (строка ≈210):
+  repo.finish_request(req_record['id'], 'error', 'REQ_ERR_500',
+                      response_ms=int((_time.time() - _t0) * 1000), ...)
+  # ДОБАВИТЬ:
+  try:
+      from freeapi.repos.stats import update_model_stats
+      update_model_stats(model, int((_time.time() - _t0) * 1000), ok=False)
+  except Exception:
+      pass
+
+  Внимание: elapsed уже вычислен внутри блоков. Использовать сохранённое значение,
+  не пересчитывать _time.time()-_t0 повторно (уже поздно). Лучше сохранить elapsed
+  в переменную перед вызовом finish_request, как это сделано в chat_bp.py.
+
+Push: «fix(stats): A2 — update_model_stats добавлен в agent.py».
 
 ────────────────────────────────────────
-A3 — Задержка 9–11 секунд в ответах
+A3 — Цветовая индикация response_ms в истории ключа
 ────────────────────────────────────────
 Статус: [ ] НЕ НАЧАТО
+Сложность: минимальная (1 JS-файл, 5 строк).
 
 Проблема:
-  В истории ключа видно: 9967 мс, 10632 мс, 11700 мс.
-  Это РЕАЛЬНАЯ задержка Gemini API — технически убрать нельзя.
-  Но UI никак не сигнализирует, что это «нормально» или «плохо».
+  В истории запросов (views/keys.js, функция showHistory, строка 305):
+    '<div class="hist-ms">' + (r.response_ms != null ? r.response_ms + ' мс' : '—') + '</div>'
+  Нет цветовой индикации — пользователь не видит, быстро или медленно.
 
-Решение (UI):
-  В отображении response_ms добавить цветовую индикацию в history-карточки:
-    < 3000 мс  → зелёный текст (#22c55e)
-    3000–6000  → жёлтый (#eab308)
-    > 6000 мс  → красный (#ef4444)
-  Это не решает проблему скорости, но даёт пользователю ориентир.
+Реальная задержка Gemini: 9–12 секунд — это норма для thinking-моделей.
+Цвета помогают понять контекст.
 
-  В static/js/views/keys.js в функции renderHistoryCard (или аналоге):
-    const ms = item.response_ms;
-    const msColor = ms < 3000 ? '#22c55e' : ms < 6000 ? '#eab308' : '#ef4444';
-    // применить к элементу с временем
+Решение — в static/js/views/keys.js, строка 305, заменить на:
+  var _ms = r.response_ms;
+  var _msColor = _ms == null ? '#555' : (_ms < 4000 ? '#22c55e' : (_ms < 8000 ? '#eab308' : '#ef4444'));
+  '<div class="hist-ms" style="color:' + _msColor + '">' +
+    (_ms != null ? _ms + ' мс' : '—') +
+  '</div>'
 
-Push: один коммит «fix(ui): A3 — цветная индикация response_ms в истории».
+  Пороги:
+    < 4000 мс  → зелёный #22c55e
+    4000–8000  → жёлтый  #eab308
+    > 8000 мс  → красный #ef4444
+
+Push: «fix(ui): A3 — цветная индикация response_ms в истории».
 
 ────────────────────────────────────────
 A4 — Адаптив (мобильная вёрстка)
 ────────────────────────────────────────
 Статус: [ ] НЕ НАЧАТО
+Сложность: средняя (CSS + проверка sidebar.js).
 
 Проблемы (по скриншотам):
-  a) Фон (.bg-wrap, анимированная mesh-сетка) пропадает вертикально —
-     не растягивается на всю высоту страницы при малой высоте контента.
-  b) SVG-иконки в кнопках ключа (чат, история, настройки, копировать,
-     обновить, удалить) на мобиле при режиме ПК — сжимаются/исчезают,
-     кнопки съёживаются.
-  c) Боковое меню (sidebar) при «режиме ПК» на мобиле — перекрывает
-     контент и не закрывается по клику на затемнение.
-  d) Таблица «Доступные модели» на узком экране: колонки НАЗВАНИЕ /
-     КОНТЕКСТ / VISION / ЗАПРОСОВ — НАЗВАНИЕ переносится на несколько строк,
-     что ломает читабельность.
-  e) В «Топ модели» карточки нормальные, но слишком мало горизонтального
-     padding внутри на мобиле.
+  a) .bg-wrap (анимированный фон) не растягивается на всю высоту при
+     малом контенте. Найти .bg-wrap в main.css → добавить min-height.
+  b) Иконки-кнопки (.btn-icon) на мобиле сжимаются — нужен min-width.
+  c) Боковое меню: overlay (#sidebarOverlay) уже реализован в sidebar.js
+     и index.html. Проверить, работает ли tap-закрытие на мобиле.
+     В sidebar.js closeSidebar() уже есть. Нужна проверка, что
+     onclick на overlay вызывает closeSidebar() — скорее всего есть.
+  d) Таблица моделей (#modelsTable или .docs-table) на узком экране
+     переносит текст — сделать горизонтальный скролл.
+  e) Карточки model-card: уменьшить padding на мобиле.
 
-Решения в static/css/main.css:
-  a) .bg-wrap { min-height: 100vh; min-height: 100dvh }
-     Убедиться что position:fixed или background-attachment не мешают.
+Решение — в static/css/main.css добавить:
 
-  b) .btn-icon { min-width: 30px; flex-shrink: 0 }
-     @media(max-width:640px) {
-       .key-actions { flex-wrap: wrap; gap: 4px }
-       .btn-icon { width: 28px; height: 28px }
-     }
+  /* A4-a: фон на всю высоту */
+  .bg-wrap { min-height: 100vh; min-height: 100dvh }
 
-  c) Sidebar overlay: при открытом sidebar на мобиле добавить
-     ::backdrop или div#sb-overlay (position:fixed,inset:0,z-index:149)
-     который при клике вызывает closeSidebar().
-     Проверить что в sidebar.js уже есть или добавить.
+  /* A4-b: кнопки-иконки не сжимаются */
+  .btn-icon { flex-shrink: 0 }
+  @media(max-width:640px) {
+    .btn-icon { min-width: 28px; min-height: 28px }
+  }
 
-  d) Таблица моделей: на мобиле скрыть колонку КОНТЕКСТ (менее важная),
-     или сделать таблицу прокручиваемой горизонтально:
-     @media(max-width:640px) {
-       .docs-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch }
-     }
+  /* A4-d: таблица моделей с горизонтальным скроллом */
+  @media(max-width:640px) {
+    .docs-table-wrap { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch }
+    .docs-table { min-width:480px }
+  }
 
-  e) @media(max-width:640px) {
-       .model-card { padding: 14px }
-     }
+  /* A4-e: model-card padding */
+  @media(max-width:640px) {
+    .model-card { padding: 14px }
+  }
 
-Push: один коммит «fix(ui): A4 — адаптив мобильной вёрстки».
+Перед записью — проверить реальные имена классов в index.html:
+  grep -n "docs-table\|model-card\|bg-wrap" static/index.html static/css/main.css
+
+Push: «fix(ui): A4 — мобильная адаптация».
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 БЛОК B — НОВЫЕ ФИЧИ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ────────────────────────────────────────
-B1 (был 1.4) — Smart Drafts отзывов
+B1 — Smart Drafts: баннер о найденном черновике
 ────────────────────────────────────────
 Статус: [ ] НЕ НАЧАТО
-Сложность: маленькая. Только фронт, без бэкенда.
+Сложность: малая (только index.html inline JS + немного CSS).
 
-Проблема: при случайном закрытии вкладки набранный текст отзыва теряется.
+ВАЖНО: Автосохранение черновика УЖЕ РАБОТАЕТ:
+  - oninput → lsSet('freeapi_review_draft', value) [index.html строка 1268]
+  - После успешной отправки → lsDel(...) [строки 3136, 3590]
+  - При открытии формы → lsGet('freeapi_review_draft', '') [строка 3414]
+    НО: lsGet возвращает значение, но нет UI-баннера «Найден черновик».
+  - reviews.js = заглушка (export {}), вся логика отзывов — в index.html inline.
 
-Реализация в static/js/views/reviews.js:
-  • При вводе в textarea и изменении рейтинга — каждые 3 сек
-    localStorage.setItem('rv_draft_' + userId, JSON.stringify({text, score, ts: Date.now()}))
-  • При открытии формы отзыва (_rvRenderWriteBar / _rvRenderWriteSection):
-    const d = JSON.parse(localStorage.getItem('rv_draft_' + userId) || 'null');
-    if (d && Date.now() - d.ts < 7 * 86400000 && !currentReview) {
-      // показать неблокирующий баннер «Найден черновик от <дата>»
-      // кнопки: [Восстановить] [Удалить черновик]
+Что нужно добавить (только в static/index.html):
+  В функции, которая рендерит форму отзыва (вероятно _rvRenderWriteBar или
+  при открытии секции writeReview):
+    var _uid = window.user ? window.user.id : '';
+    var _dk = 'freeapi_review_draft';
+    var _draft = window.lsGet ? window.lsGet(_dk, '') : '';
+    if (_draft && _draft.length >= 10 && !window._rvDraftBannerShown) {
+      window._rvDraftBannerShown = true;
+      // Вставить баннер выше textarea:
+      // «Найден черновик [Восстановить] [Удалить черновик]»
+      // При «Восстановить» → заполнить #writeReviewText значением _draft
+      // При «Удалить» → lsDel(_dk), убрать баннер
     }
-  • После успешной отправки или удаления отзыва → очистить черновик.
-  • Баннер: монохромный, без эмодзи, без SVG-украшений — просто текст.
-  • userId берётся из window._currentUser?.id || lsGet('uid').
 
-Push: один коммит «feat(reviews): B1 — Smart Drafts, автосохранение черновика».
+Дизайн баннера:
+  Монохромный контейнер .rv-draft-banner (добавить CSS):
+    background:#0a0a0a; border:1px solid #1e1e1e; border-radius:8px;
+    padding:10px 14px; font-size:12px; color:#777; display:flex;
+    align-items:center; justify-content:space-between; margin-bottom:10px
+  Без эмодзи, без SVG-украшений — только текст + 2 кнопки.
+
+Также добавить в lsDel при удалении черновика нужный ключ в onDelete-callback.
+
+Push: «feat(reviews): B1 — баннер черновика (Smart Drafts)».
 
 ────────────────────────────────────────
-B2 (был 1.3) — Группировка уведомлений по типам
+B2 — Группировка уведомлений по типам (kind)
 ────────────────────────────────────────
 Статус: [ ] НЕ НАЧАТО
-Сложность: средняя. Бэкенд + фронт.
+Сложность: средняя. Бэкенд + фронт + миграция.
 
-БД — миграция 007_notif_kind.sql (создать файл):
+Шаг B2.1 — миграция (новый файл freeapi/migrations/007_notif_kind.sql):
   ALTER TABLE user_notifications ADD COLUMN kind TEXT NOT NULL DEFAULT 'system';
   ALTER TABLE user_notifications ADD COLUMN ref_id TEXT;
-  CREATE INDEX IF NOT EXISTS idx_user_notif_user_kind ON user_notifications(user_id, kind);
+  CREATE INDEX IF NOT EXISTS idx_user_notif_user_kind
+    ON user_notifications(user_id, kind);
 
 Типы kind:
-  'review'  — решение по отзыву (APPROVE / DELETE / FEEDBACK), бан
-  'support' — ответ в поддержке
-  'system'  — всё остальное (ключи, лимиты, служебное)
+  'review'  — решение по отзыву (APPROVE/DELETE/FEEDBACK/ответ владельца)
+  'support' — ответ в поддержке (пока резервный, поддержка пишет напрямую в чат)
+  'system'  — всё остальное
 
-Бэкенд:
-  В freeapi/repos/notifications.py:
-    • create_user_notification(user_id, message, kind='system', ref_id=None)
-      → INSERT ... kind, ref_id
-    • get_user_notifications(user_id, kind=None, limit=50, offset=0)
-      → если kind задан — WHERE kind=?
-    • count_unread_notifications(user_id, kind=None)
-      → если kind задан — WHERE kind=?
-    • mark_all_notifications_read(user_id, kind=None)
-      → если kind задан — WHERE kind=?
+Шаг B2.2 — бэкенд (freeapi/repos/notifications.py):
+  Изменить сигнатуры:
+    create_user_notification(user_id, message, kind='system', ref_id=None)
+      → INSERT ... kind, ref_id (новые колонки)
+    get_user_notifications(user_id, kind=None, limit=50, offset=0)
+      → если kind → WHERE kind=?
+    count_unread_notifications(user_id, kind=None)
+      → если kind → WHERE kind=?
+    mark_all_notifications_read(user_id, kind=None)
+      → если kind → WHERE kind=?
 
-  В freeapi/blueprints/notifications_bp.py:
-    GET /api/notifications?kind=&limit=&offset=
-    → ответ: { items: [...], unread: { all: N, review: N, support: N, system: N } }
-    POST /api/notifications/read_all?kind=
-    → помечает прочитанными только нужный kind (или все если kind не задан)
+Шаг B2.3 — проставить kind при вызовах create_user_notification:
+  freeapi/agent.py:
+    APPROVE (строка 228):  kind='review', ref_id=review_id
+    FEEDBACK (строка 250): kind='review', ref_id=review_id
+    DELETE (строка 261):   kind='review', ref_id=review_id
+  freeapi/blueprints/reviews_bp.py:
+    Ответ владельца (строка 233): kind='review', ref_id=review_id
 
-  Проставить kind везде при вызове create_user_notification:
-    agent.py APPROVE/FEEDBACK/DELETE  → kind='review', ref_id=review_id
-    reviews_bp.py PUT status (ручной) → kind='review', ref_id=review_id
-    support_bp.py при ответе          → kind='support', ref_id=chat_id
-    всё остальное                     → kind='system'
+Шаг B2.4 — API (freeapi/blueprints/notifications_bp.py):
+  GET /api/notifications?kind=&limit=&offset=
+  → ответ: {
+      notifications: [...],
+      unread: { all: N, review: N, support: N, system: N }
+    }
+  POST /api/notifications/read_all?kind=
+  → помечает только нужный kind (или все, если kind не задан)
 
-Фронт в static/js/views/notifications.js:
-  • Добавить три таба над списком: «Все» / «Отзывы» / «Поддержка» / «Система»
-  • Иконки табов — inline SVG (14×14, stroke=currentColor):
-      Все      — колокольчик (уже есть в topbar)
-      Отзывы   — звезда
-      Поддержка — речевой пузырь
-      Система  — шестерёнка
-  • Активный таб — белая обводка/подсветка, неактивный — серый.
-  • Бейдж непрочитанных у каждого таба.
-  • setNotifFilter(kind) → делает GET /api/notifications?kind=kind, обновляет список.
-  • refreshNotifBadge: запрашивает count для all+каждого kind, ставит бейдж
-    на иконке колокольчика (sum all) и на табах.
-  • Карточки: иконка kind слева + data-kind для CSS.
-  • Дип-линк по клику:
-      review  + ref_id → goView('reviews')
-      support + ref_id → goView('support')
-      system           → ничего (остаться на уведомлениях)
+Шаг B2.5 — фронт (static/js/views/notifications.js):
+  Табы: «Все» / «Отзывы» / «Система»
+  (support-таб добавить как резерв, но скрыть если count=0)
+  Иконки табов — inline SVG 14×14, stroke=currentColor:
+    Все     — колокольчик
+    Отзывы  — звезда
+    Система — шестерёнка
+  Активный таб: белая обводка, неактивный: серый.
+  Бейдж непрочитанных у каждого таба.
+  setNotifFilter(kind) → GET /api/notifications?kind=..., обновляет список.
+  refreshNotifBadge: возвращает {all,review,support,system} — бейдж на колокольчик = all.
+  Дип-линк по клику на карточку (data-kind + data-ref-id):
+    review + ref_id → goView('reviews')
+    system          → остаться
 
-  CSS (main.css):
-    .notif-tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid #141414; padding-bottom:12px }
-    .notif-tab { display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:8px;
-                 font-size:12px; color:#555; cursor:pointer; transition:all .15s; position:relative }
-    .notif-tab.active { color:#fff; background:rgba(255,255,255,.06); border:1px solid #222 }
-    .notif-tab-badge { /* маленький круглый счётчик */ }
+Шаг B2.6 — CSS (static/css/main.css):
+  .notif-tabs { display:flex; gap:4px; margin-bottom:16px;
+                border-bottom:1px solid #141414; padding-bottom:12px }
+  .notif-tab { display:inline-flex; align-items:center; gap:6px;
+               padding:6px 14px; border-radius:8px; font-size:12px;
+               color:#555; cursor:pointer; transition:all .15s; border:1px solid transparent }
+  .notif-tab.active { color:#fff; background:rgba(255,255,255,.06); border-color:#222 }
+  .notif-tab-badge { min-width:16px; height:16px; padding:0 4px; border-radius:8px;
+                     background:#3a1010; color:#f87171; font-size:10px; font-weight:700;
+                     line-height:16px; text-align:center; display:inline-block }
 
 Push: два коммита:
-  1. «feat(notif): B2 бэкенд — миграция kind/ref_id + эндпоинты»
+  1. «feat(notif): B2 бэкенд — миграция 007 + API kind/ref_id»
   2. «feat(notif): B2 фронт — табы по типам уведомлений»
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+БЛОК C — УСТАРЕВШИЕ ДАННЫЕ (документация)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+────────────────────────────────────────
+C1 — support_docs.py: неточности в реестре документации
+────────────────────────────────────────
+Статус: [ ] НЕ НАЧАТО
+Сложность: минимальная (1 Python-файл, правка текста).
+
+Найденные ошибки в freeapi/support_docs.py:
+
+  1) Раздел 'reviews' (строка 119):
+       «Поля отзыва: оценка 1-5 звёзд, текст...»
+       → РЕАЛЬНО: оценка 1-10, без звёзд (числовые кнопки).
+       Исправить: «Поля отзыва: оценка от 1 до 10, текст...»
+
+  2) Раздел 'api_keys' (строка 54):
+       «Можно восстановить из pending_restore»
+       → РЕАЛЬНО: pending_restore — это структура для восстановления
+         ПАМЯТИ (context_md/favorite_md) после /reset, НЕ ключей.
+         Удалённый ключ (is_active=0) не восстанавливается через pending_restore.
+       Исправить: убрать эту фразу или уточнить «мягкое удаление без восстановления».
+
+  3) Раздел 'notifications' (строка 188):
+       «Опрос /api/notifications каждые 60 секунд» — актуально.
+       «Источники уведомлений: ответ админа на твой отзыв, алерты по ключам»
+       → На самом деле источники: agent APPROVE/DELETE/FEEDBACK, ответ владельца вручную.
+         Никаких «алертов по ключам» пока нет. Уточнить.
+
+Push: «fix(docs): C1 — исправлены неточности в support_docs.py».
+
+────────────────────────────────────────
+C2 — README.md: устаревшая структура
+────────────────────────────────────────
+Статус: [ ] НЕ НАЧАТО
+Сложность: малая (только документация).
+
+Найденные устаревания в README.md:
+
+  1) Структура проекта: показан старый repositories.py как монолит.
+     Реально: freeapi/repos/ (keys.py, stats.py, notifications.py, reviews.py,
+     support.py, tg_accounts.py, users.py, admin.py) + blueprints/.
+
+  2) API Endpoints: отсутствуют:
+     GET/POST /api/reviews, /api/reviews/mine, /api/reviews/<id>/like
+     GET/POST /api/notifications, /api/notifications/read_all, /api/notifications/<id>
+     GET/POST /api/support/chat, /api/support/chat/stream, /api/support/close
+     GET/PUT /api/admin/settings, /api/admin/notifications, ...
+     GET /api/models с totalRequests/supportsVision
+
+  3) Возможности: не упомянуты:
+     AI-модерация отзывов (FavoriteAIAgent)
+     Поддержка (Favorite AI Agent поддержки с doc-тегами)
+     Система уведомлений
+     Dual-mode (два TG-аккаунта)
+     Smart Drafts, лайки отзывов, avg_score
+     Система памяти (agent_memory: context_md, favorite_md)
+     Ring-buffer логов + дамп в logi.txt
+
+  4) Зависимости: Flask указан как 3.0.3, Python 3.8+ →
+     Реально Python 3.11+ (используется современный синтаксис).
+
+Push: «docs: C2 — актуализирован README.md».
 
 ──────────────────────────────────────────────────────────
 ПОРЯДОК ВЫПОЛНЕНИЯ
 ──────────────────────────────────────────────────────────
 
 Рекомендуемый порядок:
-  1. A1 — быстро (только CSS, 5 мин)
-  2. A2 — важно (данные отображаются неправильно)
-  3. A3 — быстро (только UI-покраска)
-  4. A4 — тщательно (адаптив, 30–40 мин)
-  5. B1 — быстро (только JS, без бэкенда)
-  6. B2 — тщательно (миграция + бэкенд + фронт)
+  1. A0 — 5 мин. Уберём эмодзи — соответствие правилам.
+  2. A1 — 5 мин. Быстрая CSS-правка.
+  3. A2 — 15 мин. Важно, данные отображаются некорректно.
+  4. A3 — 5 мин. Быстрая UI-покраска.
+  5. A4 — 30 мин. Адаптив, несколько мест в CSS.
+  6. B1 — 20 мин. Баннер черновика, только inline index.html.
+  7. B2 — 60 мин. Миграция + бэкенд + фронт (самая крупная задача).
+  8. C1 — 10 мин. Документация support_docs.py.
+  9. C2 — 20 мин. README.md.
 
 После каждого пункта — коммит + пуш через GitHub API.
 
 ──────────────────────────────────────────────────────────
-КОНТЕКСТ ПРОЕКТА
-──────────────────────────────────────────────────────────
-
-  Стек: Python 3.11 + Flask 3 + SQLite + Telethon
-  Фронт: SPA, static/index.html + static/js/* + static/css/main.css
-  Запуск: python api.py (Termux, порт 5000)
-  Репо: github.com/animebyst07-stack/FreeApi-Python
-  Git push: только через GitHub API (Replit не пускает git push напрямую)
-
-  Ключевые файлы:
-    static/css/main.css           — весь CSS
-    static/index.html             — разметка
-    static/js/views/keys.js       — история ключей
-    static/js/views/reviews.js    — отзывы
-    static/js/views/notifications.js — уведомления
-    static/js/ui/sidebar.js       — боковое меню
-    freeapi/repos/keys.py         — finish_request
-    freeapi/repos/stats.py        — update_model_stats
-    freeapi/repos/notifications.py — create_user_notification
-    freeapi/blueprints/notifications_bp.py — API уведомлений
-    freeapi/migrations/           — SQL миграции (нумерованные)
-
-──────────────────────────────────────────────────────────
-ПРАВИЛА (не менять между сессиями)
+ТЕХНИЧЕСКИЕ ПРАВИЛА (не менять между сессиями)
 ──────────────────────────────────────────────────────────
 
   • Эмодзи на сайте ЗАПРЕЩЕНЫ — только inline SVG (stroke=currentColor).
+  • Это касается в том числе строк уведомлений в Python-коде.
   • Один шаг = один коммит = один пуш через GitHub API.
   • После каждого пуша обновить этот plan.txt (статус → ✓ ВЫПОЛНЕНО).
-  • Git push только через GitHub API (python-скрипт или JS fetch).
+  • Git push только через GitHub API (JS fetch в code_execution).
   • Работаем только с существующим кодом — никакого Node.js/React.
+  • views/reviews.js — пока заглушка. B1 делается в index.html (inline JS).
+  • Перед любым изменением CSS/JS — прочитать реальный код файла,
+    не полагаться на memory: имена классов могут отличаться от плана.
 
 ══════════════════════════════════════════════════════════
 КОНЕЦ ПЛАНА
