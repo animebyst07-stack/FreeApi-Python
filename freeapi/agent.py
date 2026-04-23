@@ -184,12 +184,32 @@ class FavoriteAIAgent:
         else:
             messages = [{'role': 'user', 'content': prompt_text}]
 
+        model = key.get('default_model') or DEFAULT_MODEL_ID
+        has_images = bool(review_images)
+        images_count = len(review_images)
+        req_record = None
         try:
-            model = key.get('default_model') or DEFAULT_MODEL_ID
+            req_record = repo.create_request(key['id'], model, 'REQ_START_002', has_images, images_count)
+        except Exception as exc:
+            logger.warning('[Agent] не удалось создать request-лог для отзыва %s: %s', review_id, exc)
+
+        import time as _time
+        _t0 = _time.time()
+        try:
             answer = run_chat(key, model, messages)
             decision = self._parse_decision(answer)
+            if req_record is not None:
+                try:
+                    repo.finish_request(req_record['id'], 'ok', 'REQ_OK_001', response_ms=int((_time.time() - _t0) * 1000))
+                except Exception:
+                    pass
         except Exception as exc:
             logger.error('[Agent] Ошибка run_chat для отзыва %s: %s', review_id, exc)
+            if req_record is not None:
+                try:
+                    repo.finish_request(req_record['id'], 'error', 'REQ_ERR_500', response_ms=int((_time.time() - _t0) * 1000), error_msg=str(exc)[:500])
+                except Exception:
+                    pass
             return
 
         action = str(decision.get('action', 'FEEDBACK')).upper()

@@ -188,7 +188,8 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .reveal.visible{opacity:1;transform:translateY(0)}
 
 /* DASHBOARD */
-.dash{padding:28px 0 64px;position:relative;z-index:1}
+.dash{padding:36px 0 64px;position:relative;z-index:1}
+@media (max-width:640px){.dash{padding-top:24px}}
 .dash-grid{display:grid;grid-template-columns:1fr;gap:24px}
 .dash-main{}
 .dash-section-title{font-size:13px;font-weight:600;color:#666;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -973,9 +974,7 @@ body.view-no-scroll{overflow:hidden}
    чтобы скрыть .bg-wrap только когда активна view #view-dashboard. */
 body:has(#view-dashboard.active){background:#000!important}
 .bg-wrap:has(~ #view-dashboard.active){display:none}
-/* Дополнительный отступ сверху на дашборде, чтобы заголовок «API Ключи»
-   и кнопка «Новый ключ» не упирались в шапку (особенно на мобильных). */
-#view-dashboard .dash{padding-top:36px}
-@media (max-width:640px){
-  #view-dashboard .dash{padding-top:24px}
-}
+/* Глобальный отступ сверху для всех .dash перенесён в базовое правило
+   .dash выше (padding-top:36px, на мобильных 24px). Это нужно, чтобы
+   первая строка любого раздела (заголовок, кнопка «Назад» и т.п.)
+   не упиралась в шапку. */

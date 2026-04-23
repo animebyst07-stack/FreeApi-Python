@@ -298,15 +298,47 @@
     мере обнаружения, отдельный массовый обход не делаем — закроется
     органически.
 
+  - 0.5f-fix6 — request-лог для модератора + общий padding-top.
+
+    А) Запросы AI-модератора отзывов теперь видны в «Истории ключа».
+    Раньше create_request/finish_request вызывались только из
+    chat_bp.py (HTTP-роут /api/v1/chat). Модератор зовёт run_chat
+    напрямую, в обход HTTP, поэтому в таблице requests было пусто
+    даже после реальных вызовов (юзер увидел «0 запросов» в истории
+    ключа модератора).
+    Фикс в freeapi/agent.py:_moderate — вокруг run_chat обёрнуты
+    repo.create_request(key.id, model, 'REQ_START_002', has_images,
+    images_count) и repo.finish_request(req.id, 'ok'/'error',
+    'REQ_OK_001'/'REQ_ERR_500', response_ms, error_msg). Все
+    исключения обёрнуты в try/except — если логирование не сработает,
+    модерация всё равно не упадёт.
+
+    Б) Глобальный отступ сверху (.dash padding-top).
+    Кнопка «Назад к дашборду» в #view-history (и все аналогичные
+    первые элементы в других разделах, использующих контейнер .dash)
+    упиралась в липкую шапку (особенно заметно на мобильных).
+    Раньше padding-top:36px был только у #view-dashboard через
+    отдельный override в конце css. Теперь правило вынесено в
+    базовый .dash{padding:36px 0 64px} с медиа-overrid'ом
+    @media(max-width:640px){.dash{padding-top:24px}} — применяется
+    ко всем разделам сразу. Лишний override у #view-dashboard
+    удалён (заменён комментарием).
+
+  - 0.5e — ЗАКРЫТ. При проверке выяснилось, что loadLogCodes()
+    уже вынесен в static/js/views/logcodes.js (window.loadLogCodes
+    экспортируется, view #view-logcodes использует именно этот
+    модуль). Скорее всего шаг был сделан в одну из ранних сессий,
+    но не отмечен в плане. Никаких действий не требуется.
+
 • Следующий шаг:
-  - 0.5e — вынести оставшийся inline-блок loadLogCodes() (для
-    отдельного раздела #view-logcodes — со своим набором категорий
-    «Промокоды», «Изображения», «Подсказки» и т.д.) в
-    static/js/views/logcodes.js. После этого в inline-скрипте
-    остаются только bootstrap-IIFE, глобальные state-переменные
-    (user, accountState, allKeys, allModels, currentKeyId,
-    setupId, setupTab, sseSource, _tfaCode и пр.) и мелкие хелперы
-    (q/esc/formatDate уже дублированы в core/dom.js).
+  - 0.6 — миграции БД в freeapi/migrations/.
+    Сейчас все ALTER TABLE ... ADD COLUMN сидят прямо в коде с
+    обработкой "duplicate column name" (логи [MIGRATIONS] idempotent
+    skip). Надо вынести в нумерованные .sql-файлы (001_init.sql,
+    002_add_dual_mode.sql и т.д.), завести таблицу schema_migrations
+    с применёнными версиями и накатывать только то, что ещё не было
+    применено. Существующая идемпотентная логика остаётся как
+    fallback на первую миграцию для старых БД.
 
 
 ──────────────────────────────────────────────────────────
