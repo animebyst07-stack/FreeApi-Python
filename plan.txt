@@ -70,13 +70,22 @@
         вынесен из эндпоинта в общий хелпер _support_run_ai
         (стримящий и обычный эндпоинты не дублируют ~100 строк).
 
+• Сделано в апреле 2026 (продолжение):
+  - 0.5b — ВЫПОЛНЕНО. Авторизация (resetAuthForm, openEmptyRegisterModal,
+    syncAuthState, handleStartFreeClick, doLogin, doRegister, _logout,
+    afterLogin, afterLogout, updateNav) вынесена в /js/views/auth.js.
+    Кабинет (loadDashboard, updateTgStatus, loadSideStats, renderKeys,
+    copyKeyVal, regenKey, deleteKey, createKey, copyRawKey,
+    closeRawKeyModal, openKeySettings, onKsDualModeChange,
+    saveKeySettings, showHistory) вынесена в /js/views/keys.js.
+    index.html: 4422 → 4077 строк (-345). Все функции остаются на window.*
+    для совместимости с inline onclick/onsubmit. Setup-блок (importSession,
+    startSetup, trackProgress, copyProgKey) НЕ тронут — он идёт шагом 0.5c.
+
 • Следующий шаг:
-  - 0.5b — views/auth.js + views/dashboard.js (вынос авторизации
-    и кабинета из inline-скрипта index.html). В работе — апрель 2026.
-    Это самая жирная разгрузка фронта: index.html сейчас 4422 строк
-    (HTML + inline-JS), без неё дальнейшие фичи Этапа 1 (push, SSE
-    уведомлений, табы, bulk-операции) добавят ещё 1000+ строк
-    inline-JS и сделают файл нечитаемым.
+  - 0.5c — views/setup.js: вынос setSetupTab, startSetup, trackProgress,
+    submitTfa, importSessionFile, downloadSession, copyProgKey, togglePw
+    из inline-скрипта в отдельный модуль.
 
 
 ──────────────────────────────────────────────────────────
