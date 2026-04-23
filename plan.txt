@@ -701,5 +701,38 @@ Push: «docs: C2 — актуализирован README.md».
        не был задокументирован).
 
 ══════════════════════════════════════════════════════════
+F4 (3f21392) — Аудит UI-вьюх на фантомные эндпоинты
+══════════════════════════════════════════════════════════
+  Сверил все вызовы /api/* из static/ со списком всех @bp-роутов
+  (включая @bp.route()) в freeapi/blueprints/.
+
+  Найден один реальный фантом:
+  • static/js/views/setup.js — функция downloadSession()
+    зовёт GET /api/tg/account/session, которого в backend НЕТ.
+    К UI она НЕ привязана (нет ни одного onclick=...) — мёртвый
+    код, оставшийся от рефакторинга. Рабочее скачивание .session
+    есть на дашборде ключей: downloadKeySession() в keys.js
+    через GET /api/keys/<id>/session.
+    Удалена функция и её export window.downloadSession.
+
+  Все остальные UI-вызовы соответствуют существующим роутам:
+    /api/auth/{login,logout,me,register}, /api/_clog,
+    /api/healthz, /api/log-codes, /api/models,
+    /api/keys[/:id[/{logs,regen,session}]],
+    /api/notifications[/{:id[/read],read_all}],
+    /api/admin/{notifications[/:id],settings,support/chat/:id},
+    /api/reviews[/{mine,:id[/{like,status}]}],
+    /api/stats/{global,keys/:id},
+    /api/support/{chat[/stream],close},
+    /api/chat/{reset[/apply],test},
+    /api/tg/{session/import,setup[/:id/{cancel,code,retry,status}],account},
+    /api/v1/{chat,me,models,reset[/apply],stop}.
+
+  Backend-роут без потребителя в UI: GET /api/admin/reviews
+  (UI намеренно удалил вызов в 0.5.13). Эндпоинт безопасен,
+  возвращает админу пагинированный список отзывов — оставлен
+  как есть (может вызываться руками/админ-агентом).
+
+══════════════════════════════════════════════════════════
 КОНЕЦ ПЛАНА
 ══════════════════════════════════════════════════════════
