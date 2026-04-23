@@ -268,131 +268,8 @@
   <div class="dash-grid">
 
     <div class="dash-main">
-      <!-- TG Status — F-06 -->
-      <div id="tgStatusBar" style="display:none"></div>
-
-      <!-- Setup section (скрыт если есть ключи) -->
-      <div id="setupSection" style="margin-bottom:24px">
-        <div class="dash-section-title">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-          Настройка Telegram
-        </div>
-        <div class="card" id="setupFormCard">
-          <div class="card-head">
-            <h3>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6z"/><polyline points="22 10 12 17 2 10"/></svg>
-              Подключение аккаунта
-            </h3>
-            <a href="https://my.telegram.org" target="_blank" class="btn btn-ghost btn-xs">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              my.telegram.org
-            </a>
-          </div>
-          <div class="card-body">
-            <p style="font-size:13px;color:#777;margin-bottom:16px">Для получения API-ключа подключите Telegram-аккаунт. API ID и Hash находятся на my.telegram.org.</p>
-            <div class="tabs">
-              <button class="tab-btn active" onclick="setSetupTab('phone',this)">По телефону</button>
-              <button class="tab-btn" onclick="setSetupTab('session',this)">По сессии</button>
-            </div>
-            <form onsubmit="startSetup(event)">
-              <div class="frow">
-                <div class="fgroup"><label>API ID</label><input type="text" id="sApiId" placeholder="12345678" pattern="[0-9]+" required></div>
-                <div class="fgroup"><label>API Hash</label><input type="text" id="sApiHash" placeholder="0123456789abcdef..." required></div>
-              </div>
-              <div class="fgroup" id="fPhone">
-                <label>Телефон</label>
-                <input type="text" id="sPhone" placeholder="+79001234567">
-                <div class="fhint">Международный формат, начиная с +</div>
-              </div>
-              <div class="fgroup" id="fSession" style="display:none">
-                <label>Session String</label>
-                <textarea id="sSession" placeholder="1BJWap1wBu..."></textarea>
-                <div class="fhint">StringSession из Telethon. Или загрузите .session файл ниже.</div>
-                <div style="margin-top:8px">
-                  <label class="btn btn-outline btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    Загрузить .session файл
-                    <input type="file" accept=".session" style="display:none" onchange="importSessionFile(this)">
-                  </label>
-                </div>
-              </div>
-              <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
-                <label class="cb-label">
-                  <input type="checkbox" id="sSkipTraining">
-                  <span class="cb-box"></span>
-                  <span style="font-size:12px;color:#555;line-height:1.4">Бот уже настроен на этом аккаунте (пропустить обучение)</span>
-                </label>
-              </div>
-              <div class="ferr" id="setupErr"></div>
-              <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px;height:42px" id="btnSetup">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Запустить настройку
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <!-- Progress -->
-        <div class="card" id="setupProgressCard" style="display:none">
-          <div class="card-head">
-            <h3>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              Настройка выполняется
-            </h3>
-            <button class="btn btn-ghost btn-xs btn-danger" onclick="cancelSetup()">Отменить</button>
-          </div>
-          <div class="card-body">
-            <div class="prog-steps" id="progSteps">
-              <div class="prog-step" data-s="1"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg></div><span>Проверка аккаунта</span></div>
-              <div class="prog-step" data-s="2"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><span>Запуск ИИ-бота</span></div>
-              <div class="prog-step" data-s="3"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div><span>Обучение (3 мин)</span></div>
-              <div class="prog-step" data-s="4"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg></div><span>Настройки GPT</span></div>
-              <div class="prog-step" data-s="5"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span>Бесплатный доступ</span></div>
-              <div class="prog-step" data-s="6"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><span>Завершение</span></div>
-            </div>
-            <div class="prog-bar-wrap"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
-            <div class="prog-label" id="progLabel">Инициализация...</div>
-            <div class="prog-err" id="progErr"></div>
-            <button class="btn btn-outline btn-sm" id="btnRetrySetup" onclick="retrySetup()" style="display:none;width:100%;margin-top:10px;height:38px">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-              Повторить последний шаг
-            </button>
-            <div class="prog-success" id="progSuccess">
-              <div class="prog-success-label">Ваш API-ключ — сохраните сейчас, потом будет скрыт</div>
-              <div class="prog-copy-row">
-                <div class="prog-key" id="progKey"></div>
-                <button class="btn btn-outline btn-sm" onclick="copyProgKey(this)" style="flex-shrink:0">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  Копировать
-                </button>
-              </div>
-            </div>
-            <div id="codeInputWrap" style="display:none">
-              <div style="font-size:13px;color:#555;margin-top:14px;margin-bottom:6px">Введите код из Telegram:</div>
-              <div class="code-input-row">
-                <input type="text" class="fgroup input" id="codeInput" placeholder="12345" maxlength="10" style="height:40px;background:#0d0d0d;border:1px solid #1a1a1a;border-radius:9px;padding:0 12px;font-size:13px;flex:1">
-                <button class="btn btn-outline btn-sm" onclick="submitCode()">Отправить</button>
-              </div>
-              <div class="ferr" id="codeErr"></div>
-            </div>
-            <div class="log-console" id="logConsole">
-              <div class="log-console-head" id="logConsoleHead" onclick="toggleLogConsole()">
-                <span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                  Консоль логов
-                </span>
-                <div class="log-console-acts">
-                  <button class="btn btn-icon btn-xs" title="Копировать логи" onclick="event.stopPropagation();copyConsoleLogs()">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </button>
-                  <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-                </div>
-              </div>
-              <div class="log-console-body" id="logConsoleBody"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Setup section полностью переехал в модалку #setupModal (см. секцию MODALS).
+           tgStatusBar убран по требованию: статус Telegram-аккаунта виден в сайдбаре. -->
 
       <!-- Keys -->
       <div>
@@ -1224,6 +1101,135 @@ Rules:
 </div>
 </div>
 
+<!-- Setup Telegram (модалка вместо inline-блока на дашборде) -->
+<div class="overlay" id="setupModal" onclick="overlayClick(event,this)">
+<div class="modal modal-lg">
+  <button class="modal-close" onclick="closeSetupModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <h2>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    Настройка Telegram
+  </h2>
+  <p class="modal-sub">Подключите аккаунт, чтобы получить API-ключ. API ID и Hash — на my.telegram.org.</p>
+
+  <div id="setupSection">
+    <div class="card" id="setupFormCard" style="background:transparent;border:0;padding:0">
+      <div class="card-head" style="padding:0 0 12px;border:0">
+        <h3 style="font-size:14px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6z"/><polyline points="22 10 12 17 2 10"/></svg>
+          Подключение аккаунта
+        </h3>
+        <a href="https://my.telegram.org" target="_blank" class="btn btn-ghost btn-xs">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          my.telegram.org
+        </a>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="setSetupTab('phone',this)">По телефону</button>
+          <button class="tab-btn" onclick="setSetupTab('session',this)">По сессии</button>
+        </div>
+        <form onsubmit="startSetup(event)">
+          <div class="frow">
+            <div class="fgroup"><label>API ID</label><input type="text" id="sApiId" placeholder="12345678" pattern="[0-9]+" required></div>
+            <div class="fgroup"><label>API Hash</label><input type="text" id="sApiHash" placeholder="0123456789abcdef..." required></div>
+          </div>
+          <div class="fgroup" id="fPhone">
+            <label>Телефон</label>
+            <input type="text" id="sPhone" placeholder="+79001234567">
+            <div class="fhint">Международный формат, начиная с +</div>
+          </div>
+          <div class="fgroup" id="fSession" style="display:none">
+            <label>Session String</label>
+            <textarea id="sSession" placeholder="1BJWap1wBu..."></textarea>
+            <div class="fhint">StringSession из Telethon. Или загрузите .session файл ниже.</div>
+            <div style="margin-top:8px">
+              <label class="btn btn-outline btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Загрузить .session файл
+                <input type="file" accept=".session" style="display:none" onchange="importSessionFile(this)">
+              </label>
+            </div>
+          </div>
+          <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
+            <label class="cb-label">
+              <input type="checkbox" id="sSkipTraining">
+              <span class="cb-box"></span>
+              <span style="font-size:12px;color:#555;line-height:1.4">Бот уже настроен на этом аккаунте (пропустить обучение)</span>
+            </label>
+          </div>
+          <div class="ferr" id="setupErr"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px;height:42px" id="btnSetup">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Запустить настройку
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="card" id="setupProgressCard" style="display:none;background:transparent;border:0;padding:0">
+      <div class="card-head" style="padding:0 0 12px;border:0">
+        <h3 style="font-size:14px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Настройка выполняется
+        </h3>
+        <button class="btn btn-ghost btn-xs btn-danger" onclick="cancelSetup()">Отменить</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="prog-steps" id="progSteps">
+          <div class="prog-step" data-s="1"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg></div><span>Проверка аккаунта</span></div>
+          <div class="prog-step" data-s="2"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><span>Запуск ИИ-бота</span></div>
+          <div class="prog-step" data-s="3"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div><span>Обучение (3 мин)</span></div>
+          <div class="prog-step" data-s="4"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg></div><span>Настройки GPT</span></div>
+          <div class="prog-step" data-s="5"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span>Бесплатный доступ</span></div>
+          <div class="prog-step" data-s="6"><div class="prog-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><span>Завершение</span></div>
+        </div>
+        <div class="prog-bar-wrap"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
+        <div class="prog-label" id="progLabel">Инициализация...</div>
+        <div class="prog-err" id="progErr"></div>
+        <button class="btn btn-outline btn-sm" id="btnRetrySetup" onclick="retrySetup()" style="display:none;width:100%;margin-top:10px;height:38px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Повторить последний шаг
+        </button>
+        <div class="prog-success" id="progSuccess">
+          <div class="prog-success-label">Ваш API-ключ — сохраните сейчас, потом будет скрыт</div>
+          <div class="prog-copy-row">
+            <div class="prog-key" id="progKey"></div>
+            <button class="btn btn-outline btn-sm" onclick="copyProgKey(this)" style="flex-shrink:0">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Копировать
+            </button>
+          </div>
+        </div>
+        <div id="codeInputWrap" style="display:none">
+          <div style="font-size:13px;color:#555;margin-top:14px;margin-bottom:6px">Введите код из Telegram:</div>
+          <div class="code-input-row">
+            <input type="text" class="fgroup input" id="codeInput" placeholder="12345" maxlength="10" style="height:40px;background:#0d0d0d;border:1px solid #1a1a1a;border-radius:9px;padding:0 12px;font-size:13px;flex:1">
+            <button class="btn btn-outline btn-sm" onclick="submitCode()">Отправить</button>
+          </div>
+          <div class="ferr" id="codeErr"></div>
+        </div>
+        <div class="log-console" id="logConsole">
+          <div class="log-console-head" id="logConsoleHead" onclick="toggleLogConsole()">
+            <span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Консоль логов
+            </span>
+            <div class="log-console-acts">
+              <button class="btn btn-icon btn-xs" title="Копировать логи" onclick="event.stopPropagation();copyConsoleLogs()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="log-console-body" id="logConsoleBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
 <!-- Raw Key (after regen) — F-01 -->
 <div class="overlay" id="rawKeyModal" onclick="overlayClick(event,this)">
 <div class="modal">
@@ -1617,107 +1623,15 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeSide
    applyProgress / cancelSetup / retrySetup / submitCode / toggleLogConsole /
    copyConsoleLogs — все доступны через window.*. */
 
-/* ───────────── MODELS ───────────── */
-var modelsLoaded=false;
-function loadModels(){
-  if(modelsLoaded) return Promise.resolve();
-  return api('/api/models').then(function(d){
-    allModels=d.models||[];
-    modelsLoaded=true;
-    renderLandingModels(allModels);
-    renderFullModels();
-  }).catch(function(){});
-}
-function renderLandingModels(models){
-  var g=q('landModelsGrid');
-  g.innerHTML='';
-  models.slice(0,6).forEach(function(m){ g.appendChild(modelCard(m)); });
-}
-function renderFullModels(){
-  if(!modelsLoaded) return;
-  filterModels(window._modelsFilter||'all',document.querySelector('.filter-btn.active')||document.querySelector('.filter-btn'));
-}
-window.filterModels=function(type,btn){
-  window._modelsFilter=type;
-  window._modelsSearch='';
-  var si=q('modelsSearch'); if(si) si.value='';
-  document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
-  if(btn) btn.classList.add('active');
-  var list=type==='all'?allModels:allModels.filter(function(m){ return m.displayName&&m.displayName.toLowerCase().indexOf(type)>-1; });
-  var g=q('fullModelsGrid');
-  g.innerHTML='';
-  list.forEach(function(m){ g.appendChild(modelCard(m)); });
-};
+/* ───────────── MODELS (вынесено в /js/views/models.js) ─────────────
+   Шаг 0.5d: loadModels / renderLandingModels / renderFullModels /
+   filterModels / searchModels / modelCard — все доступны через window.*. */
 
-/* F-08: Search models */
-window.searchModels=function(q_str){
-  window._modelsSearch=q_str.toLowerCase();
-  var src=window._modelsFilter&&window._modelsFilter!=='all'
-    ?allModels.filter(function(m){ return m.displayName&&m.displayName.toLowerCase().indexOf(window._modelsFilter)>-1; })
-    :allModels;
-  var list=q_str.trim()
-    ?src.filter(function(m){ return m.displayName&&m.displayName.toLowerCase().indexOf(q_str.toLowerCase())>-1; })
-    :src;
-  var g=q('fullModelsGrid');
-  g.innerHTML='';
-  if(!list.length){
-    g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:32px;color:#666;font-size:13px">Нет моделей по запросу</div>';
-    return;
-  }
-  list.forEach(function(m){ g.appendChild(modelCard(m)); });
-};
-function modelCard(m){
-  var div=document.createElement('div');
-  div.className='model-card';
-  var badge=m.isDefault?'<span class="pill pill-white">Default</span>':m.isPopular?'<span class="pill pill-dim">Popular</span>':'';
-  div.innerHTML='<div class="model-card-row"><h4>'+esc(m.displayName)+'</h4>'+badge+'</div>'+
-  '<div class="model-meta">'+
-  '<span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'+m.contextK+'K</span>'+
-  (m.supportsVision?'<span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Vision</span>':'')+
-  '<span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'+(m.totalRequests||0).toLocaleString('ru-RU')+'</span>'+
-  (m.avgResponseMs?'<span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+m.avgResponseMs+' мс</span>':'')+'</div>';
-  return div;
-}
-
-/* ───────────── LOG CODES ───────────── */
+/* ───────────── LOG CODES ─────────────
+   Шаг 0.5d: loadDocsLogCodes / renderLogCodesHtml вынесены
+   в /js/views/docs.js (доступны через window.*). loadLogCodes()
+   для отдельного view #view-logcodes остаётся inline ниже. */
 var logCodesLoaded=false;
-var docsLogCodesLoaded=false;
-function loadDocsLogCodes(){
-  if(docsLogCodesLoaded) return;
-  docsLogCodesLoaded=true;
-  var cont=q('docsLogCodesContainer');
-  if(!cont) return;
-  api('/api/log-codes').then(function(d){
-    var codes=d.codes||[];
-    cont.innerHTML=renderLogCodesHtml(codes)||'<div style="color:#555;font-size:13px">Нет данных</div>';
-  }).catch(function(){ cont.innerHTML='<div style="color:#666;font-size:13px">Ошибка загрузки</div>'; });
-}
-function renderLogCodesHtml(codes){
-  var groups={};
-  codes.forEach(function(c){ if(!groups[c.category]) groups[c.category]=[]; groups[c.category].push(c); });
-  var catIcons={
-    'Запросы':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-    'Ключи':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
-    'Telegram':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6z"/></svg>',
-    'Настройка':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>',
-    'Спонсоры':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
-    'Модели':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>',
-    'Управление':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/></svg>',
-  };
-  return Object.keys(groups).map(function(cat){
-    var icon=catIcons[cat]||'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
-    var rows=groups[cat].map(function(c){
-      return '<div class="log-row">'+
-        '<div class="log-code-cell">'+esc(c.code)+'</div>'+
-        '<div class="log-info">'+
-          '<div class="log-desc">'+esc(c.description)+'</div>'+
-          (c.solution?'<div class="log-sol">'+icon+'<span>'+esc(c.solution)+'</span></div>':'')+
-        '</div>'+
-      '</div>';
-    }).join('');
-    return '<div class="log-cat"><div class="log-cat-title">'+icon+esc(cat)+'</div><div class="log-table">'+rows+'</div></div>';
-  }).join('');
-}
 function loadLogCodes(){
   if(logCodesLoaded) return;
   logCodesLoaded=true;
