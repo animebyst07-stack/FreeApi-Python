@@ -59,13 +59,19 @@ def admin_update_settings():
         'moderator_force_admin',
         'support_enabled', 'support_key_id', 'support_model', 'support_system_prompt',
     )
+    _saved = {}
     for k, v in data.items():
         if k in allowed:
             repo.set_admin_setting(k, str(v))
+            _saved[k] = str(v)
     if 'moderator_enabled' in data:
         repo.set_admin_setting('agent_enabled', str(data['moderator_enabled']))
     if 'moderator_key_id' in data:
         repo.set_admin_setting('agent_key_id', str(data['moderator_key_id']))
+    # FIX (апрель 2026, 0.5f-diag): логируем сохранённые значения, чтобы
+    # отлаживать поведение модерации (force_admin и др.).
+    if any(k.startswith('moderator_') for k in _saved):
+        logger.info('[Admin] PUT /api/admin/settings — moderator-поля сохранены: %s', _saved)
     mod_enabled = str(data.get('moderator_enabled', repo.get_admin_setting('moderator_enabled', '0')))
     try:
         if mod_enabled == '1':

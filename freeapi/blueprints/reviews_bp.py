@@ -123,18 +123,31 @@ def submit_review():
     # FIX: новый флаг moderator_force_admin (по умолчанию '0') — когда '1',
     # отзывы владельца тоже проходят AI-модерацию. По умолчанию админ-отзывы
     # публикуются мгновенно без модерации (старое поведение).
-    _force_admin = repo.get_admin_setting('moderator_force_admin', '0') == '1'
+    _force_admin_raw = repo.get_admin_setting('moderator_force_admin', '0')
+    _force_admin = _force_admin_raw == '1'
     agent_ready = (_mod_enabled == '1') and bool(_mod_key_id)
     _moderate_this = agent_ready and (not is_admin or _force_admin)
+    # FIX (апрель 2026, 0.5f-diag): прозрачная диагностика — без этих логов
+    # нельзя понять, в какой ветке остановилась логика модерации.
+    logger.info(
+        '[REVIEWS][MOD-CHECK] uid=%s is_admin=%s mod_enabled=%r mod_key_id=%r force_admin_raw=%r → '
+        'agent_ready=%s force_admin=%s moderate_this=%s',
+        uid, is_admin, _mod_enabled, _mod_key_id, _force_admin_raw,
+        agent_ready, _force_admin, _moderate_this
+    )
     if is_admin and not _force_admin:
-        review = repo.create_review(uid, score, text, 'approved', images=images, is_admin=True)
+        chosen_status = 'approved'
+        review = repo.create_review(uid, score, text, chosen_status, images=images, is_admin=True)
     else:
+        chosen_status = 'pending' if _moderate_this else 'approved'
         review = repo.create_review(
             uid, score, text,
-            'pending' if _moderate_this else 'approved',
+            chosen_status,
             images=images,
             is_admin=is_admin,
         )
+    logger.info('[REVIEWS][MOD-CHECK] review_id=%s saved with status=%s (will_kick_agent=%s)',
+                review.get('id') if review else None, chosen_status, _moderate_this)
     if _moderate_this:
         try:
             from freeapi.agent import start_agent, trigger_agent

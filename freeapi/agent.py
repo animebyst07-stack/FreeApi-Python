@@ -100,10 +100,12 @@ class FavoriteAIAgent:
 
         enabled = repo.get_admin_setting('moderator_enabled', repo.get_admin_setting('agent_enabled', '0'))
         if enabled != '1':
+            logger.debug('[Agent] tick: moderator_enabled=%r — пропускаю', enabled)
             return
 
         key_id = repo.get_admin_setting('moderator_key_id', repo.get_admin_setting('agent_key_id', ''))
         if not key_id:
+            logger.warning('[Agent] tick: moderator включён, но key_id пустой — модерация невозможна')
             return
 
         key = self._get_key(key_id)
@@ -113,7 +115,9 @@ class FavoriteAIAgent:
 
         pending = repo.get_pending_reviews()
         if not pending:
+            logger.debug('[Agent] tick: pending очередь пуста')
             return
+        logger.info('[Agent] tick: найдено pending отзывов=%s, начинаю модерацию', len(pending))
 
         for review in pending:
             if self._stop_event.is_set():

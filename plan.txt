@@ -146,6 +146,28 @@
     отзывы владельца» в admin-панели (карточка «Модератор отзывов»).
     Нужно для тестирования модерации с собственного аккаунта.
 
+• Сделано в апреле 2026 (продолжение):
+  - 0.5f-diag — диагностика «отзыв админа не модерируется».
+    По логам видно: настройки модератора сохраняются (PUT 200),
+    отзыв создаётся (`[REVIEWS] финально к сохранению`), но не было
+    ни одной строки про итоговый статус (pending/approved) и AI
+    Agent молчал. Слепая зона. Добавлены логи:
+    • freeapi/blueprints/reviews_bp.py — строка
+      `[REVIEWS][MOD-CHECK] uid=… is_admin=… mod_enabled=… mod_key_id=…
+      force_admin_raw=… → agent_ready=… force_admin=… moderate_this=…`
+      и сразу следом `[REVIEWS][MOD-CHECK] review_id=… saved with
+      status=… (will_kick_agent=…)`. Теперь видно, какое значение
+      reads из БД и в какую ветку ушла логика.
+    • freeapi/agent.py — `_process_pending` теперь логирует
+      WARNING если key_id пустой при включённом модераторе, и INFO
+      когда нашёл pending («tick: найдено pending отзывов=N»).
+      Сценарии «выключен» / «очередь пуста» — на DEBUG, чтобы не
+      засорять INFO-логи каждые 5 секунд.
+    • freeapi/blueprints/admin_bp.py — PUT /api/admin/settings
+      теперь логирует, какие именно moderator_*-поля сохранены
+      (`[Admin] PUT /api/admin/settings — moderator-поля сохранены: {…}`).
+      Это сразу покажет, дошёл ли force_admin='1' с фронта или нет.
+
 • Следующий шаг:
   - 0.5e — вынести оставшийся inline-блок loadLogCodes() (для
     отдельного раздела #view-logcodes — со своим набором категорий
