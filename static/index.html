@@ -645,7 +645,8 @@
               <tr><td><span class="docs-method post">POST</span></td><td><code>/api/v1/stop</code></td><td>Остановить генерацию ответа</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
               <tr><td><span class="docs-method post">POST</span></td><td><code>/api/v1/reset</code></td><td>Сбросить контекст (если лимит — вернёт requires_choice)</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
               <tr><td><span class="docs-method post">POST</span></td><td><code>/api/v1/reset/apply</code></td><td>Применить выбор памяти после CTX_LIMIT_180</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
-              <tr><td><span class="docs-method get">GET</span></td><td><code>/api/models</code></td><td>Список всех доступных моделей</td><td>--</td></tr>
+              <tr><td><span class="docs-method get">GET</span></td><td><code>/api/v1/models</code></td><td>Список моделей + рекомендованные + default ключа</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Bearer</td></tr>
+              <tr><td><span class="docs-method get">GET</span></td><td><code>/api/models</code></td><td>Список всех доступных моделей (публичный, со статистикой)</td><td>--</td></tr>
               <tr><td><span class="docs-method get">GET</span></td><td><code>/api/stats/global</code></td><td>Глобальная статистика сервиса</td><td>--</td></tr>
               <tr><td><span class="docs-method get">GET</span></td><td><code>/api/healthz</code></td><td>Проверка состояния сервера</td><td>--</td></tr>
               <tr><td><span class="docs-method post">POST</span></td><td><code>/api/auth/register</code></td><td>Регистрация нового пользователя</td><td>--</td></tr>
@@ -671,7 +672,7 @@
           <table class="docs-table">
             <thead><tr><th>Поле</th><th>Тип</th><th>Обязательно</th><th>Описание</th></tr></thead>
             <tbody>
-              <tr><td><code>model</code></td><td>string</td><td>Да</td><td>ID модели из /api/models</td></tr>
+              <tr><td><code>model</code></td><td>string</td><td>Нет</td><td>ID модели из /api/models или /api/v1/models. Если не передать — используется модель ключа по умолчанию</td></tr>
               <tr><td><code>messages</code></td><td>array</td><td>Да</td><td>Массив сообщений [{role, content}]</td></tr>
               <tr><td><code>messages[].role</code></td><td>string</td><td>Да</td><td>"user" или "assistant"</td></tr>
               <tr><td><code>messages[].content</code></td><td>string | array</td><td>Да</td><td>Текст или массив с image_url для Vision</td></tr>
@@ -1008,7 +1009,13 @@ Other 200k models:
 - gemini-2.5-flash-thinking-64k, gemini-2.5-flash-64k
 
 NOTE: gemini-2.5-pro and gemini-2.0-flash are NOT available — do not
-request them. The full live list is at GET /api/models.
+request them. Two ways to fetch the live list:
+- GET /api/models           — public, includes usage stats
+- GET /api/v1/models        — Bearer-authenticated, returns
+  {models, defaultModelId, keyDefaultModelId, recommended}.
+  Use this one before sending requests if you need the canonical
+  list scoped to the current key (it tells you which model the key
+  defaults to when the "model" field is omitted).
 
 ## Important
 - One request at a time per API key (KEY_BUSY_301 if you try to send

@@ -73,6 +73,43 @@ def models_list():
     return jsonify({'models': output})
 
 
+# ─────────────────────────────────────────────────────────────────
+# E1 — публичный список моделей под Bearer-ключом.
+# Внешний ИИ (через system prompt) может подтянуть актуальный
+# список доступных моделей, рекомендованные id и default ключа,
+# чтобы не передавать неподдерживаемые id (например, gemini-2.5-pro).
+# Ответ намеренно лаконичный: без статистики по запросам и без
+# tgCallback — это «потребительский» вид, безопасный для клиента.
+# ─────────────────────────────────────────────────────────────────
+
+RECOMMENDED_MODEL_IDS = ('gemini-3.0-flash-thinking', 'gemini-3.0-flash')
+
+
+@bp.get('/api/v1/models')
+def v1_models_list():
+    key, blocked = authorized_key()
+    if blocked:
+        return blocked
+    output = []
+    for model in AI_MODELS:
+        output.append({
+            'id': model['id'],
+            'displayName': model['displayName'],
+            'contextK': model['contextK'],
+            'supportsVision': model['supportsVision'],
+            'isDefault': model['isDefault'],
+            'isPopular': model['isPopular'],
+            'isRecommended': model['id'] in RECOMMENDED_MODEL_IDS,
+        })
+    key_default = key.get('default_model') or DEFAULT_MODEL_ID
+    return jsonify({
+        'models': output,
+        'defaultModelId': DEFAULT_MODEL_ID,
+        'keyDefaultModelId': key_default,
+        'recommended': list(RECOMMENDED_MODEL_IDS),
+    })
+
+
 @bp.get('/api/stats/global')
 def stats_global():
     return jsonify(repo.get_global_stats())

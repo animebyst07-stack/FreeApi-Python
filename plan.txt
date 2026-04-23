@@ -512,7 +512,55 @@ Push: «docs: C2 — актуализирован README.md».
   Push: «docs: D3 — actualize system prompt (real model ids, default
   model, response time note, /api/models hint)».
 
-  
+  ══════════════════════════════════════════════════════════
+  E1 — GET /api/v1/models под Bearer-ключом (✓ ВЫПОЛНЕНО)
+  ══════════════════════════════════════════════════════════
+
+  Зачем: после D3 в system prompt появилась подсказка про живой
+  список моделей через GET /api/models. Но публичный /api/models
+  отдаёт сырой ответ со статистикой запросов (totalRequests/
+  avgResponseMs) и ничего не знает про конкретный ключ.
+  Внешнему ИИ полезно знать ровно три вещи:
+    • какие id моделей вообще существуют (чтобы не слать
+      несуществующие, типа gemini-2.5-pro);
+    • какая модель будет использована, если поле "model" опущено
+      (= default ключа, см. D3);
+    • какие модели мы рекомендуем (3.0-flash-thinking, 3.0-flash).
+
+  Реализация (один файл — freeapi/blueprints/misc_bp.py):
+    • Константа RECOMMENDED_MODEL_IDS = ('gemini-3.0-flash-thinking',
+      'gemini-3.0-flash').
+    • GET /api/v1/models — авторизация через authorized_key()
+      (Bearer <api_key>), как у /api/v1/chat и /api/v1/reset.
+    • Ответ:
+        {
+          models: [{
+            id, displayName, contextK, supportsVision,
+            isDefault, isPopular, isRecommended
+          }, ...],
+          defaultModelId: 'gemini-3.0-flash-thinking',
+          keyDefaultModelId: <default_model ключа или DEFAULT_MODEL_ID>,
+          recommended: ['gemini-3.0-flash-thinking', 'gemini-3.0-flash']
+        }
+    • Сознательно НЕТ полей totalRequests/avgResponseMs/tgCallback —
+      это «потребительский» вид, ничего лишнего наружу.
+
+  Документация (static/index.html):
+    • В таблицу Bearer-эндпоинтов добавлена строка GET /api/v1/models.
+    • Старая строка про /api/models помечена как «публичный, со
+      статистикой» — чтобы не было путаницы с v1.
+    • Поле «model» в таблице Body POST /api/v1/chat переведено в
+      «Обязательно: Нет» с уточнением про default ключа (косяк из D3
+      — в промпте было сказано, что model опционален, а в таблице
+      по-прежнему стояло «Да»).
+    • Блок «Available Models» в #memorySystemPrompt дополнен:
+      теперь упомянуты ОБА эндпоинта (public /api/models и Bearer
+      /api/v1/models), внешний ИИ предупреждён, что v1 удобнее, т.к.
+      сразу отдаёт keyDefaultModelId.
+
+  Push: «feat(api): E1 — GET /api/v1/models под Bearer + обновлён
+  system prompt и таблица документации».
+
 ══════════════════════════════════════════════════════════
 КОНЕЦ ПЛАНА
 ══════════════════════════════════════════════════════════
