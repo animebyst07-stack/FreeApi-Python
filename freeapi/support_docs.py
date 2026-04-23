@@ -57,6 +57,17 @@ DOCS = {
   • CTX_LIMIT_180 — переполнен контекст у Telegram-бота, нужен /reset
     (см. doc:errors и doc:chat).
   • context_kb / context_tokens — текущий накопленный контекст, лимит ~CONTEXT_LIMIT_KB.
+
+Интроспекция ключа из внешнего клиента (без захода в Дашборд):
+  • GET /api/v1/me (Bearer) — один запрос отдаёт всё, что нужно
+    внешнему клиенту/ИИ: имя ключа (масированное), default_model,
+    dual_mode, текущий context_kb, лимиты (warn/limit), is_busy,
+    статистику за месяц и владельца. Рекомендуется вызывать один
+    раз в начале сессии — это закрывает кейсы «не знаю какая
+    модель default» и «не знаю, насколько забит контекст».
+  • GET /api/v1/models (Bearer) — каноничный список моделей с
+    флагами supportsVision / contextK / isRecommended и явным
+    keyDefaultModelId.
 """,
 
     'tg_setup': """=== ПОДКЛЮЧЕНИЕ TELEGRAM-АККАУНТА ===
@@ -96,6 +107,14 @@ Robotics), GPT-4o/4.1/5, Claude и пр. DEFAULT_MODEL_ID — модель по 
 Если модель «не отвечает», обычно дело в том, что бот ушёл на тяжёлую модель
 (thinking) и просто долго думает (до 90 секунд). Если ответа нет совсем —
 проверяй ключ в Дашборде (is_busy, последние ошибки).
+
+Программный список моделей:
+  • GET /api/models — публичный, со статистикой использования.
+  • GET /api/v1/models (Bearer) — каноничный, под текущий ключ:
+    {models[id, displayName, contextK, supportsVision, isDefault,
+    isPopular, isRecommended], defaultModelId, keyDefaultModelId,
+    recommended}. keyDefaultModelId — модель, которая будет
+    использована, если в /api/v1/chat не указать поле "model".
 """,
 
     'chat': """=== ВСТРОЕННЫЙ ЧАТ И КОНТЕКСТ ===
