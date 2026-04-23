@@ -230,7 +230,7 @@ def set_review_status(review_id):
             else:
                 msg = 'Владелец отметил ваш отзыв.'
             try:
-                repo.create_user_notification(target_uid, msg)
+                repo.create_user_notification(target_uid, msg, kind='review', ref_id=review_id)
                 logger.info('[REVIEWS] user_notification создано: target_uid=%s review_id=%s len=%s',
                             target_uid, review_id, len(msg))
             except Exception as exc:

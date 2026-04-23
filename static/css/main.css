@@ -992,3 +992,12 @@ body:has(#view-dashboard.active){background:#000!important}
 /* B1 — Smart Drafts: баннер «Найден черновик» */
 .rv-draft-banner{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:10px 14px;font-size:12px;color:#888;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
 .rv-draft-banner #writeReviewDraftBannerText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* B2 — Группировка уведомлений: вкладки фильтра по типу. */
+.notif-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 14px;padding:4px;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:10px}
+.notif-tab{appearance:none;background:transparent;color:#bdc1c6;border:1px solid transparent;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
+.notif-tab:hover{background:#141414;color:#e8eaed}
+.notif-tab.active{background:#1a1a1a;color:#e8eaed;border-color:#2a2a2a}
+.notif-tab-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:#7eb6ff;color:#0a0a0a;font-size:11px;font-weight:700;line-height:1}
+.notif-tab.active .notif-tab-cnt{background:#a8d0ff}
+@media(max-width:520px){.notif-tabs{gap:4px;padding:3px}.notif-tab{padding:6px 9px;font-size:12px}}

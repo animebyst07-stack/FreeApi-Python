@@ -238,7 +238,9 @@ class FavoriteAIAgent:
             if public_response and user_id:
                 repo.create_user_notification(
                     user_id,
-                    f'Ваш отзыв опубликован. Ответ платформы: {public_response}'
+                    f'Ваш отзыв опубликован. Ответ платформы: {public_response}',
+                    kind='review',
+                    ref_id=review_id,
                 )
         elif action == 'DELETE':
             self._do_delete(review_id, user_id, reason or 'Необоснованная критика / мусорный контент', repo)
@@ -261,7 +263,9 @@ class FavoriteAIAgent:
             if user_id:
                 repo.create_user_notification(
                     user_id,
-                    f'Ваш отзыв опубликован, а полезный фидбек передан администратору. — {AGENT_NAME}'
+                    f'Ваш отзыв опубликован, а полезный фидбек передан администратору. — {AGENT_NAME}',
+                    kind='review',
+                    ref_id=review_id,
                 )
 
     def _do_delete(self, review_id, user_id, reason, repo):
@@ -274,7 +278,9 @@ class FavoriteAIAgent:
                 user_id,
                 f'Ваш отзыв удалён модератором ({AGENT_NAME}). '
                 f'Причина: {reason}. '
-                f'Доступ к отзывам ограничен на 1 неделю (до {banned_until} МСК).'
+                f'Доступ к отзывам ограничен на 1 неделю (до {banned_until} МСК).',
+                kind='review',
+                ref_id=review_id,
             )
 
     def _parse_decision(self, answer):

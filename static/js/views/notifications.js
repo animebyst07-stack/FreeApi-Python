@@ -10,6 +10,9 @@ import { esc, formatDate } from '../core/dom.js';
 /* Глобальные слоты на window — см. оригинал. */
 window._notifPollTimer = null;
 window._notifLastUnread = -1;
+/* B2: текущий фильтр и последняя разбивка непрочитанных по типам. */
+window._notifKindFilter = 'all';
+window._notifUnreadByKind = { all: 0, review: 0, support: 0, system: 0 };
 
 function _api(){ return window.api; }
 function _clog(tag, msg, lvl){ try { if (window.clog) window.clog(tag, msg, lvl); } catch(_) {} }
@@ -47,17 +50,21 @@ export function loadNotifications(){
     return;
   }
   if (list) list.innerHTML = '<div class="notif-empty"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>Загрузка...</div>';
-  _clog('NOTIF', 'GET /api/notifications');
+  /* B2: фильтр по типу (review|support|system|all). */
+  var kind = window._notifKindFilter || 'all';
+  var qs = (kind && kind !== 'all') ? ('?kind=' + encodeURIComponent(kind)) : '';
+  _clog('NOTIF', 'GET /api/notifications' + qs);
 
   /* 0.5.13c: для админа параллельно тянем admin_notifications, чтобы
      показать единый список (раньше эти карточки висели отдельной плиткой
-     в админ-панели — теперь, по требованию пользователя, всё в одном месте). */
-  var userP  = _api()('/api/notifications');
-  /* Админ в этой сборке — единственный владелец «ReZero» (см.
-     reviews_bp.py:70 и многочисленные проверки в static/index.html). */
+     в админ-панели — теперь, по требованию пользователя, всё в одном месте).
+     B2: админ-уведомления показываем только во вкладках 'all' и 'support'
+     (это запросы поддержки от пользователей). */
+  var userP  = _api()('/api/notifications' + qs);
   var isAdm  = !!(window.user && window.user.username === 'ReZero');
-  var adminP = isAdm ? _api()('/api/admin/notifications').catch(function(){ return {notifications:[]}; })
-                     : Promise.resolve({notifications:[]});
+  var showAdmin = isAdm && (kind === 'all' || kind === 'support');
+  var adminP = showAdmin ? _api()('/api/admin/notifications').catch(function(){ return {notifications:[]}; })
+                         : Promise.resolve({notifications:[]});
 
   Promise.all([userP, adminP]).then(function(arr){
     var d = arr[0] || {};
@@ -65,7 +72,12 @@ export function loadNotifications(){
     var items = d.notifications || [];
     var adminItems = ad.notifications || [];
     var unread = parseInt(d.unread || 0) || 0;
-    _clog('NOTIF', 'OK total=' + items.length + ' admin=' + adminItems.length + ' unread=' + unread);
+    /* B2: разбивка по типам — обновляем счётчики на табах. */
+    var byKind = d.unread_by_kind || { all: unread, review: 0, support: 0, system: 0 };
+    window._notifUnreadByKind = byKind;
+    _renderNotifTabsCounts(byKind);
+    _renderActiveTab();
+    _clog('NOTIF', 'OK total=' + items.length + ' admin=' + adminItems.length + ' unread=' + unread + ' kind=' + (window._notifKindFilter || 'all'));
     if (unreadEl) {
       if (unread > 0) { unreadEl.textContent = unread + ' непрочит.'; unreadEl.style.display = 'inline-block'; }
       else unreadEl.style.display = 'none';
@@ -203,10 +215,48 @@ export function openSupportChatModal(chatId){
   });
 }
 
+/* B2: переключение вкладки фильтра. */
+export function setNotifKind(kind){
+  var k = (kind || 'all').toString();
+  if (['all','review','support','system'].indexOf(k) < 0) k = 'all';
+  if (window._notifKindFilter === k) return;
+  window._notifKindFilter = k;
+  _renderActiveTab();
+  loadNotifications();
+}
+
+function _renderActiveTab(){
+  var tabs = document.querySelectorAll('#notifTabs .notif-tab');
+  if (!tabs || !tabs.length) return;
+  var cur = window._notifKindFilter || 'all';
+  for (var i = 0; i < tabs.length; i++) {
+    var t = tabs[i];
+    if (t.getAttribute('data-notif-kind') === cur) t.classList.add('active');
+    else t.classList.remove('active');
+  }
+}
+
+function _renderNotifTabsCounts(byKind){
+  var box = document.getElementById('notifTabs');
+  if (!box) return;
+  var keys = ['all','review','support','system'];
+  for (var i = 0; i < keys.length; i++){
+    var k = keys[i];
+    var el = box.querySelector('[data-cnt-for="' + k + '"]');
+    if (!el) continue;
+    var n = parseInt((byKind && byKind[k]) || 0) || 0;
+    if (n > 0) { el.textContent = n; el.hidden = false; }
+    else { el.textContent = '0'; el.hidden = true; }
+  }
+}
+
 export function markAllNotifsRead(silent){
   if (!window.user) return;
-  _clog('NOTIF', 'POST /api/notifications/read_all silent=' + (!!silent));
-  _api()('/api/notifications/read_all', 'POST', {}).then(function(d){
+  /* B2: если активен фильтр-вкладка — помечаем прочитанным только её. */
+  var kind = window._notifKindFilter || 'all';
+  var url = '/api/notifications/read_all' + (kind !== 'all' ? ('?kind=' + encodeURIComponent(kind)) : '');
+  _clog('NOTIF', 'POST ' + url + ' silent=' + (!!silent));
+  _api()(url, 'POST', {}).then(function(d){
     _clog('NOTIF', 'read_all OK updated=' + ((d && d.updated) || 0));
     if (!silent) _toast('Все уведомления отмечены прочитанными', 'ok');
     document.querySelectorAll('#notifPageList .notif-card.unread').forEach(function(c){ c.classList.remove('unread'); });
@@ -265,3 +315,4 @@ window.loadUserNotifications  = loadUserNotifications;
 window.toggleAdminNotifDetails = toggleAdminNotifDetails;
 window.deleteAdminNotifFromPage = deleteAdminNotifFromPage;
 window.openSupportChatModal    = openSupportChatModal;
+window.setNotifKind            = setNotifKind;

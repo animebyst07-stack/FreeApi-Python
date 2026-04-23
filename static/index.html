@@ -336,6 +336,12 @@
       </button>
     </div>
   </div>
+  <div class="notif-tabs" id="notifTabs" role="tablist" aria-label="Фильтр уведомлений по типу">
+    <button type="button" class="notif-tab active" role="tab" data-notif-kind="all" onclick="setNotifKind('all')">Все<span class="notif-tab-cnt" data-cnt-for="all" hidden>0</span></button>
+    <button type="button" class="notif-tab" role="tab" data-notif-kind="review" onclick="setNotifKind('review')">Отзывы<span class="notif-tab-cnt" data-cnt-for="review" hidden>0</span></button>
+    <button type="button" class="notif-tab" role="tab" data-notif-kind="support" onclick="setNotifKind('support')">Поддержка<span class="notif-tab-cnt" data-cnt-for="support" hidden>0</span></button>
+    <button type="button" class="notif-tab" role="tab" data-notif-kind="system" onclick="setNotifKind('system')">Система<span class="notif-tab-cnt" data-cnt-for="system" hidden>0</span></button>
+  </div>
   <div class="notif-list" id="notifPageList">
     <div class="notif-empty">
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="10"/></svg>

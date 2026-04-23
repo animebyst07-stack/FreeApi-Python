@@ -29,15 +29,29 @@ from freeapi.blueprints._helpers import (
 
 bp = Blueprint('notifications', __name__)
 
+_VALID_NOTIF_KINDS = ('review', 'support', 'system')
+
+
+def _norm_kind_arg(raw):
+    """Возвращает нормализованный kind либо None (если фильтр не задан/некорректен)."""
+    if not raw:
+        return None
+    raw = str(raw).strip().lower()
+    if raw in ('all', '*', ''):
+        return None
+    return raw if raw in _VALID_NOTIF_KINDS else None
+
+
 @bp.post('/api/notifications/read_all')
 def mark_all_notifs_read():
     err = require_user()
     if err:
         return err
     uid = current_user_id()
-    cnt = repo.mark_all_notifications_read(uid)
-    logger.info('[NOTIF] read_all uid=%s updated=%s', uid, cnt)
-    return jsonify({'ok': True, 'updated': cnt})
+    kind = _norm_kind_arg(request.args.get('kind') or (request.get_json(silent=True) or {}).get('kind'))
+    cnt = repo.mark_all_notifications_read(uid, kind=kind)
+    logger.info('[NOTIF] read_all uid=%s kind=%s updated=%s', uid, kind, cnt)
+    return jsonify({'ok': True, 'updated': cnt, 'kind': kind or 'all'})
 
 
 @bp.get('/api/notifications')
@@ -45,9 +59,25 @@ def get_notifications():
     err = require_user()
     if err:
         return err
-    items = repo.get_user_notifications(current_user_id())
-    unread = repo.count_unread_notifications(current_user_id())
-    return jsonify({'notifications': items, 'unread': unread})
+    uid = current_user_id()
+    kind = _norm_kind_arg(request.args.get('kind'))
+    try:
+        limit = max(1, min(int(request.args.get('limit', 50)), 200))
+    except Exception:
+        limit = 50
+    try:
+        offset = max(0, int(request.args.get('offset', 0)))
+    except Exception:
+        offset = 0
+    items = repo.get_user_notifications(uid, kind=kind, limit=limit, offset=offset)
+    unread_breakdown = repo.count_unread_notifications_by_kind(uid)
+    # Совместимость: поле 'unread' оставляем числом (общий счётчик), плюс новый объект 'unread_by_kind'.
+    return jsonify({
+        'notifications': items,
+        'unread': unread_breakdown.get('all', 0),
+        'unread_by_kind': unread_breakdown,
+        'kind': kind or 'all',
+    })
 
 
 @bp.post('/api/notifications/<notif_id>/read')
