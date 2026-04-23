@@ -176,33 +176,108 @@ function sendSupportMessage(){
   var thinkEl=appendSupportThinking();
   _supportPending=true;
   document.getElementById('supportSendBtn').disabled=true;
-  api('/api/support/chat','POST',{content:text||null, image_data:imageData||null},{timeout:0}).then(function(d){
-    thinkEl.remove();
-    document.getElementById('supportCloseBtn').style.display='';
-    if(d.error){
-      appendSupportMsg('agent','Извините, произошла ошибка. Попробуйте ещё раз.',null);
-    } else {
-      // Сначала отрисовываем все промежуточные шаги (если ИИ читал документацию),
-      // в порядке выполнения. Затем — финальный ответ агента.
-      if(d.steps && d.steps.length){
-        d.steps.forEach(function(s){
-          appendSupportMsg('agent_step', s.content, null, s.image_data);
-        });
-      }
-      if(d.agent_message){
-        appendSupportMsg('agent', d.agent_message.content, null);
-      }
+  // Стримим ответ через SSE: промежуточные шаги «Читаю документацию» появляются
+  // СРАЗУ как только ИИ их запросил, а пузырь «Думаю...» (thinkEl) остаётся
+  // ВНИЗУ под ними, пока не придёт финальный ответ. Так пользователь видит,
+  // что агент действительно работает с документацией прямо сейчас.
+  var msgsEl=document.getElementById('supportMessages');
+  function showStep(stepMsg){
+    // appendSupportMsg для agent_step добавляет элемент в конец — перенесём его
+    // перед thinkEl, чтобы «Думаю...» оставался под шагом.
+    var node=appendSupportMsg('agent_step', stepMsg.content, null, stepMsg.image_data);
+    if(node && thinkEl && thinkEl.parentNode===msgsEl){
+      msgsEl.insertBefore(node, thinkEl);
+      msgsEl.scrollTop=msgsEl.scrollHeight;
     }
-  }).catch(function(){
-    thinkEl.remove();
+  }
+  function showFinal(agentMsg){
+    if(thinkEl && thinkEl.parentNode){ thinkEl.remove(); }
+    document.getElementById('supportCloseBtn').style.display='';
+    if(agentMsg){ appendSupportMsg('agent', agentMsg.content, null); }
+  }
+  function showFatal(){
+    if(thinkEl && thinkEl.parentNode){ thinkEl.remove(); }
     appendSupportMsg('agent','Ошибка сети. Проверьте соединение и попробуйте ещё раз.',null);
-  }).finally(function(){
+  }
+  function done(){
     _supportPending=false;
     ta.disabled=false;
     if(attachBtn) attachBtn.classList.remove('chat-attach-disabled');
     document.getElementById('supportSendBtn').disabled=false;
     ta.focus();
-  });
+  }
+
+  // Базовый путь у нас не root: getApi() уже инкапсулирует базу — но fetch
+  // напрямую тоже работает с относительными путями относительно текущего origin.
+  // На всякий случай подберём базу из window.API_BASE если задана.
+  var apiBase=(window.API_BASE||'').replace(/\/+$/,'');
+  var url=apiBase+'/api/support/chat/stream';
+  var body=JSON.stringify({content:text||null, image_data:imageData||null});
+
+  fetch(url,{
+    method:'POST',
+    credentials:'same-origin',
+    headers:{'Content-Type':'application/json','Accept':'text/event-stream'},
+    body:body,
+    cache:'no-store',
+  }).then(function(resp){
+    if(!resp.ok){ throw new Error('HTTP '+resp.status); }
+    var ct=(resp.headers.get('Content-Type')||'').toLowerCase();
+    // Если сервер не вернул SSE — fallback на обычный JSON-эндпоинт.
+    if(ct.indexOf('text/event-stream')<0){
+      return resp.json().then(function(d){
+        if(d && d.steps && d.steps.length){
+          d.steps.forEach(function(s){ showStep(s); });
+        }
+        showFinal(d && d.agent_message);
+      });
+    }
+    if(!resp.body || !resp.body.getReader){
+      // Старый браузер без ReadableStream — fallback на JSON.
+      return fetch(apiBase+'/api/support/chat',{
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/json'}, body:body,
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if(d && d.steps && d.steps.length){ d.steps.forEach(showStep); }
+        showFinal(d && d.agent_message);
+      });
+    }
+    var reader=resp.body.getReader();
+    var decoder=new TextDecoder('utf-8');
+    var buf='';
+    function handleEvent(evtName, dataStr){
+      if(!dataStr) return;
+      var payload; try{ payload=JSON.parse(dataStr); }catch(_){ return; }
+      if(evtName==='step'){ showStep(payload); }
+      else if(evtName==='final'){ showFinal(payload && payload.agent_message); }
+      else if(evtName==='error'){ showFatal(); }
+      // 'user' игнорируем — мы уже отрисовали локально.
+    }
+    function pump(){
+      return reader.read().then(function(res){
+        if(res.value){
+          buf+=decoder.decode(res.value,{stream:true});
+          var idx;
+          while((idx=buf.indexOf('\n\n'))>=0){
+            var raw=buf.slice(0,idx); buf=buf.slice(idx+2);
+            var lines=raw.split('\n'); var evt='message'; var dataLines=[];
+            for(var i=0;i<lines.length;i++){
+              var ln=lines[i];
+              if(!ln || ln.charAt(0)===':') continue; // комментарий/keepalive
+              if(ln.indexOf('event:')===0){ evt=ln.slice(6).trim(); }
+              else if(ln.indexOf('data:')===0){ dataLines.push(ln.slice(5).replace(/^ /,'')); }
+            }
+            handleEvent(evt, dataLines.join('\n'));
+          }
+        }
+        if(res.done) return;
+        return pump();
+      });
+    }
+    return pump();
+  }).catch(function(){
+    showFatal();
+  }).then(done, done);
 }
 
 function closeSupportChat(){

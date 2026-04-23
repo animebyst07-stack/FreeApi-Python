@@ -155,48 +155,48 @@ def support_get_chat():
     return jsonify({'chat': chat, 'messages': messages})
 
 
-@bp.post('/api/support/chat')
-def support_send_message():
-    err = require_user()
-    if err:
-        return err
-    uid = current_user_id()
-    data = request.get_json(silent=True) or {}
+def _support_validate_payload(data):
+    """Общая валидация для обычного и стримящего эндпоинтов отправки сообщения.
+    Возвращает (content, image_data, err_response_or_None)."""
     content = (data.get('content') or '').strip()
     image_data = data.get('image_data')
-
     if not content and not image_data:
-        return error('Сообщение не может быть пустым', 400)
+        return content, image_data, error('Сообщение не может быть пустым', 400)
     if len(content) > 4000:
-        return error('Сообщение слишком длинное', 400)
-    # Валидация изображения: MIME + размер (защита от OOM в Termux)
+        return content, image_data, error('Сообщение слишком длинное', 400)
     if image_data is not None:
         _ALLOWED_MIME = ('data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/gif;base64,', 'data:image/webp;base64,', 'data:image/heic;base64,', 'data:image/heif;base64,')
         if not isinstance(image_data, str):
-            return error('Некорректный формат изображения', 400)
+            return content, image_data, error('Некорректный формат изображения', 400)
         if not any(image_data[:40].lower().startswith(m) for m in _ALLOWED_MIME):
-            return error('Поддерживаются только изображения (JPEG, PNG, GIF, WebP)', 400)
-        if len(image_data) > 14 * 1024 * 1024:  # ~10MB raw → ~14MB base64
-            return error('Изображение слишком большое (максимум 10 МБ)', 400)
+            return content, image_data, error('Поддерживаются только изображения (JPEG, PNG, GIF, WebP)', 400)
+        if len(image_data) > 14 * 1024 * 1024:
+            return content, image_data, error('Изображение слишком большое (максимум 10 МБ)', 400)
+    return content, image_data, None
 
-    chat = repo.get_open_support_chat(uid)
-    if not chat:
-        subject = content[:80] if content else 'Запрос с изображением'
-        chat = repo.create_support_chat(uid, subject)
 
-    if chat['status'] == 'closed':
-        return error('Диалог завершён. Начните новый.', 400)
+def _support_pick_key():
+    """Возвращает (key_row|None, model_id) для агента поддержки."""
+    support_key_id = repo.get_admin_setting('support_key_id', '') or repo.get_admin_setting('agent_key_id', '')
+    if not support_key_id:
+        return None, None
+    from freeapi.database import db as _db, row as _row
+    with _db() as conn:
+        key = _row(conn.execute('SELECT * FROM api_keys WHERE id=? AND is_active=1', (support_key_id,)).fetchone())
+    if not key:
+        return None, None
+    from freeapi.models import DEFAULT_MODEL_ID
+    model = repo.get_admin_setting('support_model', '') or key.get('default_model') or DEFAULT_MODEL_ID
+    return key, model
 
-    repo.add_support_message(chat['id'], 'user', content or '[изображение]', image_data)
 
-    all_messages = repo.get_support_messages(chat['id'])
-    user_msg = all_messages[-1] if all_messages else None  # только что добавленное user-сообщение
-    user_msgs_count = sum(1 for m in all_messages if m.get('role') == 'user')
-    is_first = (user_msgs_count == 1)  # только что добавленное — единственное
-    # Промежуточные «шаги» агента (когда он читает документацию по тегам [[doc:NAME]]).
-    # Возвращаем фронту, чтобы он отрисовал отдельные пузыри «Читаю документацию: X».
-    steps_added = []
+def _support_run_ai(uid, chat, content, image_data, on_step=None):
+    """Главный AI-цикл: первое сообщение → возможные итерации с документацией → финальный ответ.
 
+    on_step(step_msg_dict) — необязательный колбэк, вызывается СРАЗУ после
+    сохранения каждого промежуточного шага «Читаю документацию: ...»
+    в БД (для SSE-стрима). Возвращает (steps_list, final_answer_text).
+    """
     _support_username = session.get('username') or ''
     if not _support_username and uid:
         _uobj = repo.get_user_by_id(uid)
@@ -208,8 +208,6 @@ def support_send_message():
     short_user_text = f'{user_label}: {content or "[изображение]"}{img_note}\n\n{closer}'
 
     def _build_full_text():
-        # Системный промпт + проектный контекст + текущее сообщение.
-        # Используется на первом сообщении диалога и при принудительном /reset из-за CTX_LIMIT.
         return (
             f'{_get_support_prompt_with_context(uid)}\n\n'
             f'=== ТЕКУЩЕЕ СООБЩЕНИЕ ===\n'
@@ -226,57 +224,33 @@ def support_send_message():
             ai_content = text
         return run_chat(key, model, [{'role': 'user', 'content': ai_content}])
 
+    steps_added = []
+    answer = None
     try:
-        support_key_id = repo.get_admin_setting('support_key_id', '')
-        if not support_key_id:
-            support_key_id = repo.get_admin_setting('agent_key_id', '')
-        if support_key_id:
-            from freeapi.database import db as _db, row as _row
-            with _db() as conn:
-                key = _row(conn.execute('SELECT * FROM api_keys WHERE id=? AND is_active=1', (support_key_id,)).fetchone())
-        else:
-            key = None
-
+        key, _support_model = _support_pick_key()
         if key:
-            from freeapi.models import DEFAULT_MODEL_ID
-            _support_model = repo.get_admin_setting('support_model', '') or key.get('default_model') or DEFAULT_MODEL_ID
+            all_messages = repo.get_support_messages(chat['id'])
+            user_msgs_count = sum(1 for m in all_messages if m.get('role') == 'user')
+            is_first = (user_msgs_count == 1)
 
-            # На первом сообщении диалога шлём полный системный промпт + контекст
-            # проекта (но БЕЗ /reset — Сэм может в этот момент общаться с другими
-            # пользователями, и сброс затрёт чужие диалоги). Сэм различает юзеров
-            # по логину `Пользователь (@username): ...` в каждом сообщении.
-            if is_first:
-                text_to_send = _build_full_text()
-            else:
-                # Диалог уже идёт — Сэм помнит контекст, шлём только новое сообщение.
-                text_to_send = short_user_text
-
+            text_to_send = _build_full_text() if is_first else short_user_text
             try:
                 answer = _send(key, _support_model, text_to_send)
             except RuntimeError as exc:
                 if 'CTX_LIMIT' in str(exc):
                     logger.warning('[Support] CTX_LIMIT — сбрасываем контекст и повторяем с полным промптом')
-                    try:
-                        run_control(key, '/reset')
-                    except Exception:
-                        pass
+                    try: run_control(key, '/reset')
+                    except Exception: pass
                     answer = _send(key, _support_model, _build_full_text())
                 else:
                     raise
 
-            # Цикл подгрузки документации: ИИ может в ответе писать
-            # промежуточный текст + теги [[doc:NAME]]. Мы сохраняем шаг
-            # в БД (role='agent_step', image_data=имена через запятую),
-            # подкладываем тексты справок и просим ИИ продолжить.
             iteration = 0
             while iteration < _MAX_DOC_ITERATIONS:
                 tags = list(_DOC_TAG_RE.finditer(answer or ''))
                 if not tags:
                     break
-
-                # Текст ДО первого тега — это «шаг работы», его покажем пользователю.
                 step_text = (answer[:tags[0].start()] or '').strip()
-                # Уникальный список запрошенных доков с сохранением порядка.
                 requested = []
                 seen = set()
                 for m in tags:
@@ -284,15 +258,16 @@ def support_send_message():
                     if name not in seen:
                         seen.add(name)
                         requested.append(name)
-
                 step_msg = repo.add_support_message(
                     chat['id'], 'agent_step',
                     step_text or '(читаю документацию...)',
                     ','.join(requested),
                 )
                 steps_added.append(step_msg)
-
-                # Собираем тексты запрошенных разделов.
+                if on_step:
+                    try: on_step(step_msg)
+                    except Exception as _exc:
+                        logger.warning('[Support] on_step callback error: %s', _exc)
                 parts = []
                 for name in requested:
                     doc = get_doc(name)
@@ -309,23 +284,18 @@ def support_send_message():
                     + '\n\nДокументация загружена. Теперь дай пользователю полноценный '
                     'ответ по существу. Не ставь новые теги [[doc:...]], если уже всё ясно.'
                 )
-
                 try:
                     answer = _send(key, _support_model, followup)
                 except RuntimeError as exc:
                     if 'CTX_LIMIT' in str(exc):
                         logger.warning('[Support] CTX_LIMIT внутри doc-loop, отдаём шаг как финальный ответ')
-                        try:
-                            run_control(key, '/reset')
-                        except Exception:
-                            pass
+                        try: run_control(key, '/reset')
+                        except Exception: pass
                         answer = step_text or 'Извините, не получилось загрузить документацию.'
                         break
                     raise
                 iteration += 1
 
-            # Если ИИ так и не угомонился и продолжает выписывать теги — вычищаем
-            # их из финального текста, чтобы пользователь не видел [[doc:...]].
             if answer:
                 answer = _DOC_TAG_RE.sub('', answer).strip()
         else:
@@ -333,16 +303,116 @@ def support_send_message():
                       'Для работы AI-поддержки администратору необходимо настроить ключ агента поддержки. '
                       'Пока что я могу сообщить о вашем вопросе администратору при завершении диалога.\n\n'
                       f'Ваш вопрос: {content or "(изображение)"}')
-
     except Exception as exc:
         logger.error('[Support] Ошибка AI ответа: %s', exc)
         answer = 'Извините, возникла временная ошибка. Попробуйте ещё раз или завершите диалог — я передам ваш запрос администратору.'
 
+    return steps_added, (answer or '')
+
+
+@bp.post('/api/support/chat/stream')
+def support_send_message_stream():
+    """SSE-версия отправки сообщения. Шлёт события в порядке появления:
+      event: user      data: {message}            — только что сохранённое сообщение пользователя
+      event: step      data: {message}            — каждый промежуточный шаг (чтение документации)
+      event: final     data: {agent_message,chat} — финальный ответ агента
+      event: error     data: {error}              — фатальная ошибка
+    Фронт сразу отрисовывает шаги, не дожидаясь финального ответа."""
+    err = require_user()
+    if err:
+        return err
+    uid = current_user_id()
+    data = request.get_json(silent=True) or {}
+    content, image_data, verr = _support_validate_payload(data)
+    if verr:
+        return verr
+
+    chat = repo.get_open_support_chat(uid)
+    if not chat:
+        subject = content[:80] if content else 'Запрос с изображением'
+        chat = repo.create_support_chat(uid, subject)
+    if chat['status'] == 'closed':
+        return error('Диалог завершён. Начните новый.', 400)
+
+    user_msg = repo.add_support_message(chat['id'], 'user', content or '[изображение]', image_data)
+
+    import json as _json
+    import queue as _queue
+    import threading as _threading
+
+    q = _queue.Queue()
+
+    def _emit(event, payload):
+        q.put(f'event: {event}\ndata: {_json.dumps(payload, ensure_ascii=False)}\n\n')
+
+    def _worker():
+        try:
+            steps, answer = _support_run_ai(
+                uid, chat, content, image_data,
+                on_step=lambda step_msg: _emit('step', step_msg),
+            )
+            agent_msg = repo.add_support_message(chat['id'], 'agent', answer or '', None)
+            _emit('final', {'agent_message': agent_msg, 'chat': chat})
+        except Exception as exc:
+            logger.error('[Support][stream] worker error: %s', exc)
+            _emit('error', {'error': str(exc)})
+        finally:
+            q.put(None)  # сигнал «конец»
+
+    _threading.Thread(target=_worker, daemon=True).start()
+
+    @stream_with_context
+    def _gen():
+        # Сразу шлём user-сообщение и keepalive-комментарий, чтобы прокси
+        # (Cloudflare Tunnel / werkzeug) точно открыли стрим клиенту.
+        yield ': open\n\n'
+        yield f'event: user\ndata: {_json.dumps(user_msg, ensure_ascii=False)}\n\n'
+        while True:
+            try:
+                chunk = q.get(timeout=15)
+            except _queue.Empty:
+                yield ': keepalive\n\n'
+                continue
+            if chunk is None:
+                break
+            yield chunk
+
+    headers = {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
+    }
+    return Response(_gen(), headers=headers)
+
+
+@bp.post('/api/support/chat')
+def support_send_message():
+    """Совместимый JSON-эндпоинт (без стрима). Используется fallback'ом фронта
+    и сторонними клиентами; новый фронт ходит в /api/support/chat/stream."""
+    err = require_user()
+    if err:
+        return err
+    uid = current_user_id()
+    data = request.get_json(silent=True) or {}
+    content, image_data, verr = _support_validate_payload(data)
+    if verr:
+        return verr
+
+    chat = repo.get_open_support_chat(uid)
+    if not chat:
+        subject = content[:80] if content else 'Запрос с изображением'
+        chat = repo.create_support_chat(uid, subject)
+    if chat['status'] == 'closed':
+        return error('Диалог завершён. Начните новый.', 400)
+
+    user_msg = repo.add_support_message(chat['id'], 'user', content or '[изображение]', image_data)
+    steps, answer = _support_run_ai(uid, chat, content, image_data)
     agent_msg = repo.add_support_message(chat['id'], 'agent', answer or '', None)
 
     return jsonify({
         'user_message': user_msg,
-        'steps': steps_added,
+        'steps': steps,
         'agent_message': agent_msg,
         'chat': chat,
     })
