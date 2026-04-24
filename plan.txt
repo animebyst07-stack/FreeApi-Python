@@ -4,29 +4,41 @@ PLAN — Сессия: убрать аватарку из шапки (topbar)
 КОНТЕКСТ ПРОЕКТА
 - Репозиторий: animebyst07-stack/FreeApi-Python
 - Стек: Python (Flask blueprints) + статический фронтенд (HTML/CSS/JS), запуск в Termux.
-- В шапке (header.topbar) слева от значка уведомлений (#topbarBell) есть кнопка
+- В шапке (header.topbar) слева от значка уведомлений (#topbarBell) была кнопка
   <button id="topbarAvatar" class="topbar-avatar"> с onclick="toggleSidebar()".
-  Она появляется только у авторизованного пользователя и показывает либо аватар, либо букву ника.
-  Поведение полностью дублирует существующий "бутерброд" #hamburger.
+  Появлялась только у авторизованного пользователя и полностью дублировала
+  поведение существующего "бутерброда" #hamburger.
 
-ЗАДАЧА (от пользователя)
-- Убрать значок аватарки из шапки. Бутерброд оставить как есть.
+ЗАДАЧИ
+1) Убрать значок аватарки из шапки. Бутерброд оставить как есть.   STATUS: DONE
+2) Подчистить мёртвый код, оставшийся после удаления кнопки.       STATUS: DONE
 
 ШАГИ
 [x] 1. Клонировать репозиторий, провести аудит структуры.
-[x] 2. Найти DOM-узел аватарки в шапке (static/index.html, строка ~122).
+[x] 2. Найти DOM-узел аватарки в шапке (static/index.html, ~стр.122).
 [x] 3. Найти JS-логику рендера (static/js/views/profile_avatar.js → renderTopbarAvatar)
-       и точки вызова (static/index.html ~2837, ~2848). Функция имеет guard `if(!el)return;`,
-       поэтому безопасно работает и после удаления кнопки — вызовы не упадут.
-[x] 4. Удалить только кнопку #topbarAvatar из шапки в static/index.html.
-       Не трогать toggleSidebar, sidebar, hamburger, bell, JS-вызовы и CSS —
-       чтобы правка была минимальной и обратимой.
+       и точки вызова (static/index.html ~2837, ~2848).
+[x] 4. Удалить кнопку #topbarAvatar из static/index.html.
 [x] 5. Сохранить plan.txt в workspace и в корень репозитория.
-[x] 6. Закоммитить и запушить изменения в GitHub.
+[x] 6. Закоммитить и запушить изменения в GitHub (через GitHub API,
+       поскольку git push в среде Replit заблокирован).
+
+ЧИСТКА (вторая итерация)
+[x] 7. Удалить мёртвый CSS из static/css/main.css:
+       .topbar-avatar, .topbar-avatar:hover, .topbar-avatar:focus-visible,
+       .topbar-avatar-img (заголовок секции G7 переименован под уцелевший .author-avatar).
+[x] 8. Удалить функцию renderTopbarAvatar() и её экспорт window.renderTopbarAvatar
+       из static/js/views/profile_avatar.js.
+[x] 9. Удалить вызовы window.renderTopbarAvatar(...) из static/index.html
+       (ветки authed/guest в обновлении сайдбара).
+[x] 10. Проверить грепом, что в static/ не осталось упоминаний topbarAvatar /
+        topbar-avatar / renderTopbarAvatar — чисто.
+[x] 11. Запушить чистку в GitHub через API.
 
 КРИТЕРИЙ ГОТОВО
-- В шапке слева от колокольчика больше не появляется аватарка ни при каких условиях.
+- В шапке слева от колокольчика нет аватарки.
 - Бутерброд продолжает открывать сайдбар.
-- Никаких JS-ошибок (renderTopbarAvatar становится no-op за счёт guard'а).
+- В коде (HTML/CSS/JS) нет ни одной зацепки на удалённую кнопку.
+- Никаких JS-ошибок: вызовы renderTopbarAvatar полностью удалены.
 
-СТАТУС: ВЫПОЛНЕНО
+СТАТУС: ПОЛНОСТЬЮ ВЫПОЛНЕНО

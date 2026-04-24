@@ -382,27 +382,7 @@ function renderAuthorChip(username, avatar, badgeHtml){
   return inner + name + (badgeHtml || '');
 }
 
-/* Аватарка в шапке (topbar). Прячется, если нет авторизации.
-   Клик открывает сайдбар (toggleSidebar). */
-function renderTopbarAvatar(user){
-  var el = document.getElementById('topbarAvatar');
-  if (!el) return;
-  if (!user){
-    el.style.display = 'none';
-    el.innerHTML = '';
-    return;
-  }
-  el.style.display = '';
-  if (user.avatar){
-    var safe = String(user.avatar).replace(/"/g, '&quot;');
-    el.innerHTML = '<img class="topbar-avatar-img" alt="" src="' + safe + '">';
-  } else {
-    el.textContent = (user.username || '?').charAt(0).toUpperCase();
-  }
-}
-
 window.openAvatarCropper = openAvatarCropper;
 window.closeAvatarCropper = closeCropper;
 window.renderSidebarAvatar = renderSidebarAvatar;
 window.renderAuthorChip = renderAuthorChip;
-window.renderTopbarAvatar = renderTopbarAvatar;

@@ -2832,8 +2832,6 @@ function updateSidebar(){
       // G5: рендер аватарки делает модуль profile_avatar.js (img / буква).
       if(window.renderSidebarAvatar){ window.renderSidebarAvatar(user); }
       else if(sbAvatar) sbAvatar.textContent=user.username.charAt(0).toUpperCase();
-      // G7: дублируем аватарку в шапке (быстрый доступ к сайдбару).
-      if(window.renderTopbarAvatar){ window.renderTopbarAvatar(user); }
       if(sbRole){
         if(isAdmin) sbRole.innerHTML='<span class="badge-owner">Владелец</span>';
         else sbRole.textContent='Пользователь';
@@ -2844,7 +2842,6 @@ function updateSidebar(){
       sbUsr.textContent='Гость';
       if(window.renderSidebarAvatar){ window.renderSidebarAvatar(null); }
       else if(sbAvatar) sbAvatar.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-      if(window.renderTopbarAvatar){ window.renderTopbarAvatar(null); }
       if(sbRole) sbRole.textContent='Не авторизован';
       if(sbTg) sbTg.style.display='none';
     }
