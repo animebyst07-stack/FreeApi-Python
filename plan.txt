@@ -1,44 +1,316 @@
-PLAN — Сессия: убрать аватарку из шапки (topbar)
-==================================================
+PLAN — Сессия: «Сообщество» (общественный чат) + фикс бана отзывов
+====================================================================
 
-КОНТЕКСТ ПРОЕКТА
-- Репозиторий: animebyst07-stack/FreeApi-Python
-- Стек: Python (Flask blueprints) + статический фронтенд (HTML/CSS/JS), запуск в Termux.
-- В шапке (header.topbar) слева от значка уведомлений (#topbarBell) была кнопка
-  <button id="topbarAvatar" class="topbar-avatar"> с onclick="toggleSidebar()".
-  Появлялась только у авторизованного пользователя и полностью дублировала
-  поведение существующего "бутерброда" #hamburger.
+КОНТЕКСТ ПРОЕКТА (из аудита)
+- Бэкенд: Flask + blueprints в freeapi/blueprints/, репозитории в freeapi/repos/.
+- БД: SQLite, миграции в freeapi/migrations/00X_*.sql (next = 009).
+- Фронт: статический static/index.html + модули static/js/views/*.js
+  и ui/sidebar.js, ui/topbar.js, core/api.js, core/storage.js.
+- Уведомления уже есть: kinds = 'review' | 'support' | 'system'
+  (см. user_notifications.kind, миграция 007). Группировка с табами в notifications.js.
+- Аватарка пользователя — data URL в users.avatar (миграция 008), кадрирование на клиенте.
+- Админ опознаётся по username == 'ReZero' (см. _helpers.py / admin_bp.py).
+- TG-уведомления: tg_notify.py — внешний канал, можно подписать сюда mention’ы.
+- Существующий бан отзывов: review_restrictions(user_id PK, banned_until, reason),
+  накладывается в agent.py _do_delete() на 7 дней при первом же удалении модератором.
 
-ЗАДАЧИ
-1) Убрать значок аватарки из шапки. Бутерброд оставить как есть.   STATUS: DONE
-2) Подчистить мёртвый код, оставшийся после удаления кнопки.       STATUS: DONE
+────────────────────────────────────────────────────────────────────────
+БЛОК 0. БАГ С БАНОМ ОТЗЫВОВ (фикс по ходу запроса)
+────────────────────────────────────────────────────────────────────────
 
-ШАГИ
-[x] 1. Клонировать репозиторий, провести аудит структуры.
-[x] 2. Найти DOM-узел аватарки в шапке (static/index.html, ~стр.122).
-[x] 3. Найти JS-логику рендера (static/js/views/profile_avatar.js → renderTopbarAvatar)
-       и точки вызова (static/index.html ~2837, ~2848).
-[x] 4. Удалить кнопку #topbarAvatar из static/index.html.
-[x] 5. Сохранить plan.txt в workspace и в корень репозитория.
-[x] 6. Закоммитить и запушить изменения в GitHub (через GitHub API,
-       поскольку git push в среде Replit заблокирован).
+Текущее поведение:
+  • agent.py: одно удаление от модератора → ban на 7 дней.
+  • reviews_bp.py: ban-проверка скипается, если username == 'ReZero', — ОК.
+  • Фронт (reviews.js / writeReview-модалка) показывает «доступ ограничен»
+    из общего флага, не различая админа. → Расхождение, которое ты видишь.
 
-ЧИСТКА (вторая итерация)
-[x] 7. Удалить мёртвый CSS из static/css/main.css:
-       .topbar-avatar, .topbar-avatar:hover, .topbar-avatar:focus-visible,
-       .topbar-avatar-img (заголовок секции G7 переименован под уцелевший .author-avatar).
-[x] 8. Удалить функцию renderTopbarAvatar() и её экспорт window.renderTopbarAvatar
-       из static/js/views/profile_avatar.js.
-[x] 9. Удалить вызовы window.renderTopbarAvatar(...) из static/index.html
-       (ветки authed/guest в обновлении сайдбара).
-[x] 10. Проверить грепом, что в static/ не осталось упоминаний topbarAvatar /
-        topbar-avatar / renderTopbarAvatar — чисто.
-[x] 11. Запушить чистку в GitHub через API.
+Желаемое поведение:
+  • Скользящее окно 7 дней. Удалённый модератором отзыв = +1 к счётчику.
+  • При достижении 5/5 за окно → бан на 7 дней (одна неделя без отзывов).
+  • Окно автоматически "сбрасывается": считаем только записи моложе 7 дней.
+  • Админ (ReZero) полностью исключён и из счётчика, и из бана, и из UI-плашки.
+  • Пользователю в /api/auth/me и /api/reviews/mine отдаём
+    { removals_window: { count, max: 5, reset_at, days_left }, ban: {...} }
+    чтобы UI рисовал «3/5 за неделю» и точное время сброса.
 
-КРИТЕРИЙ ГОТОВО
-- В шапке слева от колокольчика нет аватарки.
-- Бутерброд продолжает открывать сайдбар.
-- В коде (HTML/CSS/JS) нет ни одной зацепки на удалённую кнопку.
-- Никаких JS-ошибок: вызовы renderTopbarAvatar полностью удалены.
+Шаги:
+[ ] 0.1 Миграция 009_review_removals.sql:
+        CREATE TABLE review_removals(id PK, user_id, removed_at, reason).
+        + index(user_id, removed_at).
+[ ] 0.2 freeapi/repos/reviews.py:
+        record_review_removal(user_id, reason);
+        get_recent_removals(user_id, days=7) → list/count;
+        compute_ban_state(user_id, max=5, days=7) → {count,max,reset_at,banned_until}.
+[ ] 0.3 freeapi/agent.py _do_delete():
+        вместо безусловного restrict_review_access — record_review_removal()
+        + если count >= 5 → restrict_review_access на 7 дней с reset_at.
+[ ] 0.4 freeapi/blueprints/_helpers.py: helper is_admin(user) для одной точки
+        правды (используется и в reviews, и в community).
+[ ] 0.5 reviews_bp.py: GET /api/reviews/state (или расширить /mine) — возвращает
+        removals_window + ban + is_admin (для UI).
+[ ] 0.6 static/js/views/reviews.js: показ плашки только если !is_admin && ban,
+        счётчик «N/5 удалено за неделю · сбросится через X дн.» с подсказкой.
 
-СТАТУС: ПОЛНОСТЬЮ ВЫПОЛНЕНО
+────────────────────────────────────────────────────────────────────────
+БЛОК 1. СХЕМА БД ДЛЯ СООБЩЕСТВА (миграция 010_community.sql)
+────────────────────────────────────────────────────────────────────────
+
+[ ] 1.1 community_messages
+        id PK, author_id FK users, kind ('chat'|'admin_post'),
+        text, created_at, updated_at,
+        is_deleted INTEGER (soft-delete), deleted_at, deleted_by FK users,
+        retain_until (created_at+30 дней) — для GC.
+[ ] 1.2 community_message_versions  (история правок и снапшот удаления)
+        id PK, message_id FK, version INTEGER, text, images_json,
+        edited_at, edited_by FK users, change_kind ('edit'|'delete'|'create').
+[ ] 1.3 community_message_images
+        id PK, message_id FK, position INT, data_url TEXT, mime, size_bytes.
+        (Лимит 3 фотки/сообщение, ≤200KB каждая, сжатие на клиенте по
+         аналогии с аватаркой.)
+[ ] 1.4 community_pins
+        message_id PK FK, pinned_at, pinned_by FK users, position INT.
+        (Несколько закреплённых; сверху чата как в TG.)
+[ ] 1.5 community_reactions
+        message_id, user_id, emoji TEXT (любой юникод-символ),
+        created_at, PK(message_id, user_id, emoji).
+[ ] 1.6 community_mentions
+        id PK, message_id FK, mentioned_user_id FK, created_at, notified INT.
+[ ] 1.7 community_chat_bans
+        user_id PK, banned_until, reason, banned_by, created_at.
+        (Отдельно от review_restrictions — это бан в чате.)
+[ ] 1.8 community_moderators
+        user_id PK, granted_by, granted_at.
+        (Админ ReZero — модератор автоматически; остальных назначает он.)
+[ ] 1.9 user_settings (если ещё нет — отдельной миграцией добавим колонку)
+        notif_mute_mentions INTEGER DEFAULT 0.
+        Альтернатива: ALTER users ADD COLUMN notif_mute_mentions INT DEFAULT 0.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 2. БЭКЕНД: blueprint community_bp.py + repos/community.py
+────────────────────────────────────────────────────────────────────────
+
+[ ] 2.1 freeapi/repos/community.py — все CRUD-операции (без прямого SQL в роутах).
+[ ] 2.2 freeapi/blueprints/community_bp.py со следующими маршрутами:
+
+    Чтение:
+      GET  /api/community/feed?before=<msg_id>&limit=50
+           — лента (чат), с include_pinned + reactions + mentions + author chip.
+      GET  /api/community/pins        — закреплённые сверху.
+      GET  /api/community/posts       — лента админ-постов (отдельный фид).
+      GET  /api/community/message/<id> — одно сообщение (для дип-линка).
+      GET  /api/community/state       — { is_muted, is_admin, is_moderator,
+                                          chat_ban, slow_mode_seconds }.
+
+    Запись (auth required):
+      POST /api/community/messages    — { text, images?, mentions? }
+      PATCH /api/community/messages/<id> — редактировать своё.
+      DELETE /api/community/messages/<id> — удалить своё (soft-delete + версия).
+      POST /api/community/messages/<id>/react   — { emoji } toggle.
+      POST /api/community/users/<login>/lookup  — для @-автокомплита.
+
+    Админ/модератор:
+      POST   /api/community/messages/<id>/pin    — закрепить (несколько).
+      DELETE /api/community/messages/<id>/pin    — открепить.
+      DELETE /api/community/messages/<id>/admin  — удалить чужое (с версией).
+      POST   /api/community/posts                — опубликовать админ-пост.
+      POST   /api/community/bans                 — { user_id, days, reason }.
+      DELETE /api/community/bans/<user_id>       — снять бан в чате.
+      GET    /api/community/messages/<id>/history — все версии (включая фото).
+      GET    /api/community/audit?user_id=&from=&to= — ауд.журнал.
+
+    Настройки пользователя:
+      POST /api/community/notifications/mute    — { mute: true|false }.
+
+Правила:
+  • Всё через require_user() / is_admin() из _helpers.py.
+  • Slow-mode: не-админу нельзя слать чаще 1 сообщение / 3 сек (in-memory rate limit).
+  • Лимит длины текста 4000 симв., до 3 фото ≤200KB.
+  • Парсер @login (regex r'@([a-zA-Z0-9_]{3,32})') → разрешает только реально
+    существующих юзеров (lookup в users.username).
+  • При создании mention’а → create_user_notification(kind='community',
+    ref_id='msg:<id>'), если у адресата notif_mute_mentions=0.
+  • Soft-delete: запись остаётся, image-blob остаётся; на API наружу
+    отдаётся плашка «сообщение удалено · кем» (только текстовый стаб),
+    оригинал доступен админу через /history.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 3. УВЕДОМЛЕНИЯ: новый kind 'community'
+────────────────────────────────────────────────────────────────────────
+
+[ ] 3.1 repos/notifications.py: расширить _VALID_KINDS до
+        ('review','support','system','community').
+[ ] 3.2 Дип-линк: ref_id формата 'msg:<message_id>'. Фронт notifications.js
+        умеет открывать community с прокруткой к сообщению (см. блок 5.4).
+[ ] 3.3 Счётчики табов: добавить иконку и таб "Сообщество" в фильтр уведомлений.
+[ ] 3.4 Per-user mute: при notif_mute_mentions=1 уведомление не создаётся,
+        в БД ничего не пишется — никаких «прочитанных автоматом».
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 4. ФРОНТ: вкладка в сайдбаре + новый view
+────────────────────────────────────────────────────────────────────────
+
+[ ] 4.1 static/index.html: в sidebar.menu добавить пункт «Сообщество»
+        (иконка people/chat-bubbles), порядок — между «Уведомления» и
+        «Поддержка». Для гостя — disabled с подсказкой «Войдите, чтобы писать».
+[ ] 4.2 Зарегистрировать view в core/state.js (VIEWS) и в ui/view.js
+        (показ #view-community при goView('community')).
+[ ] 4.3 Добавить пустой контейнер в index.html:
+        <div class="view" id="view-community"> ... </div>
+        со скелетоном: pin-rail сверху, переключатель «Чат / Посты», список,
+        composer внизу.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 5. ФРОНТ: модуль static/js/views/community.js
+────────────────────────────────────────────────────────────────────────
+
+[ ] 5.1 Загрузка ленты (page-by-page по before=). Анимированное появление
+        входящих/исходящих (slide+fade), как в основной стилистике сайта.
+[ ] 5.2 Composer:
+        • textarea с авто-ростом (cap 4 строки + scroll),
+        • кнопка скрепки → выбор картинки → клиентское сжатие (256KB cap)
+          с переиспользованием логики из profile_avatar.js (canvas+toDataURL),
+        • Enter — отправить, Shift+Enter — перенос,
+        • счётчик символов 0/4000 с цветовым предупреждением.
+[ ] 5.3 Тегирование @login:
+        • В textarea ловим '@', открываем выпадашку с поиском
+          (POST /lookup, throttle 250 мс),
+        • стрелки ↑/↓ + Enter / клик вставляют @username,
+        • в DOM сообщения @login рендерится как <a class="mention"
+          data-uid> и подсвечивается.
+[ ] 5.4 Дип-линк из уведомлений: при goView('community',{ref:'msg:<id>'})
+        — догружаем ленту до сообщения, скроллим к нему, подсвечиваем
+        мигающим хайлайтом 1.5 сек.
+[ ] 5.5 Pin-rail: горизонтальный карусель сверху чата, swipe-друг-за-другом,
+        клик — джамп на сообщение в ленте; админ видит «✕» для открепления.
+[ ] 5.6 Переключатель «Чат / Посты модератора»:
+        • вкладки «Лента» / «Посты»,
+        • в «Постах» виден только feed kind='admin_post', composer закрыт
+          для не-модератора.
+[ ] 5.7 Меню сообщения (long-press на mobile / right-click + кнопка ⋯):
+        Свои:
+          • ✏️ Редактировать (text + фото). Лимит N правок?
+            Решаем: без лимита, но каждая правка — новая версия в истории.
+          • 🗑 Удалить (soft-delete).
+          • 😀 Реакция (палитра «частые» + ввод любого emoji — picker).
+        Чужие:
+          • 😀 Реакция,
+          • Ответить (вставит цитату в composer),
+          • (Админ) 📌 Закрепить / Открепить,
+          • (Админ) 🗑 Удалить,
+          • (Админ) 🚫 Заблокировать автора в чате (модалка причина+дни),
+          • (Админ) 🕓 История (открыть модалку версий).
+[ ] 5.8 Реакции: бар под сообщением, чипы [emoji × count], нажатие toggle’ит
+        свою реакцию. Ввод любого emoji — нативный emoji-input (для mobile
+        достаточно стандартной клавы; на desktop добавляем простой picker
+        из частых: 👍 ❤️ 😂 🔥 👀 🎉 + свободный ввод).
+[ ] 5.9 Удалённое сообщение: плашка «Сообщение удалено пользователем X»
+        (или «модератором X»), компактная, серый текст, без меню.
+        Если открыто админом — на плашке кнопка «Посмотреть оригинал».
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 6. АДМИН-ПАНЕЛЬ КОММЬЮНИТИ
+────────────────────────────────────────────────────────────────────────
+
+[ ] 6.1 Внутри view-community для админа — нижняя «admin-bar» с быстрыми
+        действиями: «Запостить от модерации», «Список банов»,
+        «Аудит-журнал» (модалка).
+[ ] 6.2 Модалка истории сообщения: вертикальный таймлайн версий
+        (created → edits → delete), для каждой версии — текст + миниатюры
+        фото; кнопка «Восстановить?» — НЕТ (по запросу — только просмотр,
+        чтобы избежать конфликтов с soft-delete).
+[ ] 6.3 Модалка «Список банов в чате»: фильтр по активным/истекшим, кнопка
+        снять бан, ввод причины.
+[ ] 6.4 GC-задача: scheduler.py — раз в сутки удалять physically всё, что
+        старше 30 дней (community_messages с retain_until < now AND is_deleted=1
+        и связанные images/versions/reactions).
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 7. НАСТРОЙКИ УВЕДОМЛЕНИЙ
+────────────────────────────────────────────────────────────────────────
+
+[ ] 7.1 В view-notifications добавить «Настройки» (шестерёнка):
+        тумблер «Уведомлять, когда меня тегают» (mute_mentions).
+[ ] 7.2 POST /api/community/notifications/mute → users.notif_mute_mentions.
+[ ] 7.3 При выключенном тумблере — история старых уведомлений сохраняется,
+        новые не создаются.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 8. СТИЛЬ И UX
+────────────────────────────────────────────────────────────────────────
+
+[ ] 8.1 Все цвета/радиусы — из CSS-переменных main.css, ничего нового
+        не вводить, кроме .cm-* (community-*) скоупа.
+[ ] 8.2 Анимации:
+        • appear (slide-up + fade) на новых сообщениях,
+        • микропульс на чипе реакции при добавлении своей,
+        • shake на composer при ошибке (лимит/бан),
+        • pin-rail — плавный horizontal scroll-snap,
+        • highlight-jump (mention) — двойной фон с opacity-fade.
+[ ] 8.3 Адаптив:
+        • mobile-first: composer липнет к низу через position:sticky,
+        • pin-rail скрывается в свайп-карусель ≤480px,
+        • меню сообщения — bottom-sheet на mobile, popover на desktop.
+[ ] 8.4 Подсказки (tooltip / placeholder):
+        • placeholder в composer’е: «Напишите сообщение… @ — упомянуть».
+        • первый раз заходящий видит inline-подсказку «Длинное нажатие —
+          реакции и меню сообщения», dismiss на крестик (LS-флаг).
+[ ] 8.5 Empty / loading / offline состояния — компактные, в стилистике
+        существующих вкладок.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 9. ЛОГИРОВАНИЕ И БЕЗОПАСНОСТЬ
+────────────────────────────────────────────────────────────────────────
+
+[ ] 9.1 freeapi/log_codes.py: добавить коды CM-* (CM-001 send, CM-010 edit,
+        CM-020 delete, CM-030 pin, CM-040 ban, CM-050 mention).
+[ ] 9.2 На все админ-эндпоинты — двойная проверка is_admin/is_moderator,
+        возврат 403 в едином формате error().
+[ ] 9.3 Rate-limit: используем уже существующий rate_limit.py; ключ:
+        f'community_send:{uid}' с окном 3 сек.
+[ ] 9.4 Защита data URL картинок: проверка MIME (image/jpeg|png|webp), размера
+        ≤200_000 байт, нормализация через регулярку, иначе 400.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 10. ДОПОЛНИТЕЛЬНЫЕ ИДЕИ ОТ МЕНЯ (исполняются по умолчанию)
+────────────────────────────────────────────────────────────────────────
+
+[ ] 10.1 Slow-mode индикатор: после отправки кнопка «Отправить» серая на 3с.
+[ ] 10.2 «Сейчас в сети»: in-memory счётчик активных сессий чата (TTL 60 с,
+         апдейтится поллингом /state); цифра возле заголовка вкладки.
+[ ] 10.3 Реакции «частые» — топ-6 по чату, локально кэшируется.
+[ ] 10.4 Quote-reply: при «Ответить» к новому сообщению добавляется
+         reply_to FK, в UI рисуется compact preview оригинала.
+         (Если успеваем — добавляем в схему как ALTER в той же миграции 010.)
+[ ] 10.5 Поиск по чату (только админ): inline-поле сверху, серверный
+         LIKE по text с ранжированием по дате.
+[ ] 10.6 «Тихий» режим композитора (не-моб.): Ctrl+K — фокус, Esc — закрыть
+         меню, J/K — навигация по сообщениям.
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 11. ИНТЕГРАЦИЯ TG-УВЕДОМЛЕНИЙ
+────────────────────────────────────────────────────────────────────────
+
+[ ] 11.1 На mention’е, если у пользователя привязан tg_account
+         и notif_mute_mentions=0, отправить ему через tg_notify.py
+         «вас упомянули в #сообществе: <preview>».
+[ ] 11.2 Для админа: на любой жалобу/блок — отчёт в его TG (как с support).
+
+────────────────────────────────────────────────────────────────────────
+БЛОК 12. ПУШ И ПРОГРЕСС
+────────────────────────────────────────────────────────────────────────
+
+[ ] 12.1 plan.txt держим синхронизированным в /workspace и в корне репо.
+[ ] 12.2 После каждого крупного блока — git push через GitHub API.
+[ ] 12.3 По завершении — добавить раздел «Сообщество» в README и PROGRESS.md.
+
+────────────────────────────────────────────────────────────────────────
+ОЧЕРЁДНОСТЬ ИСПОЛНЕНИЯ
+────────────────────────────────────────────────────────────────────────
+M1: Блок 0  (фикс бана отзывов)                       — отдельный коммит.
+M2: Блоки 1+2+3 (схема + бэкенд + уведы)              — коммит «backend community».
+M3: Блоки 4+5+8 (фронт чата + UI + стиль)             — коммит «frontend community».
+M4: Блок 6  (админ-панель + история)                  — коммит «admin community».
+M5: Блоки 7+10+11 (настройки/идеи/TG)                 — коммит «polish community».
+M6: Блок 9 (доп. логи и защита) + GC + README         — финальный коммит.
+
+СТАТУС: ПЛАН СОСТАВЛЕН. ЖДУ "ОК" ИЛИ "ПОЕХАЛИ".
