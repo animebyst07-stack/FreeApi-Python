@@ -126,3 +126,24 @@ def clear_tg_notify(user_id):
             'tg_notify_linked_at=NULL WHERE id=?',
             (user_id,),
         )
+
+
+def set_display_prefix(user_id, prefix):
+    """Установить или убрать display_prefix у пользователя."""
+    prefix = (prefix or '').strip()[:30] or None  # макс. 30 символов, None = убрать
+    with db() as conn:
+        conn.execute(
+            'UPDATE users SET display_prefix=? WHERE id=?',
+            (prefix, user_id),
+        )
+    return prefix
+
+
+def get_user_by_username(username):
+    """Найти пользователя по username."""
+    with db() as conn:
+        r = conn.execute(
+            'SELECT id, username, display_prefix FROM users WHERE username=?',
+            (username,),
+        ).fetchone()
+        return row(r) if r else None

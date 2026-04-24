@@ -179,7 +179,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
     """Полный объект сообщения с автором/картинками/реакциями/pin-флагом."""
     with db() as conn:
         r = conn.execute(
-            'SELECT m.*, u.username, u.avatar '
+            'SELECT m.*, u.username, u.avatar, u.display_prefix '
             'FROM community_messages m '
             'JOIN users u ON u.id = m.user_id '
             'WHERE m.id=?',
@@ -199,6 +199,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
                 'user_id': r['user_id'],
                 'username': r['username'],
                 'avatar': r['avatar'],
+                'display_prefix': r['display_prefix'],
                 'kind': r['kind'],
                 'is_deleted': 1,
                 'deleted_by': r['deleted_by'],

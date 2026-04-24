@@ -1072,8 +1072,8 @@ body:has(#view-dashboard.active){background:#000!important}
   inset:0;
   display:flex;
   background:#000;
-  z-index:1;
-  /* Скрываем глобальный .bg-mesh внутри чата, у нас свой canvas. */
+  z-index:210;
+  /* z-index:210 > topbar (200) — полноэкранный оверлей поверх шапки. */
 }
 #view-community.active ~ .bg-wrap,
 #view-community.active .bg-wrap{display:none !important}
@@ -1230,6 +1230,7 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-msg-author{color:#fff;font-weight:600;font-size:13px}
 .cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0}
 .cm-msg-badge{font-size:9.5px;background:#262540;color:#a8b8ff;padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.cm-msg-prefix{font-size:10px;background:rgba(255,255,255,.07);color:#9a9a9a;padding:1px 5px;border-radius:4px;font-weight:500;margin-left:5px;vertical-align:middle;border:1px solid #252525;letter-spacing:.02em}
 .cm-msg-body{color:#e6e6e6;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .cm-msg-meta-icons{display:inline-flex;gap:5px;color:#666;align-items:center}
 .cm-msg-meta-icons svg{width:11px;height:11px;display:block}
@@ -1273,14 +1274,26 @@ body:has(#view-dashboard.active){background:#000!important}
   flex-direction:column;
   gap:6px;
 }
-.cm-composer-imgs{display:none;flex-wrap:wrap;gap:5px}
-.cm-composer-imgs img{width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #232323}
-.cm-composer-imgs .cm-composer-rmimg{
-  position:absolute;top:-4px;right:-4px;width:16px;height:16px;
-  border-radius:50%;background:#a32;color:#fff;border:0;font-size:10px;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
+.cm-composer-imgs{display:none;flex-wrap:wrap;gap:6px;padding:4px 0}
+.cm-composer-imgs.shown{display:flex}
+.cm-composer-img-item{position:relative;display:inline-block}
+.cm-composer-img-item img{
+  width:62px;height:62px;border-radius:8px;object-fit:cover;
+  border:2px solid #2c5b9c;display:block;cursor:zoom-in;
+  box-shadow:0 0 0 1px rgba(44,91,156,.3);
+  transition:border-color .12s;
 }
-.cm-composer-imgs > div{position:relative}
+.cm-composer-img-item img:hover{border-color:#5b9cdc}
+.cm-composer-img-item .cm-composer-rmimg{
+  position:absolute;top:-5px;right:-5px;width:18px;height:18px;
+  border-radius:50%;background:#c0392b;color:#fff;border:2px solid #000;
+  font-size:11px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  line-height:1;
+}
+.cm-composer-img-limit{
+  align-self:center;font-size:11px;color:#666;padding:0 4px;
+}
 
 .cm-composer-row{
   display:flex;align-items:flex-end;gap:6px;

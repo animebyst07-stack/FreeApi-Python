@@ -1199,12 +1199,14 @@ request them. Three live endpoints to introspect the environment:
       <div class="cm-mention-pop" id="cmMentionPopup" style="display:none"></div>
       <div class="cm-composer-row">
         <label class="cm-composer-icon" title="Прикрепить фото" style="margin:0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.83l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          <!-- Кастомная иконка: скрепка в стиле сайта (угловая) -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a5 5 0 0 1 5-5h9a3 3 0 0 1 0 6H8a1 1 0 0 0 0 2h10a5 5 0 0 1 0 10H7a3 3 0 0 1 0-6h10a1 1 0 0 0 0-2"/></svg>
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmFileInput" onchange="cmHandleFiles(event)">
         </label>
         <textarea id="cmInput" placeholder="Сообщение…  @имя — упомянуть" rows="1"></textarea>
         <button class="cm-composer-send" id="cmSendBtn" onclick="cmSendMessage()" title="Отправить">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <!-- Кастомная иконка: молния-стрелка в стиле логотипа сайта -->
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
         </button>
       </div>
     </div>

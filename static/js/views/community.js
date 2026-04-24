@@ -247,7 +247,9 @@
     if (m.kind === 'admin_post') el.classList.add('cm-msg-post');
 
     var head = '<div class="cm-msg-head">' +
-      '<span class="cm-msg-author">@' + esc(m.username) + '</span>' +
+      '<span class="cm-msg-author">@' + esc(m.username) +
+        (m.display_prefix ? '<span class="cm-msg-prefix">' + esc(m.display_prefix) + '</span>' : '') +
+      '</span>' +
       (m.kind === 'admin_post' ? '<span class="cm-msg-badge">пост</span>' : '') +
       '<span class="cm-msg-meta-icons">' +
         (m.versions_count > 0 ? '<span title="изменено">' + ICONS.edited + '</span>' : '') +
@@ -258,9 +260,14 @@
     var body = '<div class="cm-msg-body">' + highlightMentions(m.text || '') + '</div>';
     var imgs = '';
     if (m.images && m.images.length) {
+      var imgList = m.images;
+      // Регистрируем массив картинок для lightbox
+      var lbKey = 'cm_' + m.id;
+      if (!window._lbReg) window._lbReg = {};
+      window._lbReg[lbKey] = imgList;
       imgs = '<div class="cm-msg-imgs">' +
-        m.images.map(function (src) {
-          return '<img src="' + esc(src) + '" alt="" onclick="event.stopPropagation();window.open(this.src)">';
+        imgList.map(function (src, idx) {
+          return '<img src="' + esc(src) + '" alt="" onclick="event.stopPropagation();openLightbox(window._lbReg[\'cm_' + esc(m.id) + '\'],' + idx + ')">';
         }).join('') + '</div>';
     }
     var rx = '';
@@ -432,7 +439,7 @@
   };
 
   window.cmUnpin = function (msgId) {
-    http('POST', '/api/community/messages/' + msgId + '/unpin')
+    http('DELETE', '/api/community/messages/' + msgId + '/pin')
       .then(loadMessages)
       .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
   };
@@ -456,12 +463,20 @@
   };
 
   // ── Composer images / mute ──────────────────────────────────────────
+  var CM_MAX_IMAGES = 10;
+
   window.cmHandleFiles = function (ev) {
     var files = ev.target.files;
     if (!files) return;
-    var arr = Array.prototype.slice.call(files, 0, 4);
+    var remaining = CM_MAX_IMAGES - STATE.images.length;
+    var arr = Array.prototype.slice.call(files, 0, remaining);
+    if (STATE.images.length >= CM_MAX_IMAGES) {
+      if (window.showToast) window.showToast('Максимум ' + CM_MAX_IMAGES + ' фото', 'err');
+      ev.target.value = '';
+      return;
+    }
     arr.forEach(function (f) {
-      if (STATE.images.length >= 4) return;
+      if (STATE.images.length >= CM_MAX_IMAGES) return;
       var rd = new FileReader();
       rd.onload = function () {
         STATE.images.push(rd.result);
@@ -477,19 +492,34 @@
   function renderImagesPreview() {
     var box = document.getElementById('cmImagesPreview');
     if (!box) return;
-    if (!STATE.images.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
-    box.style.display = '';
-    box.innerHTML = STATE.images.map(function (src, i) {
-      return '<div><img src="' + esc(src) + '" alt=""><button class="cm-composer-rmimg" onclick="cmRemoveImg(' + i + ')" type="button">×</button></div>';
-    }).join('');
+    if (!STATE.images.length) {
+      box.style.display = 'none'; box.innerHTML = ''; return;
+    }
+    box.style.display = 'flex';
+    var snapshots = STATE.images.slice(); // snapshot for closure
+    box.innerHTML = snapshots.map(function (src, i) {
+      return '<div class="cm-composer-img-item">' +
+        '<img src="' + esc(src) + '" alt="" onclick="openLightbox(window._cmComposerImgs,' + i + ')">' +
+        '<button class="cm-composer-rmimg" onclick="cmRemoveImg(' + i + ')" type="button">×</button>' +
+        '</div>';
+    }).join('') +
+    (STATE.images.length >= CM_MAX_IMAGES
+      ? '<div class="cm-composer-img-limit">макс. ' + CM_MAX_IMAGES + '</div>' : '');
+    window._cmComposerImgs = snapshots;
   }
 
   window.cmHandlePostFiles = function (ev) {
     var files = ev.target.files;
     if (!files) return;
-    var arr = Array.prototype.slice.call(files, 0, 4);
+    var remaining = CM_MAX_IMAGES - STATE.postImages.length;
+    var arr = Array.prototype.slice.call(files, 0, remaining);
+    if (STATE.postImages.length >= CM_MAX_IMAGES) {
+      if (window.showToast) window.showToast('Максимум ' + CM_MAX_IMAGES + ' фото', 'err');
+      ev.target.value = '';
+      return;
+    }
     arr.forEach(function (f) {
-      if (STATE.postImages.length >= 4) return;
+      if (STATE.postImages.length >= CM_MAX_IMAGES) return;
       var rd = new FileReader();
       rd.onload = function () {
         STATE.postImages.push(rd.result);
@@ -506,8 +536,10 @@
     if (!STATE.postImages.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
     box.style.display = '';
     box.innerHTML = STATE.postImages.map(function (src, i) {
-      return '<div style="position:relative"><img src="' + esc(src) + '" style="max-width:90px;max-height:90px;border-radius:6px;border:1px solid #1f1f1f"><button onclick="cmRemovePostImg(' + i + ')" style="position:absolute;top:-6px;right:-6px;background:#a32;color:#fff;border:0;border-radius:50%;width:18px;height:18px;cursor:pointer">×</button></div>';
-    }).join('');
+      return '<div class="cm-composer-img-item"><img src="' + esc(src) + '" style="max-width:90px;max-height:90px;border-radius:6px;border:1px solid #1f1f1f" alt=""><button class="cm-composer-rmimg" onclick="cmRemovePostImg(' + i + ')" type="button">×</button></div>';
+    }).join('') +
+    (STATE.postImages.length >= CM_MAX_IMAGES
+      ? '<div class="cm-composer-img-limit">макс. ' + CM_MAX_IMAGES + '</div>' : '');
   }
 
   window.cmToggleMute = function () {

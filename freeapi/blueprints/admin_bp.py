@@ -168,6 +168,24 @@ def admin_get_reviews():
     items, total = repo.get_all_reviews_admin(limit=limit, offset=offset)
     return jsonify({'reviews': items, 'total': total, 'page': page, 'pages': max(1, (total + limit - 1) // limit)})
 
+
+@bp.patch('/api/admin/users/<username>/prefix')
+def admin_set_user_prefix(username):
+    """Установить или снять display_prefix у пользователя."""
+    err = require_admin()
+    if err:
+        return err
+    from freeapi.repos import users as users_repo
+    data = request.get_json(silent=True) or {}
+    prefix = (data.get('prefix') or '').strip()[:30] or None
+    u = users_repo.get_user_by_username(username)
+    if not u:
+        return jsonify({'message': 'Пользователь не найден'}), 404
+    users_repo.set_display_prefix(u['id'], prefix)
+    logger.info('[ADMIN][PREFIX] user=%s prefix=%s by=%s', username, prefix, session.get('username'))
+    return jsonify({'username': username, 'display_prefix': prefix})
+
+
 # ═══════════════════════════════════════════════
 #  SUPPORT CHAT — Favorite AI Agent
 # ═══════════════════════════════════════════════

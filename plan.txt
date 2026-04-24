@@ -20,6 +20,16 @@ PLAN — Сессия: «Сообщество» (общественный чат
     log_codes CM_TG_LINK_*/CM_TG_PUSH_*, фронт-блок «Уведомления в Telegram»
     в community.js под header'ом раздела «Чат / Посты».
 [x] M3.1 — полный визуальный рефакторинг «Сообщества».
+[x] M3.2 — фиксы по фидбеку пользователя (сессия 2026-04-24):
+    1. z-index:210 для #view-community.active — шапка больше не перекрывает чат.
+    2. Визуализация выбранных фото в composer: миниатюры 62x62 с синей рамкой,
+       клик открывает lightbox; лимит увеличен до 10 фото (было 4),
+       при достижении — индикатор "макс. 10".
+    3. Клик по фото в сообщении — теперь использует openLightbox (как в отзывах).
+    4. Кастомные иконки: скрепка (угловая петля) и молния (как логотип сайта).
+    5. Баг открепления исправлен: cmUnpin шлёт DELETE /messages/:id/pin (было POST /unpin → 405).
+    6. display_prefix в чате: миграция 013, set_display_prefix в users repo,
+       PATCH /api/admin/users/<username>/prefix, поле в get_message, CSS + рендер.
     Полноэкранный layout (cm-page: header sticky / body scroll / composer sticky),
     чёрный фон + canvas с медленно плавающими серыми частицами
     (cmParticles, requestAnimationFrame, плотность ~1 точка / 16k px,
@@ -47,7 +57,7 @@ PLAN — Сессия: «Сообщество» (общественный чат
     новые: ICONS/REACTIONS словари, cmOpenSheet/cmCloseSheet,
     cmCopyMsg, startParticles/stopParticles, cmOpenTgModal/cmCloseTgModal,
     autosizeTextarea; убраны: cmReactPrompt, инлайн-actions, чекбокс mute).
-[ ] M4 — модерация AI-агентом постов чата (re-use moderator settings).
+[.] M4 — модерация AI-агентом постов чата (re-use moderator settings). [в очереди]
 [ ] M5 — статистика для админа (графики активности чата).
 [ ] M6 — мобильная адаптация раздела «Сообщество» + dark/light доводка.
 ────────────────────────────────────────────────────────────
