@@ -114,7 +114,7 @@ def get_approved_reviews(limit=10, offset=0, viewer_uid=None):
         ).fetchone()
         total = total_row['cnt'] if total_row else 0
         items = rows(conn.execute(
-            'SELECT r.id, r.score, r.text, r.ai_response, r.images, r.admin_images, r.reply_by, r.created_at, r.updated_at, r.status, u.username '
+            'SELECT r.id, r.score, r.text, r.ai_response, r.images, r.admin_images, r.reply_by, r.created_at, r.updated_at, r.status, u.username, u.avatar '
             'FROM reviews r JOIN users u ON r.user_id = u.id '
             "WHERE r.status IN ('approved', 'flagged') ORDER BY r.updated_at DESC LIMIT ? OFFSET ?",
             (limit, offset)
@@ -137,7 +137,7 @@ def get_avg_review_score():
 def get_pending_reviews():
     with db() as conn:
         return rows(conn.execute(
-            'SELECT r.*, u.username FROM reviews r JOIN users u ON r.user_id = u.id '
+            'SELECT r.*, u.username, u.avatar FROM reviews r JOIN users u ON r.user_id = u.id '
             "WHERE r.status = 'pending' ORDER BY r.created_at ASC"
         ).fetchall())
 
@@ -147,7 +147,7 @@ def get_all_reviews_admin(limit=10, offset=0):
         total_row = conn.execute('SELECT COUNT(*) AS cnt FROM reviews').fetchone()
         total = total_row['cnt'] if total_row else 0
         items = rows(conn.execute(
-            'SELECT r.*, u.username FROM reviews r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC LIMIT ? OFFSET ?',
+            'SELECT r.*, u.username, u.avatar FROM reviews r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC LIMIT ? OFFSET ?',
             (limit, offset)
         ).fetchall())
         return items, total

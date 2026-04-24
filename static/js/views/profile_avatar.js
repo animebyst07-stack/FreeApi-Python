@@ -356,6 +356,53 @@ if (document.readyState === 'loading'){
   document.addEventListener('DOMContentLoaded', _init);
 } else { _init(); }
 
+/* ───── G7: универсальные хелперы для отображения аватарки везде ───── */
+
+function _esc(s){
+  var d = document.createElement('div');
+  d.textContent = String(s == null ? '' : s);
+  return d.innerHTML;
+}
+
+/* Маленькая аватарка-чип в карточках (отзывы и т.п.).
+   Возвращает HTML для контейнера .review-author с аватаркой + именем + бейджем.
+   - username: строка
+   - avatar:   data URL или null
+   - badgeHtml: уже готовый HTML бейджа (например '<span class="badge-owner">…</span>') */
+function renderAuthorChip(username, avatar, badgeHtml){
+  var name = _esc(username || 'user');
+  var inner;
+  if (avatar){
+    var safe = String(avatar).replace(/"/g, '&quot;');
+    inner = '<span class="author-avatar"><img class="author-avatar-img" alt="" src="' + safe + '"></span>';
+  } else {
+    var ch = (username || '?').charAt(0).toUpperCase();
+    inner = '<span class="author-avatar author-avatar-letter">' + _esc(ch) + '</span>';
+  }
+  return inner + name + (badgeHtml || '');
+}
+
+/* Аватарка в шапке (topbar). Прячется, если нет авторизации.
+   Клик открывает сайдбар (toggleSidebar). */
+function renderTopbarAvatar(user){
+  var el = document.getElementById('topbarAvatar');
+  if (!el) return;
+  if (!user){
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = '';
+  if (user.avatar){
+    var safe = String(user.avatar).replace(/"/g, '&quot;');
+    el.innerHTML = '<img class="topbar-avatar-img" alt="" src="' + safe + '">';
+  } else {
+    el.textContent = (user.username || '?').charAt(0).toUpperCase();
+  }
+}
+
 window.openAvatarCropper = openAvatarCropper;
 window.closeAvatarCropper = closeCropper;
 window.renderSidebarAvatar = renderSidebarAvatar;
+window.renderAuthorChip = renderAuthorChip;
+window.renderTopbarAvatar = renderTopbarAvatar;
