@@ -7,6 +7,7 @@ from . import (
     admin_bp,
     auth_bp,
     chat_bp,
+    community_bp,
     keys_bp,
     misc_bp,
     notifications_bp,
@@ -25,6 +26,7 @@ ALL_BLUEPRINTS = (
     notifications_bp.bp,
     admin_bp.bp,
     support_bp.bp,
+    community_bp.bp,
 )
 
 

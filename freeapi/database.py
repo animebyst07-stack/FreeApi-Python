@@ -252,6 +252,13 @@ def init_database():
         _ensure_legacy_migrations_recorded(conn)
         _run_migrations(conn)
         _seed_reference_data(conn)
+    # Чиним рассинхрон админ-роли (если ReZero зарегистрировался ПОСЛЕ
+    # применения миграции 010_admins.sql).
+    try:
+        from freeapi.repos.admins import ensure_super_admin_seeded
+        ensure_super_admin_seeded()
+    except Exception as exc:
+        logger.warning('[ADMINS] ensure_super_admin_seeded failed: %s', exc)
 
 
 def row(row_obj):

@@ -85,6 +85,54 @@ def require_user():
     return None
 
 
+def is_admin(user_id=None):
+    """Унифицированная проверка админ-роли (см. блок 1.10 плана).
+
+    Заменяет старый хардкод `user['username'] == 'ReZero'`. Поддерживает
+    как явный user_id, так и текущего пользователя из сессии.
+    """
+    if user_id is None:
+        user_id = current_user_id()
+    if not user_id:
+        return False
+    try:
+        return repo.is_admin_user(user_id)
+    except Exception as exc:
+        logger.warning('[is_admin] fallback to legacy check, exc=%s', exc)
+        u = repo.get_user_by_id(user_id)
+        return bool(u and u.get('username') == 'ReZero')
+
+
+def is_super_admin(user_id=None):
+    if user_id is None:
+        user_id = current_user_id()
+    if not user_id:
+        return False
+    try:
+        return repo.is_super_admin_user(user_id)
+    except Exception as exc:
+        logger.warning('[is_super_admin] fallback, exc=%s', exc)
+        u = repo.get_user_by_id(user_id)
+        return bool(u and u.get('username') == 'ReZero')
+
+
+def require_admin():
+    """Требует, чтобы текущий юзер был админом. Возвращает (None | error_response)."""
+    if not current_user_id():
+        return error('Требуется авторизация', 401)
+    if not is_admin():
+        return error('Нет доступа', 403)
+    return None
+
+
+def require_super_admin():
+    if not current_user_id():
+        return error('Требуется авторизация', 401)
+    if not is_super_admin():
+        return error('Нет доступа: только суперадмин', 403)
+    return None
+
+
 def bearer_value():
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):

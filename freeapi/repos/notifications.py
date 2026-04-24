@@ -5,7 +5,7 @@ from freeapi.database import db, row, rows, msk_now
 from freeapi.security import uuid4
 
 
-_VALID_KINDS = ('review', 'support', 'system')
+_VALID_KINDS = ('review', 'support', 'system', 'community')
 
 
 def _norm_kind(kind):
@@ -82,7 +82,7 @@ def count_notifications_by_kind(user_id):
             'WHERE user_id=? GROUP BY kind',
             (user_id,)
         ).fetchall()
-    out = {'all': 0, 'review': 0, 'support': 0, 'system': 0}
+    out = {'all': 0, 'review': 0, 'support': 0, 'system': 0, 'community': 0}
     for r in rs:
         k = _norm_kind(r['kind'])
         c = int(r['cnt'] or 0)
@@ -99,7 +99,7 @@ def count_unread_notifications_by_kind(user_id):
             'WHERE user_id=? AND is_read=0 GROUP BY kind',
             (user_id,)
         ).fetchall()
-    out = {'all': 0, 'review': 0, 'support': 0, 'system': 0}
+    out = {'all': 0, 'review': 0, 'support': 0, 'system': 0, 'community': 0}
     for r in rs:
         k = _norm_kind(r['kind'])
         c = int(r['cnt'] or 0)

@@ -9,6 +9,9 @@ from .tg_accounts import *  # noqa: F401,F403
 from .keys import *  # noqa: F401,F403
 from .stats import *  # noqa: F401,F403
 from .reviews import *  # noqa: F401,F403
+from .review_removals import *  # noqa: F401,F403
 from .notifications import *  # noqa: F401,F403
 from .admin import *  # noqa: F401,F403
+from .admins import *  # noqa: F401,F403
 from .support import *  # noqa: F401,F403
+from . import community  # noqa: F401  (используется как repo.community.*)

@@ -25,17 +25,67 @@ from freeapi.tg import run_chat, run_control, run_dual_chat, run_setup_backgroun
 from freeapi.blueprints._helpers import (
     error, current_user_id, support_project_context, require_user,
     bearer_value, authorized_key, fake_stream,
+    is_admin, is_super_admin,
+    require_admin as _require_admin_shared,
+    require_super_admin as _require_super_admin_shared,
 )
 
 bp = Blueprint('admin', __name__)
 
+# Локальный alias для обратной совместимости с уже написанными ниже хендлерами.
+# С апреля 2026 (блок 1.10 плана) проверка идёт через таблицу admins,
+# а не хардкод username == 'ReZero'.
 def require_admin():
-    if not current_user_id():
-        return error('Требуется авторизация', 401)
-    user = repo.get_user_by_id(current_user_id())
-    if not user or user['username'] != 'ReZero':
-        return error('Нет доступа', 403)
-    return None
+    return _require_admin_shared()
+
+
+def require_super_admin():
+    return _require_super_admin_shared()
+
+
+# ═══════════════════════════════════════════════
+#  АДМИН-РОЛИ (блок 6.1.1 плана)
+# ═══════════════════════════════════════════════
+
+@bp.get('/api/admin/admins')
+def admin_list_admins():
+    err = require_admin()
+    if err:
+        return err
+    items = repo.list_admins()
+    logger.info('[ADMINS] GET /api/admin/admins by uid=%s count=%s',
+                current_user_id(), len(items))
+    return jsonify({'admins': items, 'is_super': is_super_admin()})
+
+
+@bp.post('/api/admin/admins')
+def admin_add_admin():
+    err = require_super_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    if not username:
+        return error('Не указан логин', 400)
+    ok, msg = repo.add_admin_by_username(username, current_user_id())
+    logger.info('[ADMINS] POST /api/admin/admins by=%s username=%r → ok=%s msg=%r',
+                current_user_id(), username, ok, msg)
+    if not ok:
+        return error(msg, 400)
+    return jsonify({'ok': True, 'admins': repo.list_admins()})
+
+
+@bp.delete('/api/admin/admins/<user_id>')
+def admin_remove_admin(user_id):
+    err = require_super_admin()
+    if err:
+        return err
+    ok, msg = repo.remove_admin(user_id, current_user_id())
+    logger.info('[ADMINS] DELETE /api/admin/admins/%s by=%s → ok=%s msg=%r',
+                user_id, current_user_id(), ok, msg)
+    if not ok:
+        return error(msg, 400)
+    return jsonify({'ok': True, 'admins': repo.list_admins()})
 
 @bp.get('/api/admin/settings')
 def admin_get_settings():

@@ -269,16 +269,61 @@ class FavoriteAIAgent:
                 )
 
     def _do_delete(self, review_id, user_id, reason, repo):
+        """M1: новое поведение — скользящее окно 5 удалений за 7 дней.
+
+        Старое поведение (до апр. 2026): любое удаление = моментальный
+        бан на 7 дней. Это бесило пользователей: один спорный отзыв
+        блокировал на неделю. Теперь:
+          • Каждое удаление логируется в review_removals.
+          • Если в окне 7 дней набрано >= REMOVAL_THRESHOLD (=5)
+            удалений — накладывается бан до (первое_удаление_в_окне + 7д).
+          • Иначе — бана нет, юзер просто получает уведомление.
+        """
         from freeapi.database import msk_now, MSK
-        banned_until = (datetime.now(MSK) + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        from freeapi.repos.review_removals import (
+            log_removal, count_recent_removals, first_removal_at_in_window,
+            REMOVAL_THRESHOLD, REMOVAL_WINDOW_DAYS,
+        )
+
         repo.delete_review(review_id)
-        if user_id:
-            repo.restrict_review_access(user_id, banned_until, reason)
+        if not user_id:
+            return
+
+        # 1) залогировать факт удаления
+        log_removal(user_id, review_id, reason, removed_by=AGENT_NAME)
+
+        # 2) сколько уже за окно?
+        cnt = count_recent_removals(user_id)
+        logger.info('[REV-BAN] uid=%s removals_in_%sd=%s threshold=%s',
+                    user_id, REMOVAL_WINDOW_DAYS, cnt, REMOVAL_THRESHOLD)
+
+        if cnt >= REMOVAL_THRESHOLD:
+            # 3) бан: 7 дней с момента первого удаления в окне
+            first_at = first_removal_at_in_window(user_id) or msk_now()
+            try:
+                start_dt = datetime.strptime(first_at, '%Y-%m-%d %H:%M:%S').replace(tzinfo=MSK)
+            except Exception:
+                start_dt = datetime.now(MSK)
+            banned_until = (start_dt + timedelta(days=REMOVAL_WINDOW_DAYS)).strftime('%Y-%m-%d %H:%M:%S')
+            repo.restrict_review_access(user_id, banned_until,
+                                        f'{REMOVAL_THRESHOLD} удалений за {REMOVAL_WINDOW_DAYS} дн.')
             repo.create_user_notification(
                 user_id,
-                f'Ваш отзыв удалён модератором ({AGENT_NAME}). '
-                f'Причина: {reason}. '
-                f'Доступ к отзывам ограничен на 1 неделю (до {banned_until} МСК).',
+                f'Ваш отзыв удалён модератором ({AGENT_NAME}). Причина: {reason}. '
+                f'Это {cnt}-е удаление за {REMOVAL_WINDOW_DAYS} дн. — '
+                f'доступ к отзывам ограничен до {banned_until} МСК.',
+                kind='review',
+                ref_id=review_id,
+            )
+            logger.warning('[REV-BAN] uid=%s BANNED until %s (first_at=%s)',
+                           user_id, banned_until, first_at)
+        else:
+            left = REMOVAL_THRESHOLD - cnt
+            repo.create_user_notification(
+                user_id,
+                f'Ваш отзыв удалён модератором ({AGENT_NAME}). Причина: {reason}. '
+                f'Удалений за {REMOVAL_WINDOW_DAYS} дн.: {cnt}/{REMOVAL_THRESHOLD}. '
+                f'Ещё {left} удаление(й) — и доступ ограничат на 7 дней.',
                 kind='review',
                 ref_id=review_id,
             )

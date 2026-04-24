@@ -29,7 +29,7 @@ from freeapi.blueprints._helpers import (
 
 bp = Blueprint('notifications', __name__)
 
-_VALID_NOTIF_KINDS = ('review', 'support', 'system')
+_VALID_NOTIF_KINDS = ('review', 'support', 'system', 'community')
 
 
 def _norm_kind_arg(raw):

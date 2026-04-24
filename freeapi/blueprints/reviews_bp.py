@@ -24,10 +24,55 @@ from freeapi.tg import run_chat, run_control, run_dual_chat, run_setup_backgroun
 
 from freeapi.blueprints._helpers import (
     error, current_user_id, support_project_context, require_user,
-    bearer_value, authorized_key, fake_stream,
+    bearer_value, authorized_key, fake_stream, is_admin,
 )
 
 bp = Blueprint('reviews', __name__)
+
+
+@bp.get('/api/reviews/state')
+def reviews_state():
+    """M1: единый эндпоинт для UI-плашки «доступ ограничен» / «N/5».
+
+    Возвращает: { is_admin, is_authenticated, ban: {banned_until, reason} | null,
+                  removals: {count, threshold, window_days, window_resets_at} }
+    """
+    uid = current_user_id()
+    if not uid:
+        return jsonify({
+            'is_authenticated': False,
+            'is_admin': False,
+            'ban': None,
+            'removals': None,
+        })
+    admin_flag = is_admin(uid)
+    ban = None if admin_flag else repo.get_user_ban(uid)
+    cnt = repo.count_recent_removals(uid) if not admin_flag else 0
+    first_at = repo.first_removal_at_in_window(uid) if cnt else None
+    from freeapi.repos.review_removals import REMOVAL_THRESHOLD, REMOVAL_WINDOW_DAYS
+    resets_at = None
+    if first_at:
+        try:
+            from datetime import datetime, timedelta
+            from freeapi.database import MSK
+            dt = datetime.strptime(first_at, '%Y-%m-%d %H:%M:%S').replace(tzinfo=MSK)
+            resets_at = (dt + timedelta(days=REMOVAL_WINDOW_DAYS)).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            resets_at = None
+    payload = {
+        'is_authenticated': True,
+        'is_admin': admin_flag,
+        'ban': ban,
+        'removals': {
+            'count': cnt,
+            'threshold': REMOVAL_THRESHOLD,
+            'window_days': REMOVAL_WINDOW_DAYS,
+            'window_resets_at': resets_at,
+        },
+    }
+    logger.info('[REVIEWS][STATE] uid=%s admin=%s ban=%s removals=%s/%s',
+                uid, admin_flag, bool(ban), cnt, REMOVAL_THRESHOLD)
+    return jsonify(payload)
 
 @bp.get('/api/reviews')
 def get_reviews():
@@ -67,8 +112,9 @@ def submit_review():
     user = repo.get_user_by_id(uid)
     if not user:
         return error('Пользователь не найден', 404)
-    is_admin = user['username'] == 'ReZero'
-    ban = repo.get_user_ban(uid) if not is_admin else None
+    # M1+1.10: админ-роль через таблицу admins, а не хардкод имени.
+    is_admin_flag = is_admin(uid)
+    ban = repo.get_user_ban(uid) if not is_admin_flag else None
     if ban and ban.get('banned_until'):
         return error(f'Вы не можете оставлять отзывы до {ban["banned_until"]}', 403)
     data = request.get_json(silent=True) or {}
@@ -95,7 +141,7 @@ def submit_review():
                        uid, existing_review.get('id'))
         return error('Ваш отзыв уже на модерации, дождитесь решения', 429)
     # Лимит редактирований: 3 в 7 дней (не для владельца)
-    if is_edit and not is_admin:
+    if is_edit and not is_admin_flag:
         week_edits = repo.get_week_edits(uid)
         logger.info('[REVIEWS] редактирование uid=%s week_edits=%s', uid, week_edits)
         if week_edits >= 3:
@@ -138,16 +184,16 @@ def submit_review():
     _force_admin_raw = repo.get_admin_setting('moderator_force_admin', '0')
     _force_admin = _force_admin_raw == '1'
     agent_ready = (_mod_enabled == '1') and bool(_mod_key_id)
-    _moderate_this = agent_ready and (not is_admin or _force_admin)
+    _moderate_this = agent_ready and (not is_admin_flag or _force_admin)
     # FIX (апрель 2026, 0.5f-diag): прозрачная диагностика — без этих логов
     # нельзя понять, в какой ветке остановилась логика модерации.
     logger.info(
         '[REVIEWS][MOD-CHECK] uid=%s is_admin=%s mod_enabled=%r mod_key_id=%r force_admin_raw=%r → '
         'agent_ready=%s force_admin=%s moderate_this=%s',
-        uid, is_admin, _mod_enabled, _mod_key_id, _force_admin_raw,
+        uid, is_admin_flag, _mod_enabled, _mod_key_id, _force_admin_raw,
         agent_ready, _force_admin, _moderate_this
     )
-    if is_admin and not _force_admin:
+    if is_admin_flag and not _force_admin:
         chosen_status = 'approved'
         review = repo.create_review(uid, score, text, chosen_status, images=images, is_admin=True)
     else:
@@ -156,7 +202,7 @@ def submit_review():
             uid, score, text,
             chosen_status,
             images=images,
-            is_admin=is_admin,
+            is_admin=is_admin_flag,
         )
     logger.info('[REVIEWS][MOD-CHECK] review_id=%s saved with status=%s (will_kick_agent=%s)',
                 review.get('id') if review else None, chosen_status, _moderate_this)
@@ -178,8 +224,7 @@ def delete_review_admin(review_id):
     err = require_user()
     if err:
         return err
-    user = repo.get_user_by_id(current_user_id())
-    if not user or user['username'] != 'ReZero':
+    if not is_admin():
         return error('Нет доступа', 403)
     logger.info('[REVIEWS] DELETE review_id=%s by uid=%s', review_id, current_user_id())
     repo.delete_review(review_id)
@@ -191,8 +236,7 @@ def set_review_status(review_id):
     err = require_user()
     if err:
         return err
-    user = repo.get_user_by_id(current_user_id())
-    if not user or user['username'] != 'ReZero':
+    if not is_admin():
         return error('Нет доступа', 403)
     data = request.get_json(silent=True) or {}
     status = data.get('status')

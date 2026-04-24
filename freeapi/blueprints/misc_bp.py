@@ -121,7 +121,7 @@ def v1_me():
         },
         'owner': {
             'username': owner.get('username') or '—',
-            'is_admin': (owner.get('username') == 'ReZero'),
+            'is_admin': bool(owner and __import__('freeapi.repos.admins', fromlist=['is_admin_user']).is_admin_user(owner.get('id'))),
         },
         'stats': {
             'monthly_requests': stats.get('monthlyRequests', 0),
