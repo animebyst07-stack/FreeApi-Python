@@ -5,11 +5,15 @@
 SQLite-чат через WebView без логов отлаживать невозможно.
 """
 import logging
+import os
 
 from flask import Blueprint, jsonify, request
 
 from freeapi import repositories as repo
 from freeapi.repos import community as cm
+from freeapi.repos import users as users_repo
+from freeapi.security import uuid4
+from freeapi import tg_notify
 from freeapi.blueprints._helpers import (
     error, current_user_id, require_user, is_admin,
 )
@@ -17,6 +21,12 @@ from freeapi.blueprints._helpers import (
 logger = logging.getLogger('freeapi')
 
 bp = Blueprint('community', __name__)
+
+
+def _tg_notify_token():
+    """TG_NOTIFY_TOKEN из окружения. Может отсутствовать — тогда пуши тихо
+    выключены (на сайте всё равно живёт обычное in-app уведомление)."""
+    return (os.environ.get('TG_NOTIFY_TOKEN') or '').strip()
 
 
 # ─── ВСПОМОГАТЕЛЬНОЕ ─────────────────────────────────────────────────
@@ -38,7 +48,13 @@ def _require_chat_access():
 
 
 def _notify_mentions(message_id):
-    """Создать уведомления типа 'community' для всех упомянутых юзеров."""
+    """Создать уведомления типа 'community' для всех упомянутых юзеров.
+
+    M3: дополнительно отправляем пуш в личку привязанного TG-бота
+    (если у юзера есть tg_notify_chat_id и не включён mute_mentions).
+    Любая ошибка TG никогда не валит запрос — внутреннее уведомление
+    создаётся в любом случае.
+    """
     try:
         mentions = cm.get_unnotified_mentions(message_id)
         if not mentions:
@@ -50,6 +66,7 @@ def _notify_mentions(message_id):
         snippet = (msg_obj.get('text') or '').strip().replace('\n', ' ')
         if len(snippet) > 140:
             snippet = snippet[:140].rstrip() + '…'
+        token = _tg_notify_token()
         for m in mentions:
             target = m['mentioned_user_id']
             try:
@@ -66,6 +83,23 @@ def _notify_mentions(message_id):
                 cm.mark_mention_notified(m['id'])
                 logger.info('[COMMUNITY][MENTION] notified uid=%s msg=%s',
                             target, message_id)
+                # M3: TG-пуш
+                if token:
+                    try:
+                        tg_chat = users_repo.get_tg_notify_chat_id(target)
+                        if tg_chat:
+                            ok = tg_notify.send_mention_push(
+                                token, tg_chat, author_name, snippet, message_id,
+                            )
+                            logger.info(
+                                '[COMMUNITY][MENTION-TG] uid=%s chat=%s ok=%s',
+                                target, tg_chat, ok,
+                            )
+                    except Exception as tg_exc:
+                        logger.warning(
+                            '[COMMUNITY][MENTION-TG] uid=%s push failed: %s',
+                            target, tg_exc,
+                        )
             except Exception as exc:
                 logger.warning('[COMMUNITY][MENTION] notify failed uid=%s: %s',
                                target, exc)
@@ -395,3 +429,137 @@ def community_mute_mentions():
     data = request.get_json(silent=True) or {}
     cm.set_mute_mentions(current_user_id(), bool(data.get('mute')))
     return jsonify({'mute': cm.get_mute_mentions(current_user_id())})
+
+
+# ─── M3: TG-ПРИВЯЗКА ДЛЯ ПУШЕЙ ──────────────────────────────────────
+
+
+def _tg_link_status_payload(user_id):
+    """Собрать актуальное состояние привязки + deep-link для UI.
+
+    Если бот недоступен (нет TG_NOTIFY_TOKEN или getMe не отвечает) —
+    отдаём available=False и UI скроет блок. Это не ошибка.
+    """
+    state = users_repo.get_user_tg_notify(user_id) or {}
+    chat_id = state.get('chat_id')
+    link_token = state.get('link_token')
+    linked_at = state.get('linked_at')
+    mute = cm.get_mute_mentions(user_id)
+    token = _tg_notify_token()
+    bot_username = tg_notify.get_bot_username(token) if token else None
+
+    # Если нет постоянной привязки и нет токена — выдадим новый, чтобы
+    # фронт сразу мог показать кнопку «Привязать».
+    if token and bot_username and not chat_id and not link_token:
+        link_token = uuid4().replace('-', '')
+        users_repo.set_tg_notify_link_token(user_id, link_token)
+        logger.info('[COMMUNITY][TG_LINK] uid=%s issued new link token', user_id)
+
+    link_url = None
+    if bot_username and link_token and not chat_id:
+        link_url = f'https://t.me/{bot_username}?start={link_token}'
+
+    return {
+        'available': bool(token and bot_username),
+        'bot_username': bot_username,
+        'linked': bool(chat_id),
+        'chat_id': chat_id,
+        'linked_at': linked_at,
+        'link_url': link_url,
+        'link_token': link_token if not chat_id else None,
+        'mute_mentions': bool(mute),
+    }
+
+
+@bp.get('/api/community/tg_link')
+def community_tg_link_status():
+    err = require_user()
+    if err:
+        return err
+    uid = current_user_id()
+    payload = _tg_link_status_payload(uid)
+    logger.info('[COMMUNITY][TG_LINK] uid=%s status linked=%s available=%s',
+                uid, payload['linked'], payload['available'])
+    return jsonify(payload)
+
+
+@bp.post('/api/community/tg_link/regenerate')
+def community_tg_link_regenerate():
+    """Сбросить старый одноразовый токен и выдать новый. Только если ещё
+    нет постоянной привязки — иначе ничего не делаем (пусть юзер сначала
+    отвяжет)."""
+    err = require_user()
+    if err:
+        return err
+    uid = current_user_id()
+    state = users_repo.get_user_tg_notify(uid) or {}
+    if state.get('chat_id'):
+        return error('TG уже привязан, сначала отвяжите.', status=400,
+                     log_code='CM_TG_LINK_ALREADY')
+    new_token = uuid4().replace('-', '')
+    users_repo.set_tg_notify_link_token(uid, new_token)
+    logger.info('[COMMUNITY][TG_LINK] uid=%s regenerated token', uid)
+    return jsonify(_tg_link_status_payload(uid))
+
+
+@bp.post('/api/community/tg_link/manual')
+def community_tg_link_manual():
+    """Ручная привязка по chat_id (для тех, кто уже знает свой ID,
+    например, из @userinfobot)."""
+    err = require_user()
+    if err:
+        return err
+    uid = current_user_id()
+    data = request.get_json(silent=True) or {}
+    raw = str(data.get('chat_id') or '').strip()
+    if not raw:
+        return error('Не указан chat_id.', status=400, log_code='CM_TG_LINK_BAD_INPUT')
+    # Базовая валидация: целое число (Telegram chat_id всегда integer).
+    try:
+        chat_id_int = int(raw)
+    except ValueError:
+        return error('chat_id должен быть числом.', status=400,
+                     log_code='CM_TG_LINK_BAD_INPUT')
+    token = _tg_notify_token()
+    if not token:
+        return error('Бот уведомлений не настроен на сервере.', status=503,
+                     log_code='CM_TG_LINK_NO_BOT')
+    # Проверочное сообщение: если бот не может писать юзеру — привязку отклоняем.
+    ok = tg_notify.send_html_to_user(
+        token, chat_id_int,
+        '✅ <b>Telegram привязан</b> к FavoriteAPI вручную. Теперь сюда будут '
+        'приходить уведомления о @упоминаниях в общем чате.',
+    )
+    if not ok:
+        return error(
+            'Бот не смог написать вам в личку. Сначала откройте чат с ботом '
+            'и отправьте ему /start, потом повторите.',
+            status=400, log_code='CM_TG_LINK_BOT_BLOCKED',
+        )
+    users_repo.set_tg_notify_chat_id(uid, chat_id_int)
+    logger.info('[COMMUNITY][TG_LINK] uid=%s manual link chat=%s', uid, chat_id_int)
+    return jsonify(_tg_link_status_payload(uid))
+
+
+@bp.delete('/api/community/tg_link')
+def community_tg_link_unlink():
+    err = require_user()
+    if err:
+        return err
+    uid = current_user_id()
+    state = users_repo.get_user_tg_notify(uid) or {}
+    old_chat = state.get('chat_id')
+    users_repo.clear_tg_notify(uid)
+    # Прощальное сообщение (best-effort, ошибки игнорируем).
+    token = _tg_notify_token()
+    if token and old_chat:
+        try:
+            tg_notify.send_html_to_user(
+                token, old_chat,
+                '👋 Привязка с FavoriteAPI отключена. Уведомления о '
+                'упоминаниях больше приходить не будут.',
+            )
+        except Exception:
+            pass
+    logger.info('[COMMUNITY][TG_LINK] uid=%s unlinked old_chat=%s', uid, old_chat)
+    return jsonify(_tg_link_status_payload(uid))

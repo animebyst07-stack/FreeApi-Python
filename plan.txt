@@ -10,7 +10,15 @@ PLAN — Сессия: «Сообщество» (общественный чат
     blueprints/community_bp, /api/admin/admins, GC-задачи, log_codes CM_*/ADM_*/REV_BAN_*)
     и 36ac4c6 (фронтенд: «Чат / Посты» в сайдбаре, view-community,
     views/community.js, views/admin.js — управление админами).
-[ ] M3 — пуш-уведомления @-mentions через TG (tg_notify.py).
+[x] M3 — пуш-уведомления @-mentions через TG (tg_notify.py).
+    Миграция 012_user_tg_notify (chat_id + link_token + linked_at),
+    repos/users.* (get/set/clear_tg_notify), tg_notify.send_mention_push +
+    poll_link_updates с long-poll-offset в .tg_state.json,
+    эндпоинты GET/POST/DELETE /api/community/tg_link (+ /regenerate, /manual),
+    scheduler._tg_link_poll_worker (отдельный поток),
+    push в community_bp._notify_mentions с уважением mute_mentions,
+    log_codes CM_TG_LINK_*/CM_TG_PUSH_*, фронт-блок «Уведомления в Telegram»
+    в community.js под header'ом раздела «Чат / Посты».
 [ ] M4 — модерация AI-агентом постов чата (re-use moderator settings).
 [ ] M5 — статистика для админа (графики активности чата).
 [ ] M6 — мобильная адаптация раздела «Сообщество» + dark/light доводка.
@@ -329,9 +337,11 @@ PLAN — Сессия: «Сообщество» (общественный чат
 БЛОК 11. ИНТЕГРАЦИЯ TG-УВЕДОМЛЕНИЙ
 ────────────────────────────────────────────────────────────────────────
 
-[ ] 11.1 На mention’е, если у пользователя привязан tg_account
-         и notif_mute_mentions=0, отправить ему через tg_notify.py
-         «вас упомянули в #сообществе: <preview>».
+[x] 11.1 На mention’е, если у пользователя привязан TG (новые поля
+         users.tg_notify_chat_id) и notif_mute_mentions=0,
+         отправить ему через tg_notify.send_mention_push «вас упомянули
+         в #сообществе: <preview>». Привязка — deep-link /start <token>
+         или ручной chat_id (см. /api/community/tg_link*).
 [ ] 11.2 Для админа: на любой жалобу/блок — отчёт в его TG (как с support).
 
 ────────────────────────────────────────────────────────────────────────

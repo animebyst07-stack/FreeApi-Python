@@ -405,12 +405,103 @@
       .finally(function () { if (btn) btn.disabled = false; });
   };
 
+  // ─── M3: TG-ПРИВЯЗКА ДЛЯ ПУШЕЙ @-УПОМИНАНИЙ ───────────────────────
+  function loadTgLink() {
+    return http('GET', '/api/community/tg_link').then(function (s) {
+      renderTgLink(s);
+    }).catch(function (e) {
+      L('TG_LINK_FAIL', e.message, 'error');
+      var body = document.getElementById('cmTgLinkBody');
+      if (body) body.innerHTML = '<div style="color:#a44">Не удалось получить статус привязки.</div>';
+    });
+  }
+
+  function renderTgLink(s) {
+    var block = document.getElementById('cmTgLinkBlock');
+    var body = document.getElementById('cmTgLinkBody');
+    var badge = document.getElementById('cmTgLinkBadge');
+    if (!block || !body) return;
+    // Если бот не настроен на сервере — прячем блок целиком, нечего показывать.
+    if (!s || !s.available) {
+      block.style.display = 'none';
+      return;
+    }
+    block.style.display = '';
+    if (s.linked) {
+      if (badge) badge.textContent = '· привязан';
+      var when = s.linked_at ? (' · ' + esc(s.linked_at)) : '';
+      body.innerHTML =
+        '<div style="color:#9fdf9f;margin-bottom:8px">✅ Telegram привязан (chat_id: <code>' +
+          esc(s.chat_id) + '</code>' + when + ').</div>' +
+        '<div style="color:#aaa;margin-bottom:10px">Когда вас упомянут @ник в чате — придёт пуш в Telegram. ' +
+          'Внутреннее уведомление в колоколе создаётся всегда, пуш — только если включена эта привязка.</div>' +
+        '<button class="btn btn-ghost btn-sm" onclick="cmTgLinkUnlink()">Отвязать</button>';
+    } else {
+      if (badge) badge.textContent = '· не привязан';
+      var url = s.link_url ? esc(s.link_url) : '';
+      body.innerHTML =
+        '<div style="color:#aaa;margin-bottom:10px">Включите пуши в Telegram о @упоминаниях в общем чате. ' +
+          'Бот: <b>@' + esc(s.bot_username || '?') + '</b>.</div>' +
+        (url
+          ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' +
+              '<a class="btn btn-primary btn-sm" href="' + url + '" target="_blank" rel="noopener">Открыть в Telegram</a>' +
+              '<button class="btn btn-ghost btn-sm" onclick="cmTgLinkRegen()" title="Старая ссылка перестанет работать">Сгенерировать ссылку заново</button>' +
+            '</div>' +
+            '<div style="color:#666;font-size:11px;margin-bottom:10px">Ссылка одноразовая. После /start у бота сюда придёт подтверждение.</div>'
+          : '') +
+        '<details style="margin-top:6px"><summary style="cursor:pointer;color:#888;font-size:12px">Привязать вручную по chat_id</summary>' +
+          '<div style="margin-top:8px;color:#aaa">Если знаете свой chat_id (узнать у @userinfobot), введите его. ' +
+              'Перед этим напишите <b>/start</b> нашему боту, иначе он не сможет писать вам в личку.</div>' +
+          '<div style="display:flex;gap:6px;margin-top:8px">' +
+            '<input type="text" id="cmTgLinkManual" placeholder="например: 123456789" inputmode="numeric" ' +
+              'style="flex:1;background:#0e0e0e;border:1px solid #222;border-radius:6px;color:#eee;padding:6px 8px">' +
+            '<button class="btn btn-primary btn-sm" onclick="cmTgLinkManualSubmit()">Привязать</button>' +
+          '</div>' +
+        '</details>';
+    }
+  }
+
+  window.cmTgLinkRegen = function () {
+    L('TG_LINK', 'regen');
+    http('POST', '/api/community/tg_link/regenerate').then(renderTgLink)
+      .catch(function (e) {
+        if (window.showToast) window.showToast(e.message, 'err');
+      });
+  };
+
+  window.cmTgLinkManualSubmit = function () {
+    var inp = document.getElementById('cmTgLinkManual');
+    if (!inp) return;
+    var val = (inp.value || '').trim();
+    if (!val) return;
+    L('TG_LINK', 'manual chat=' + val);
+    http('POST', '/api/community/tg_link/manual', {chat_id: val})
+      .then(function (s) {
+        renderTgLink(s);
+        if (window.showToast) window.showToast('Telegram привязан', 'ok');
+      })
+      .catch(function (e) {
+        if (window.showToast) window.showToast(e.message, 'err');
+      });
+  };
+
+  window.cmTgLinkUnlink = function () {
+    if (!confirm('Отвязать Telegram? Пуши о @упоминаниях больше не будут приходить.')) return;
+    L('TG_LINK', 'unlink');
+    http('DELETE', '/api/community/tg_link').then(renderTgLink)
+      .catch(function (e) {
+        if (window.showToast) window.showToast(e.message, 'err');
+      });
+  };
+
   // ─── ИНИЦИАЛИЗАЦИЯ ────────────────────────────────────────────────
   window.initCommunityView = function () {
     L('INIT', 'enter');
     loadState().then(function () {
       if (STATE.tab === 'chat') loadMessages();
       else loadPosts();
+      // M3: блок TG-привязки грузим только для авторизованных юзеров.
+      if (STATE.isAuth) loadTgLink();
     });
     if (STATE.pollTimer) clearInterval(STATE.pollTimer);
     STATE.pollTimer = setInterval(function () {

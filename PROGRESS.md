@@ -105,3 +105,64 @@
      есть массив `steps` и финальный `agent_message`.
   4. Перезагрузить страницу — история должна нарисоваться идентично
      (шаги тоже сохранены в БД).
+
+## M3 — Telegram-пуши о @-упоминаниях в сообществе
+
+**Файлы:**
+- `freeapi/migrations/012_user_tg_notify.sql` (новый) — добавляет
+  `users.tg_notify_chat_id`, `users.tg_notify_link_token`,
+  `users.tg_notify_linked_at` + индекс по link_token.
+- `freeapi/repos/users.py` — функции `get_user_tg_notify`,
+  `get_tg_notify_chat_id`, `set_tg_notify_chat_id` (одновременно сбрасывает
+  link_token и проставляет linked_at), `set_tg_notify_link_token`,
+  `find_user_by_tg_link_token`, `clear_tg_notify`.
+- `freeapi/tg_notify.py` — `get_bot_username` (с in-memory кэшем),
+  `send_html_to_user`, `send_mention_push` (готовый шаблон с экранированием),
+  `poll_link_updates(token, on_link)` — long-poll getUpdates с offset
+  в `.tg_state.json` (`_link_offset`), обрабатывает `/start <token>`,
+  `/start` без аргумента отвечает приветствием.
+- `freeapi/blueprints/community_bp.py` — в `_notify_mentions` добавлен
+  TG-пуш (после внутреннего уведомления, не валит запрос при ошибке);
+  новые эндпоинты `GET /api/community/tg_link` (статус + автогенерация
+  link_token), `POST /api/community/tg_link/regenerate`,
+  `POST /api/community/tg_link/manual` (с проверочным сообщением через
+  бота — если бот не может написать, привязка отклоняется),
+  `DELETE /api/community/tg_link` (с прощальным сообщением).
+- `freeapi/scheduler.py` — отдельный поток `_tg_link_poll_worker`
+  с экспоненциальным бэкоффом при сбоях TG API; запускается рядом с
+  основным GC-воркером.
+- `freeapi/log_codes.py` — новые коды `CM_TG_LINK_ALREADY/BAD_INPUT/NO_BOT/
+  BOT_BLOCKED`, `CM_TG_PUSH_OK/FAIL`.
+- `static/index.html` — новый сворачиваемый блок «🔔 Уведомления в
+  Telegram» (`<details id="cmTgLinkBlock">`) над `cmBanPlate` в
+  `view-community`. Скрыт, если на сервере нет TG_NOTIFY_TOKEN.
+- `static/js/views/community.js` — `loadTgLink`, `renderTgLink`,
+  `cmTgLinkRegen`, `cmTgLinkManualSubmit`, `cmTgLinkUnlink`; вызов
+  `loadTgLink()` из `initCommunityView` для авторизованных юзеров.
+- `plan.txt` — `[x] M3` в шапке + `[x] 11.1` в блоке 11.
+
+**Принцип работы.** Бот тот же, что и для уведомлений о Cloudflare-туннеле
+(`TG_NOTIFY_TOKEN`). Привязка двумя путями:
+1. Deep-link: фронт получает одноразовый токен, открывает
+   `t.me/<bot>?start=<token>`. Юзер жмёт «Начать», поллер ловит /start,
+   матчит токен через `find_user_by_tg_link_token`, сохраняет chat_id.
+2. Ручная: юзер сам вводит chat_id (узнаёт у `@userinfobot`), бэкенд
+   пробует послать тестовое сообщение — если бот не может написать,
+   возвращаем ошибку `CM_TG_LINK_BOT_BLOCKED`.
+
+Mute-флаг `notif_mute_mentions` уважается и для внутренних уведомлений,
+и для TG-пушей. Любая ошибка TG не валит создание сообщения и не
+блокирует внутреннее уведомление в колоколе.
+
+**Что критично проверить в Termux:**
+1. `git pull && python api.py` — миграция 012 применится автоматически.
+2. Войти под двумя аккаунтами, в разделе «Чат / Посты» открыть
+   «🔔 Уведомления в Telegram», у второго юзера — пройти deep-link
+   (открыть t.me-ссылку, нажать /start). Должно прийти подтверждение
+   от бота, в UI — «✅ Telegram привязан».
+3. Первым аккаунтом написать в чат «@<второй> привет», у второго:
+   • в колоколе появится новое уведомление (kind='community'),
+   • в TG прилетит пуш «🔔 Вас упомянул @первый: …».
+4. Включить чекбокс «игнорировать @» — повторное упоминание не должно
+   ни писать в колокол, ни слать пуш.
+5. Нажать «Отвязать» — придёт прощальное сообщение, статус сбросится.

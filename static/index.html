@@ -1141,6 +1141,16 @@ request them. Three live endpoints to introspect the environment:
 
   <div id="cmBanPlate" style="display:none;background:#2a1010;border:1px solid #4a1c1c;border-radius:10px;padding:12px 14px;color:#ffb4b4;font-size:13px;margin-bottom:12px"></div>
 
+  <!-- M3: блок привязки Telegram для пушей о @упоминаниях -->
+  <details id="cmTgLinkBlock" style="display:none;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+    <summary style="cursor:pointer;color:#ddd;font-weight:600;outline:none">
+      🔔 Уведомления в Telegram <span id="cmTgLinkBadge" style="font-size:11px;color:#888;font-weight:400;margin-left:6px"></span>
+    </summary>
+    <div id="cmTgLinkBody" style="margin-top:10px;color:#bbb;line-height:1.5">
+      <div style="color:#666;text-align:center;padding:14px 0">Загрузка…</div>
+    </div>
+  </details>
+
   <div id="cmPinned" style="display:none;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:10px 12px;margin-bottom:12px">
     <div style="font-size:11px;color:#888;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">📌 Закреплено</div>
     <div id="cmPinnedList"></div>

@@ -50,3 +50,79 @@ def clear_user_avatar(user_id):
     """Сбросить аватарку (NULL)."""
     with db() as conn:
         conn.execute('UPDATE users SET avatar = NULL WHERE id = ?', (user_id,))
+
+
+# ─── M3: TG-уведомления о @упоминаниях ──────────────────────────────
+# Связь юзер→чат с ботом:
+#   • tg_notify_chat_id   — числовой chat_id личного диалога с TG_NOTIFY_TOKEN-ботом.
+#   • tg_notify_link_token — одноразовый UUID для deep-link привязки через /start <token>.
+#   • tg_notify_linked_at  — момент привязки.
+# Логика: фронт зовёт GET /api/community/tg_link → бэкенд при необходимости
+# генерирует токен, отдаёт ссылку t.me/<bot>?start=<token>. Юзер переходит,
+# бот через getUpdates ловит /start, scheduler матчит токен с users.tg_notify_link_token,
+# записывает chat_id и обнуляет токен. Альтернатива — ручная привязка по chat_id.
+
+def get_user_tg_notify(user_id):
+    """Полный объект состояния привязки (для UI)."""
+    with db() as conn:
+        r = conn.execute(
+            'SELECT tg_notify_chat_id, tg_notify_link_token, tg_notify_linked_at '
+            'FROM users WHERE id = ?', (user_id,)
+        ).fetchone()
+        if not r:
+            return None
+        return {
+            'chat_id': r['tg_notify_chat_id'],
+            'link_token': r['tg_notify_link_token'],
+            'linked_at': r['tg_notify_linked_at'],
+        }
+
+
+def get_tg_notify_chat_id(user_id):
+    with db() as conn:
+        r = conn.execute(
+            'SELECT tg_notify_chat_id FROM users WHERE id = ?', (user_id,)
+        ).fetchone()
+        return r['tg_notify_chat_id'] if r and r['tg_notify_chat_id'] else None
+
+
+def set_tg_notify_chat_id(user_id, chat_id):
+    """Привязать chat_id и сбросить link_token (одноразовый)."""
+    now = msk_now()
+    with db() as conn:
+        conn.execute(
+            'UPDATE users SET tg_notify_chat_id=?, tg_notify_link_token=NULL, '
+            'tg_notify_linked_at=? WHERE id=?',
+            (str(chat_id), now, user_id),
+        )
+
+
+def set_tg_notify_link_token(user_id, token):
+    """Записать одноразовый токен для deep-link привязки."""
+    with db() as conn:
+        conn.execute(
+            'UPDATE users SET tg_notify_link_token=? WHERE id=?',
+            (token, user_id),
+        )
+
+
+def find_user_by_tg_link_token(token):
+    """Найти юзера по link_token (для обработчика /start <token>)."""
+    if not token:
+        return None
+    with db() as conn:
+        r = conn.execute(
+            'SELECT id, username FROM users WHERE tg_notify_link_token=?',
+            (token,),
+        ).fetchone()
+        return row(r) if r else None
+
+
+def clear_tg_notify(user_id):
+    """Полностью отвязать TG-уведомления у юзера."""
+    with db() as conn:
+        conn.execute(
+            'UPDATE users SET tg_notify_chat_id=NULL, tg_notify_link_token=NULL, '
+            'tg_notify_linked_at=NULL WHERE id=?',
+            (user_id,),
+        )
