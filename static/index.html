@@ -351,6 +351,17 @@
     <button type="button" class="notif-tab" role="tab" data-notif-kind="support" onclick="setNotifKind('support')">Поддержка<span class="notif-tab-cnt" data-cnt-for="support" hidden>0</span></button>
     <button type="button" class="notif-tab" role="tab" data-notif-kind="system" onclick="setNotifKind('system')">Система<span class="notif-tab-cnt" data-cnt-for="system" hidden>0</span></button>
   </div>
+  <!-- Настройка: отключить уведомления об упоминаниях в чате -->
+  <div id="notifMuteCard" style="display:none;margin-bottom:16px;background:#0e0e0e;border:1px solid #1c1c1c;border-radius:12px;padding:14px 16px;flex-direction:row;align-items:center;justify-content:space-between;gap:14px">
+    <div>
+      <div style="font-size:14px;color:#e0e0e0;font-weight:500">Отключить уведомления об упоминаниях</div>
+      <div style="font-size:12px;color:#666;margin-top:3px">Когда вас упомянут @ник в чате — уведомление не придёт</div>
+    </div>
+    <label class="notif-mute-toggle">
+      <input type="checkbox" id="notifMuteToggle" onchange="window.cmToggleMuteFromToggle&&cmToggleMuteFromToggle(this.checked)">
+      <span class="notif-mute-slider"></span>
+    </label>
+  </div>
   <div class="notif-list" id="notifPageList">
     <div class="notif-empty">
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="10"/></svg>
@@ -1144,10 +1155,6 @@ request them. Three live endpoints to introspect the environment:
         <button class="cm-iconbtn" id="cmTgIconBtn" onclick="cmOpenTgModal()" type="button" title="Telegram-уведомления" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
         </button>
-        <button class="cm-iconbtn" id="cmMuteIconBtn" onclick="cmToggleMute()" type="button" title="Игнорировать @-упоминания">
-          <svg id="cmMuteOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-          <svg id="cmMuteOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-        </button>
       </div>
     </header>
 
@@ -1199,14 +1206,12 @@ request them. Three live endpoints to introspect the environment:
       <div class="cm-mention-pop" id="cmMentionPopup" style="display:none"></div>
       <div class="cm-composer-row">
         <label class="cm-composer-icon" title="Прикрепить фото" style="margin:0">
-          <!-- Кастомная иконка: скрепка в стиле сайта (угловая) -->
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a5 5 0 0 1 5-5h9a3 3 0 0 1 0 6H8a1 1 0 0 0 0 2h10a5 5 0 0 1 0 10H7a3 3 0 0 1 0-6h10a1 1 0 0 0 0-2"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmFileInput" onchange="cmHandleFiles(event)">
         </label>
         <textarea id="cmInput" placeholder="Сообщение…  @имя — упомянуть" rows="1"></textarea>
         <button class="cm-composer-send" id="cmSendBtn" onclick="cmSendMessage()" title="Отправить">
-          <!-- Кастомная иконка: молния-стрелка в стиле логотипа сайта -->
-          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
     </div>
@@ -1236,6 +1241,19 @@ request them. Three live endpoints to introspect the environment:
     </div>
   </div>
 </div><!-- /view-community -->
+
+<!-- ── Кастомный диалог (confirm / prompt / alert) ── -->
+<div id="cmDialogOverlay" style="display:none;position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:24px">
+  <div id="cmDialogBox" style="background:#0f0f0f;border:1px solid #252525;border-radius:18px;padding:24px;max-width:340px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.9)">
+    <div id="cmDialogTitle" style="font-size:16px;font-weight:700;color:#fff;margin-bottom:8px"></div>
+    <div id="cmDialogMsg" style="font-size:13.5px;color:#aaa;margin-bottom:16px;line-height:1.5;white-space:pre-wrap;word-break:break-word"></div>
+    <input id="cmDialogInput" type="text" style="display:none;width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;color:#eee;padding:10px 13px;font:inherit;font-size:14px;margin-bottom:16px;box-sizing:border-box;outline:none">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="cmDialogCancel" style="padding:9px 18px;border-radius:10px;border:1px solid #2a2a2a;background:#1a1a1a;color:#aaa;font:inherit;font-size:13.5px;cursor:pointer" type="button">Отмена</button>
+      <button id="cmDialogOk" style="padding:9px 18px;border-radius:10px;border:none;background:#fff;color:#000;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer" type="button">ОК</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===================== MODALS ===================== -->
 

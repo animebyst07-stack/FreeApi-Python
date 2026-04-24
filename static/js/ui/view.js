@@ -67,6 +67,7 @@ export function goView(v){
   if (v === 'support'       && typeof window.initSupportView  === 'function') window.initSupportView();
   if (v === 'reviews'       && typeof window.initReviewsView  === 'function') window.initReviewsView();
   if (v === 'notifications' && typeof window.loadNotifications === 'function') window.loadNotifications();
+  if (v === 'notifications' && typeof window.cmSyncNotifMuteToggle === 'function') window.cmSyncNotifMuteToggle();
   if (v === 'community'     && typeof window.initCommunityView === 'function') window.initCommunityView();
 }
 

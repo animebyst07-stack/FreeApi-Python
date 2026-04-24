@@ -88,29 +88,31 @@
     deleted: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
   };
 
-  // Реакции — фиксированный набор. Коды короткие (<=16 байт),
-  // backward-совместимы с любыми старыми эмодзи (рендерим fallback).
-  var REACTIONS = [
-    {code:'like',  label:'Нравится', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/><path d="M2 10h5v12H2z"/></svg>'},
-    {code:'heart', label:'Сердечко', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'},
-    {code:'fire',  label:'Огонь',    svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c0-1.38-.5-2-1-3-.74-1.49.05-3.03 1.5-3.5.79-.26 1.14-.55 1.5-1.5.6 1 .5 1.5 0 2.5-.5 1-1.5 2-1.5 3.5 0 1 .5 2.5 2 2.5a2.5 2.5 0 0 0 2.5-2.5c0-2.21-.83-4.27-2.5-5.5C13.05 8.05 12.5 5 12.5 3c-1 .27-1.71 1.41-2 2.5C9.5 7.5 8 8.5 8 11c0 1.5.5 2 .5 3.5z"/></svg>'},
-    {code:'laugh', label:'Смешно',   svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'},
-    {code:'wow',   label:'Удивление',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="15" r="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'},
-    {code:'sad',   label:'Грусть',   svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'},
-    {code:'clap',  label:'Аплодисменты',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 11.5V14m0-7.5V10m0 0L7 6.5M11 10l4-3.5M5.5 10v4M18.5 10v4"/><path d="M6 14a6 6 0 0 0 12 0v-1H6v1z"/></svg>'},
-    {code:'party', label:'Праздник', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-1.99-.59c-.62-.18-1.34.06-1.79.5L17 14.5"/><path d="m13 22 .76-2.45c.27-.83-.32-1.66-1.18-1.65L11 18"/><path d="M21 14l-7.5-7.5"/><path d="M9.27 12.73 6.5 9.97"/></svg>'},
+  // Emoji Picker — нативные эмодзи для реакций (исключение из SVG-правила).
+  // Backward-compat: старые SVG-коды ('like','heart',...) рендерятся через fallback.
+  var EMOJI_PICKER_LIST = [
+    '👍','❤️','😂','🔥','🎉','😮','😢','😡',
+    '👏','💯','🤔','💪','🙏','😎','✅','🥳',
+    '😭','🤣','🫶','💀','🫡','🤝','⭐','🤩',
+    '😊','😁','👀','🤯','💔','🥺','😍','🫠',
   ];
 
-  function reactionByCode(code) {
-    for (var i=0;i<REACTIONS.length;i++) if (REACTIONS[i].code === code) return REACTIONS[i];
-    return null;
-  }
+  // Обратная совместимость: старые coded-реакции → SVG
+  var _LEGACY_REACTIONS = {
+    like:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/><path d="M2 10h5v12H2z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    fire:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c0-1.38-.5-2-1-3-.74-1.49.05-3.03 1.5-3.5.79-.26 1.14-.55 1.5-1.5.6 1 .5 1.5 0 2.5-.5 1-1.5 2-1.5 3.5 0 1 .5 2.5 2 2.5a2.5 2.5 0 0 0 2.5-2.5c0-2.21-.83-4.27-2.5-5.5C13.05 8.05 12.5 5 12.5 3c-1 .27-1.71 1.41-2 2.5C9.5 7.5 8 8.5 8 11c0 1.5.5 2 .5 3.5z"/></svg>',
+    laugh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+    wow:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="15" r="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+    sad:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+    clap:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 11.5V14m0-7.5V10m0 0L7 6.5M11 10l4-3.5M5.5 10v4M18.5 10v4"/><path d="M6 14a6 6 0 0 0 12 0v-1H6v1z"/></svg>',
+    party: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-1.99-.59c-.62-.18-1.34.06-1.79.5L17 14.5"/><path d="m13 22 .76-2.45c.27-.83-.32-1.66-1.18-1.65L11 18"/><path d="M21 14l-7.5-7.5"/><path d="M9.27 12.73 6.5 9.97"/></svg>',
+  };
 
   function reactionRenderSvg(code) {
-    var r = reactionByCode(code);
-    if (r) return r.svg;
-    // legacy emoji-реакции (старые сообщения) — fallback на текст.
-    return '<span style="font-size:13px;line-height:1">' + esc(code) + '</span>';
+    if (_LEGACY_REACTIONS[code]) return _LEGACY_REACTIONS[code];
+    // нативный эмодзи или неизвестный код — показываем текстом
+    return '<span style="font-size:17px;line-height:1">' + esc(code) + '</span>';
   }
 
   // ── Переключение вкладок ────────────────────────────────────────────
@@ -166,21 +168,8 @@
       var pc = document.getElementById('cmAdminPostComposer');
       if (pc) pc.style.display = STATE.isAdmin ? '' : 'none';
 
-      // Mute icon отражение
-      var on = document.getElementById('cmMuteOn');
-      var off = document.getElementById('cmMuteOff');
-      var btn = document.getElementById('cmMuteIconBtn');
-      if (on && off && btn) {
-        if (STATE.muteMentions) {
-          on.style.display = ''; off.style.display = 'none';
-          btn.classList.add('active');
-          btn.title = '@упоминания отключены — нажмите, чтобы включить';
-        } else {
-          on.style.display = 'none'; off.style.display = '';
-          btn.classList.remove('active');
-          btn.title = '@упоминания включены — нажмите, чтобы отключить';
-        }
-      }
+      // Синхронизируем toggle в разделе «Уведомления» если он открыт
+      window.cmSyncNotifMuteToggle && window.cmSyncNotifMuteToggle();
     }).catch(function (e) { L('STATE_FAIL', e.message, 'error'); });
   }
 
@@ -336,16 +325,17 @@
     var snippet = (m.text || '').slice(0, 120);
     quote.innerHTML = '<b>@' + esc(m.username) + '</b>' + esc(snippet || '[медиа]');
 
-    // Реакции (бар сверху)
+    // Emoji Picker (вместо фиксированных SVG-реакций)
     if (STATE.isAuth && !STATE.chatBan) {
-      var mineMap = {};
-      (m.reactions || []).forEach(function (r) { if (r.mine) mineMap[r.emoji] = true; });
+      var mineSet = {};
+      (m.reactions || []).forEach(function (r) { if (r.mine) mineSet[r.emoji] = true; });
       rxBar.style.display = '';
-      rxBar.innerHTML = REACTIONS.map(function (r) {
-        var active = mineMap[r.code] ? ' active' : '';
-        return '<button class="cm-rx-bar-btn' + active + '" type="button" title="' + esc(r.label) +
-          '" onclick="cmReact(\'' + esc(msgId) + '\',\'' + r.code + '\')">' + r.svg + '</button>';
-      }).join('');
+      rxBar.innerHTML = '<div class="cm-emoji-picker">' +
+        EMOJI_PICKER_LIST.map(function (e) {
+          var active = mineSet[e] ? ' active' : '';
+          return '<button class="cm-emoji-btn' + active + '" type="button" ' +
+            'onclick="cmReact(\'' + esc(msgId) + '\',\'' + e + '\')">' + e + '</button>';
+        }).join('') + '</div>';
     } else {
       rxBar.style.display = 'none';
       rxBar.innerHTML = '';
@@ -416,20 +406,23 @@
   window.cmEditMsg = function (msgId) {
     var m = STATE.msgsCache[msgId];
     if (!m) return;
-    var v = prompt('Редактировать сообщение:', m.text || '');
-    if (v == null) return;
-    http('PATCH', '/api/community/messages/' + msgId, {text: v})
-      .then(loadMessages)
-      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    cmPrompt('Редактировать сообщение:', m.text || '', function (v) {
+      if (v == null) return;
+      http('PATCH', '/api/community/messages/' + msgId, {text: v})
+        .then(loadMessages)
+        .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    });
   };
 
   window.cmDeleteMsg = function (msgId, asAdmin) {
-    if (!confirm(asAdmin ? 'Удалить сообщение модерацией?' : 'Удалить своё сообщение?')) return;
-    var url = asAdmin ? '/api/community/admin/messages/' + msgId
-                      : '/api/community/messages/' + msgId;
-    http('DELETE', url)
-      .then(loadMessages)
-      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    var msg = asAdmin ? 'Удалить сообщение модерацией?' : 'Удалить своё сообщение?';
+    cmConfirm(msg, function () {
+      var url = asAdmin ? '/api/community/admin/messages/' + msgId
+                        : '/api/community/messages/' + msgId;
+      http('DELETE', url)
+        .then(loadMessages)
+        .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    });
   };
 
   window.cmPin = function (msgId) {
@@ -445,20 +438,22 @@
   };
 
   window.cmBanUser = function (username) {
-    var hours = prompt('Забанить @' + username + ' (часы):', '24');
-    if (!hours) return;
-    var reason = prompt('Причина (можно пусто):', '') || '';
-    http('POST', '/api/community/admin/bans', {username: username, hours: parseInt(hours, 10), reason: reason})
-      .then(function () { if (window.showToast) window.showToast('Бан выдан', 'ok'); })
-      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    cmPrompt('Забанить @' + username + ' на сколько часов?', '24', function (hours) {
+      if (!hours) return;
+      cmPrompt('Причина (оставьте пустым для пропуска):', '', function (reason) {
+        http('POST', '/api/community/admin/bans', {username: username, hours: parseInt(hours, 10) || 24, reason: reason || ''})
+          .then(function () { if (window.showToast) window.showToast('Бан выдан', 'ok'); })
+          .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+      });
+    });
   };
 
   window.cmShowVersions = function (msgId) {
     http('GET', '/api/community/messages/' + msgId + '/versions').then(function (d) {
       var lines = (d.versions || []).map(function (v) {
-        return '— ' + fmtDate(v.created_at) + '\n' + (v.text || '[пусто]');
+        return fmtDate(v.created_at) + ':\n' + (v.text || '[пусто]');
       }).join('\n\n');
-      alert('История правок:\n\n' + (lines || 'нет версий'));
+      cmAlert('История правок', lines || 'Нет версий.');
     }).catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
   };
 
@@ -687,10 +682,11 @@
     }).catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
   };
   window.cmTgUnlink = function () {
-    if (!confirm('Отвязать Telegram?')) return;
-    http('DELETE', '/api/community/tg_link').then(function (s) {
-      STATE.tgState = s; renderTgChip(s); renderTgModal(s);
-    }).catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    cmConfirm('Отвязать Telegram от уведомлений?', function () {
+      http('DELETE', '/api/community/tg_link').then(function (s) {
+        STATE.tgState = s; renderTgChip(s); renderTgModal(s);
+      }).catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+    });
   };
 
   // ── Auto-resize textarea ────────────────────────────────────────────
@@ -805,5 +801,84 @@
     }
   });
 
-  L('MOD', 'community.js loaded (M3.1 refactor)');
+  // ── Кастомный диалог (замена window.confirm/prompt/alert) ──────────
+  function showCmDialog(opts) {
+    var ov = document.getElementById('cmDialogOverlay');
+    var titleEl = document.getElementById('cmDialogTitle');
+    var msgEl   = document.getElementById('cmDialogMsg');
+    var inp     = document.getElementById('cmDialogInput');
+    var cancelB = document.getElementById('cmDialogCancel');
+    var okB     = document.getElementById('cmDialogOk');
+    if (!ov || !titleEl || !msgEl || !inp || !cancelB || !okB) {
+      // fallback: если HTML ещё не загружен
+      if (opts.showInput) {
+        var v = window.prompt(opts.message, opts.defaultVal || '');
+        if (v !== null && opts.onOk) opts.onOk(v);
+      } else {
+        if (opts.showCancel) {
+          if (window.confirm(opts.message) && opts.onOk) opts.onOk(null);
+          else if (opts.onCancel) opts.onCancel();
+        } else {
+          window.alert(opts.message);
+          if (opts.onOk) opts.onOk(null);
+        }
+      }
+      return;
+    }
+    titleEl.textContent = opts.title || '';
+    msgEl.textContent   = opts.message || '';
+    if (opts.showInput) {
+      inp.style.display = 'block';
+      inp.value = opts.defaultVal || '';
+      setTimeout(function() { inp.focus(); inp.select(); }, 80);
+    } else {
+      inp.style.display = 'none';
+    }
+    cancelB.style.display = opts.showCancel ? '' : 'none';
+    ov.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    function close() {
+      ov.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    cancelB.onclick = function () { close(); if (opts.onCancel) opts.onCancel(); };
+    okB.onclick = function () {
+      var val = opts.showInput ? inp.value : null;
+      close();
+      if (opts.onOk) opts.onOk(val);
+    };
+    inp.onkeydown = function (e) {
+      if (e.key === 'Enter') { okB.click(); }
+      if (e.key === 'Escape') { cancelB.click(); }
+    };
+  }
+
+  function cmConfirm(message, onOk, onCancel) {
+    showCmDialog({title: 'Подтверждение', message: message, showInput: false, showCancel: true, onOk: onOk, onCancel: onCancel});
+  }
+  function cmPrompt(message, defaultVal, onOk) {
+    showCmDialog({title: 'Введите данные', message: message, showInput: true, defaultVal: defaultVal, showCancel: true, onOk: function (v) { if (v !== null) onOk(v); }});
+  }
+  function cmAlert(title, message, onOk) {
+    showCmDialog({title: title, message: message, showInput: false, showCancel: false, onOk: onOk});
+  }
+
+  // ── Mute toggle для раздела «Уведомления» ──────────────────────────
+  window.cmToggleMuteFromToggle = function (checked) {
+    http('POST', '/api/community/mute_mentions', {mute: !!checked})
+      .then(function (r) {
+        STATE.muteMentions = !!r.mute;
+        window.cmSyncNotifMuteToggle && window.cmSyncNotifMuteToggle();
+      })
+      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+  };
+
+  window.cmSyncNotifMuteToggle = function () {
+    var toggle = document.getElementById('notifMuteToggle');
+    var card   = document.getElementById('notifMuteCard');
+    if (toggle) toggle.checked = STATE.muteMentions;
+    if (card) card.style.display = STATE.isAuth ? 'flex' : 'none';
+  };
+
+  L('MOD', 'community.js loaded (M3.2 refactor)');
 })();
