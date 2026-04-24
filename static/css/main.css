@@ -1433,11 +1433,17 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-posts-pane .container-narrow{max-width:720px;margin:0 auto}
 
 /* ── Emoji Picker (в action-sheet, вместо SVG-реакций) ────────────── */
+/* M3.5: переделан на grid с фиксированной шириной ячейки 38×38, чтобы
+   обычные emoji-кнопки и кастомные (в обёртке .cm-emoji-btn-wrap) были
+   одинакового размера. Раньше flex-wrap + inline-flex давали разный
+   контент-box у обёртки → сетка «ехала», особенно при склейке нескольких
+   эмодзи в одну запись. */
 .cm-emoji-picker{
-  display:flex;
-  flex-wrap:wrap;
-  gap:2px;
-  padding:4px 2px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,38px);
+  gap:4px;
+  padding:6px 4px;
+  justify-content:flex-start;
 }
 .cm-emoji-btn{
   width:38px;height:38px;
@@ -1448,6 +1454,8 @@ body:has(#view-dashboard.active){background:#000!important}
   transition:background .12s,transform .08s;
   line-height:1;
   -webkit-tap-highlight-color:transparent;
+  box-sizing:border-box;
+  padding:0;
 }
 .cm-emoji-btn:hover{background:#1f1f1f;border-color:#2a2a2a}
 .cm-emoji-btn:active{transform:scale(.88)}
@@ -1461,14 +1469,22 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-emoji-btn-add:hover{color:#cfe2ff;border-color:#2c5b9c;background:#15263e}
 .cm-emoji-btn-add svg{width:18px;height:18px;display:block}
 
-/* M3.4: обёртка для кастомного эмодзи + крестик удаления */
+/* M3.4/M3.5: обёртка для кастомного эмодзи + крестик удаления.
+   Сама обёртка занимает РОВНО ОДНУ grid-ячейку 38×38 — иначе сетка
+   разъезжалась после добавления нескольких кастомных. Кнопка внутри
+   занимает 100% обёртки, крестик абсолютно позиционирован сверху. */
 .cm-emoji-btn-wrap{
   position:relative;
+  width:38px;height:38px;
   display:inline-flex;
+  align-items:center;justify-content:center;
+}
+.cm-emoji-btn-wrap .cm-emoji-btn{
+  width:100%;height:100%;
 }
 .cm-emoji-btn-rm{
   position:absolute;
-  top:-2px;right:-2px;
+  top:-3px;right:-3px;
   width:14px;height:14px;
   background:#3a1414;border:1px solid #6a2a2a;
   color:#ffb4b4;
@@ -1477,6 +1493,7 @@ body:has(#view-dashboard.active){background:#000!important}
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
   padding:0;
+  z-index:2;
   -webkit-tap-highlight-color:transparent;
   transition:transform .1s,background .12s;
 }
@@ -1486,13 +1503,96 @@ body:has(#view-dashboard.active){background:#000!important}
   background:#171717;
 }
 
-/* M3.4: дефолтный бейдж «Admin» для админов без своего display_prefix */
-.cm-msg-prefix.cm-msg-prefix-admin{
-  background:rgba(80,140,255,.15);
-  color:#a0c4ff;
-  border-color:#2c5b9c;
+/* M3.4 (legacy)/M3.5: дефолтный бейдж «Владелец» для админов без своего
+   display_prefix. Сине-фиолетовый градиент — выделяет статус. */
+.cm-msg-prefix.cm-msg-prefix-admin,
+.cm-msg-prefix.cm-msg-prefix-owner{
+  background:linear-gradient(90deg,rgba(139,92,246,.18),rgba(59,130,246,.18));
+  color:#cdb8ff;
+  border-color:#5a3aa0;
   font-weight:600;
+  letter-spacing:.04em;
 }
+
+/* ── M3.5: цитата ответа В сообщении (Telegram-style) ─────────────── */
+.cm-msg-reply{
+  display:flex;align-items:stretch;gap:8px;
+  margin:4px 0 6px;
+  padding:5px 8px 5px 0;
+  background:rgba(80,140,255,.06);
+  border-radius:6px;
+  cursor:pointer;
+  overflow:hidden;
+  transition:background .12s;
+}
+.cm-msg-reply:hover{background:rgba(80,140,255,.12)}
+.cm-msg-reply-bar{
+  flex:0 0 3px;
+  background:linear-gradient(180deg,#8b5cf6,#3b82f6);
+  border-radius:2px;
+  align-self:stretch;
+  min-height:30px;
+}
+.cm-msg-reply-body{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;gap:1px;
+  padding:1px 0;
+}
+.cm-msg-reply-author{
+  font-size:11.5px;font-weight:600;color:#a0c4ff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cm-msg-reply-text{
+  font-size:12.5px;color:#aaa;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* M3.5: кратковременная подсветка при скролле к оригиналу */
+@keyframes cm-msg-flash-anim{
+  0%   {background:rgba(139,92,246,.25)}
+  100% {background:transparent}
+}
+.cm-msg.cm-msg-flash{
+  animation:cm-msg-flash-anim 1.4s ease-out;
+}
+
+/* ── M3.5: плашка «Ответ» над composer ────────────────────────────── */
+.cm-composer-reply{
+  display:flex;align-items:stretch;gap:8px;
+  padding:6px 8px;
+  margin-bottom:6px;
+  background:rgba(80,140,255,.08);
+  border:1px solid #1c2c4a;
+  border-radius:8px;
+}
+.cm-composer-reply-bar{
+  flex:0 0 3px;
+  background:linear-gradient(180deg,#8b5cf6,#3b82f6);
+  border-radius:2px;
+}
+.cm-composer-reply-body{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;gap:1px;
+  padding:1px 0;
+}
+.cm-composer-reply-author{
+  font-size:11.5px;font-weight:600;color:#a0c4ff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cm-composer-reply-text{
+  font-size:12.5px;color:#9a9a9a;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cm-composer-reply-x{
+  flex:0 0 24px;
+  width:24px;height:24px;
+  background:transparent;border:none;
+  color:#888;font-size:18px;line-height:1;cursor:pointer;
+  border-radius:6px;
+  align-self:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.cm-composer-reply-x:hover{background:#1f1f1f;color:#fff}
 
 /* Эмодзи-чип под сообщением (нативный эмодзи вместо SVG) */
 .cm-rx-chip span{font-size:17px;line-height:1;display:block}

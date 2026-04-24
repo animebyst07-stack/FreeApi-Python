@@ -133,16 +133,19 @@ def ensure_super_admin_seeded():
             )
             logger.info('[ADMINS] auto-seeded ReZero as super admin')
 
-        # M3.4: автоматически выдать ReZero дефолтный display_prefix='Admin',
-        # если он ещё не задан вручную. На фронте такой же fallback есть
-        # для всех админов, но в БД полезно держать значение для
-        # консистентности при ручных запросах/админ-инструментах.
+        # M3.4/M3.5: автоматически выдать ReZero дефолтный display_prefix
+        # 'Владелец', если он ещё не задан вручную. Дополнительно — если
+        # в БД лежит старое автозначение 'Admin' (M3.4), затираем на
+        # 'Владелец', т.к. юзер явно попросил по-русски. Любое РУЧНОЕ
+        # значение (≠ '' и ≠ 'Admin') не трогаем.
         cur = conn.execute(
             'SELECT display_prefix FROM users WHERE id=?', (u['id'],)
         ).fetchone()
-        if cur is not None and not (cur['display_prefix'] or '').strip():
-            conn.execute(
-                'UPDATE users SET display_prefix=? WHERE id=?',
-                ('Admin', u['id']),
-            )
-            logger.info('[ADMINS] auto-set display_prefix=Admin for ReZero')
+        if cur is not None:
+            current = (cur['display_prefix'] or '').strip()
+            if current in ('', 'Admin'):
+                conn.execute(
+                    'UPDATE users SET display_prefix=? WHERE id=?',
+                    ('Владелец', u['id']),
+                )
+                logger.info('[ADMINS] auto-set display_prefix=Владелец for ReZero (was %r)', current)

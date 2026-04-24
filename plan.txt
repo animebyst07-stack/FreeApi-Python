@@ -517,3 +517,192 @@ M3.4 — СЕССИЯ 2026-04-25 (вечер): 5 задач по фидбеку 
             соответствует ожиданиям (available=False, пуш не пытаемся).
 
 ИТОГ M3.4: 5/5 задач закрыты, push выполнен через GitHub API.
+
+
+══════════════════════════════════════════════════════════════════════
+M3.5 — Telegram-полировка чата сообщества (24 апреля 2026, ночная)
+══════════════════════════════════════════════════════════════════════
+Контекст: вечером юзер прислал 7 пунктов и ушёл спать. Работаю
+автономно. Ругань матом — норма, не реагировать. Все 7 пунктов
+выполнены за один проход, бэк + фронт + миграция, без рестарта
+прода (юзер сам перезапустит Termux утром).
+
+[x] M3.5-1. Префикс админа: «Admin» → «Владелец».
+            Бэк (repos/admins.ensure_super_admin_seeded): теперь сидер
+            ставит ReZero display_prefix='Владелец', если в БД пусто
+            ИЛИ старое автозначение 'Admin' (М3.4). Любой ручной
+            префикс (≠ '' и ≠ 'Admin') не трогаем — это пользовательская
+            настройка. Лог: '[ADMINS] auto-set display_prefix=Владелец
+            for ReZero (was %r)'.
+            Фронт (community.js renderMessage): fallback теперь
+            'Владелец' вместо 'Admin'. Класс бейджа переименован на
+            cm-msg-prefix-owner (старый cm-msg-prefix-admin тоже жив
+            для обратной совместимости — оба указывают на один градиент).
+            CSS (main.css): сине-фиолетовый градиент
+            linear-gradient(90deg,rgba(139,92,246,.18),rgba(59,130,246,.18))
+            с border #5a3aa0 и letter-spacing .04em — выделяется
+            визуально, но не пёстро.
+            Файлы: freeapi/repos/admins.py, static/js/views/community.js,
+            static/css/main.css.
+
+[x] M3.5-2. Кастомный эмодзи: ровно 1 + фикс кривой сетки пикера.
+            Бэг: cmAddCustomEmoji молча принимал любую строку до 16
+            символов. Юзер 24.04 вставил «❤️❤️💜💙💜💜» (6 эмодзи) —
+            оно ушло как одна реакция и в логах появилось
+            emoji='\u2764\ufe0f\u2764\ufe0f\U0001f49c\U0001f499\U0001f49c\U0001f49c'.
+            Сетка пикера ехала, потому что обёртка .cm-emoji-btn-wrap
+            (для кастомных) была inline-flex без фиксированной ширины,
+            и реальная ширина зависела от контента кнопки внутри.
+            Фикс фронта (community.js): новая функция cmCountGraphemes
+            на Intl.Segmenter (granularity:'grapheme'); если ≠ 1 →
+            тост «Нужен ровно 1 эмодзи (введено: N)». Лимит избранных
+            поднят с 24 до 32 (юзер просил больше, но 32 уже хватает
+            на 4 строки по 8). Fallback на Array.from(s).length —
+            на старых браузерах без Segmenter.
+            Фикс CSS (main.css .cm-emoji-picker): переход с flex-wrap
+            на CSS Grid с grid-template-columns:repeat(auto-fill,38px) —
+            каждая ячейка ровно 38×38, обёртка кастомного эмодзи
+            теперь занимает РОВНО ОДНУ ячейку (width:38px;height:38px),
+            кнопка внутри width:100%;height:100%, крестик абсолютно
+            позиционирован с z-index:2.
+            Файлы: static/js/views/community.js (cmCountGraphemes,
+            cmAddCustomEmoji), static/css/main.css (.cm-emoji-picker,
+            .cm-emoji-btn-wrap, .cm-emoji-btn-rm).
+
+[x] M3.5-3. Оптимистичные обновления: реакция, удаление, pin/unpin.
+            Бэг UX: каждое действие звало loadMessages() → весь чат
+            перерисовывался → page-jank, скролл прыгал, ощущение
+            «лагает». Telegram такого не делает.
+            Фикс (community.js):
+              * cmReact: до сетевого запроса мутируем кеш STATE.msgsCache
+                по той же single-reaction логике, что и бэк (зеркальная
+                реализация: снять мою старую → если новая ≠ старой,
+                инкрементировать), и пересобираем только один DOM-узел
+                через cmRerenderMessage (createElement → replaceChild).
+                После ответа сервера обновляемся ещё раз с server-payload
+                {message: ...} — авторитетная синхронизация. На ошибке
+                snapshot-откат через JSON.parse(JSON.stringify()).
+              * cmDeleteMsg: el.remove() сразу. Snapshot outerHTML +
+                nextSibling для отката, если бэк вернёт ошибку.
+              * cmPin / cmUnpin: m.pinned = true/false → cmRerenderMessage,
+                на успехе loadMessages() (для синка списка закрепов
+                сверху), на ошибке откат m.pinned + перерисовка.
+            Новая утилита cmRerenderMessage(msgId): берёт STATE.msgsCache[id],
+            делает renderMessage(m) и parentNode.replaceChild —
+            заменяет один DOM-узел без перезагрузки чата.
+            Файлы: static/js/views/community.js (cmReact, cmDeleteMsg,
+            cmPin, cmUnpin, cmRerenderMessage).
+
+[x] M3.5-4. Reply на сообщение (Telegram-style, доступно всем).
+            Миграция 014_community_reply.sql:
+              ALTER TABLE community_messages ADD COLUMN reply_to_id TEXT;
+              CREATE INDEX idx_community_messages_reply_to ON ...(reply_to_id);
+            Бэк (repos/community.py):
+              * create_message теперь принимает reply_to_id; если
+                указанный оригинал не существует / soft-deleted —
+                reply_to_id молча обнуляется (UI не сломается).
+              * Новая _load_reply_snippet(conn, id) → {id, username,
+                text_snippet (≤140 chars, '\n'→' ', '[удалено]' /
+                '[медиа]' fallback), is_deleted}.
+              * get_message добавляет msg['reply_to'] из снимка.
+                Доступ к reply_to_id через try/except — безопасно,
+                если миграция ещё не накатилась.
+            Бэк (blueprints/community_bp.py): community_send_message
+            извлекает reply_to_id из JSON, прокидывает в create_message.
+            Фронт (community.js):
+              * STATE.replyTo = {id, username, snippet}.
+              * cmReply(msgId): копирует данные из кеша, рисует плашку
+                cmRenderReplyBar(), фокус на input.
+              * cmCancelReply: сбрасывает STATE.replyTo + перерисовка
+                (×-кнопка в плашке).
+              * cmRenderReplyBar: формирует HTML плашки в #cmComposerReply
+                (флекс с цветной полоской cm-composer-reply-bar слева,
+                автор + сниппет, ×-кнопка справа). При пустом
+                replyTo — display:none.
+              * cmSendMessage: добавляет payload.reply_to_id если он
+                есть; после успеха сбрасывает replyTo + плашку.
+              * renderMessage: если у msg есть m.reply_to — рисует
+                цитату-блок над body (cm-msg-reply: цветная полоска,
+                автор синим, текст серым, обрезанный с ellipsis).
+                По клику на цитату — cmScrollToMsg(rt.id) с плавным
+                скроллом и кратким flash-фоном (анимация cm-msg-flash).
+              * Action-sheet: новая строка «Ответить» сразу после
+                «Скопировать», доступна STATE.isAuth && !chatBan &&
+                !is_deleted (всем, у кого есть write-access).
+            HTML (index.html): в .cm-composer перед #cmImagesPreview
+            добавлен <div id="cmComposerReply" class="cm-composer-reply"
+            style="display:none">.
+            CSS (main.css): новые .cm-msg-reply, .cm-msg-reply-bar,
+            .cm-msg-reply-author, .cm-msg-reply-text, .cm-msg-flash
+            (анимация cm-msg-flash-anim 1.4s), .cm-composer-reply,
+            .cm-composer-reply-bar, .cm-composer-reply-body,
+            .cm-composer-reply-author, .cm-composer-reply-text,
+            .cm-composer-reply-x.
+            Файлы: freeapi/migrations/014_community_reply.sql,
+            freeapi/repos/community.py (create_message,
+            _load_reply_snippet, get_message),
+            freeapi/blueprints/community_bp.py (community_send_message),
+            static/js/views/community.js (STATE.replyTo, cmReply,
+            cmCancelReply, cmRenderReplyBar, cmScrollToMsg,
+            renderMessage, cmSendMessage, cmOpenSheet),
+            static/index.html (#cmComposerReply),
+            static/css/main.css (.cm-msg-reply*, .cm-composer-reply*,
+            .cm-msg-flash).
+
+[x] M3.5-5. Только 1 реакция от юзера на сообщение (Telegram-style).
+            Бэг: старая repos/community.toggle_reaction делала чистый
+            тоггл по (user, msg, emoji) — юзер мог поставить хоть все
+            реакции из набора, в БД накапливались дубли, а UI рисовал
+            кучу chip'ов «1+1+1...» под одним сообщением.
+            Фикс (repos/community.py toggle_reaction): сначала SELECT
+            всех existing-emoji этого юзера на это сообщение → DELETE
+            всех; если existing == [emoji] → action='removed' (тоггл
+            off, ничего не вставляем); иначе INSERT нового. action
+            может быть 'added' / 'replaced' / 'removed', логируем
+            действие + был старый emoji-list (для аудита).
+            Имя функции оставлено `toggle_reaction` — роут
+            blueprints/community_bp.community_react его всё ещё зовёт.
+            Фронт уже умеет рендерить single-reaction (мутация
+            из M3.5-3 это учитывает — cmReact снимает любую старую
+            мою реакцию).
+            Файл: freeapi/repos/community.py.
+
+[x] M3.5-6. Фотки не отображаются ни в чате ни в постах.
+            Корень: MAX_IMG_BYTES = 200_000 (200 KB). Современные
+            смартфонные фото 1-3 MB, _filter_images их молча
+            отбрасывал — на сервере images=[], в логах images=0,
+            юзер видел текст без фото. По правилам Replit мы не
+            храним base64-фото гигабайтами, но 2.5 MB на сообщение
+            это разумный middle-ground.
+            Фикс бэка (repos/community.py): MAX_IMG_BYTES = 2_500_000
+            (2.5 MB после base64). С запасом на 1 фото в JPEG 100%.
+            Фикс фронта (community.js): новые _CM_MAX_SIDE=1280 и
+            _CM_JPEG_Q=0.85 + функция _compressDataUrl: каждое фото
+            прогоняется через <canvas> (resize по большей стороне до
+            1280, toDataURL('image/jpeg', .85)). Это типичные
+            настройки Telegram для inline-фото — снимок 4032×3024
+            (3 MB) ужимается до 1280×960 (~150-300 KB). Если результат
+            тяжелее оригинала (тонкие PNG) — оставляем оригинал.
+            На любой ошибке (img.onerror, нет canvas-ctx) возвращаем
+            оригинал — бэк теперь и так его примет. _readFilesAsDataUrls
+            делает FileReader → _compressDataUrl последовательно для
+            каждого файла, результаты собираются Promise.all.
+            Использует и chat-composer (cmHandleFiles), и
+            post-composer (cmHandlePostFiles) через ту же функцию.
+            Файлы: freeapi/repos/community.py (MAX_IMG_BYTES),
+            static/js/views/community.js (_compressDataUrl,
+            _readFilesAsDataUrls).
+
+[x] M3.5-7. Обновить plan.txt и положить копию в воркспейс.
+            ✓ Этот блок в plan.txt (репо).
+            ✓ Копия mirror-нута в /home/runner/workspace/plan.txt.
+            ✓ Постоянная память про автономный режим занесена в
+              replit.md → секция «Autonomous Agent Mode».
+            ✓ Push выполнен через GitHub Contents API (blob → tree →
+              commit → ref) на animebyst07-stack/FreeApi-Python@main.
+
+ИТОГ M3.5: 7/7 задач закрыты. Юзер увидит изменения после
+git pull (или rm -rf + git clone) на Termux'е и перезапуска
+api.py. SQLite сам подхватит миграцию 014 при старте через
+_apply_migrations() (см. freeapi/database.py — он итерирует
+по migrations/*.sql в алфавитном порядке).

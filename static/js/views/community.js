@@ -29,6 +29,7 @@
     initDone: false,
     msgsCache: {},       // id → message obj (для action sheet)
     sheetMsgId: null,
+    replyTo: null,       // M3.5: {id, username, snippet} — Telegram-style reply
     particlesAnim: null, // requestAnimationFrame id
     particlesAlive: false,
     tgState: null,
@@ -97,9 +98,9 @@
     '😊','😁','👀','🤯','💔','🥺','😍','🫠',
   ];
 
-  // ── M3.4: кастомные избранные эмодзи (хранятся в localStorage) ────
+  // ── M3.4/M3.5: кастомные избранные эмодзи (хранятся в localStorage) ────
   var CM_CUSTOM_EMOJI_KEY = 'cm_custom_emojis_v1';
-  var CM_CUSTOM_EMOJI_MAX = 24;
+  var CM_CUSTOM_EMOJI_MAX = 32;
 
   function cmGetCustomEmojis() {
     try {
@@ -113,16 +114,45 @@
     try { localStorage.setItem(CM_CUSTOM_EMOJI_KEY, JSON.stringify(arr.slice(0, CM_CUSTOM_EMOJI_MAX))); }
     catch (_e) {}
   }
+
+  // M3.5: ровно 1 emoji-grapheme. Telegram использует Intl.Segmenter
+  // (granularity:'grapheme'), который правильно считает составные
+  // emoji с ZWJ, vs-16, тоном кожи и флагами как 1 единицу.
+  // Fallback на Array.from если Segmenter недоступен.
+  function cmCountGraphemes(s) {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      try {
+        var seg = new Intl.Segmenter('en', { granularity: 'grapheme' });
+        var n = 0;
+        var it = seg.segment(s)[Symbol.iterator]();
+        while (!it.next().done) n++;
+        return n;
+      } catch (_e) { /* fallthrough */ }
+    }
+    return Array.from(s).length;
+  }
+
   window.cmAddCustomEmoji = function (msgId) {
-    cmPrompt('Введите эмодзи (например 🦊). Максимум ' + CM_CUSTOM_EMOJI_MAX + ' штук.', '', function (v) {
+    cmPrompt('Введите ровно 1 эмодзи (например 🦊). Можно сохранить до ' + CM_CUSTOM_EMOJI_MAX + ' штук.', '', function (v) {
       var s = (v || '').trim();
       if (!s) return;
-      // Telegram-style: 1-2 кодовые точки достаточно для большинства emoji.
       if (s.length > 16) {
         if (window.showToast) window.showToast('Слишком длинно (макс. 16 символов)', 'err');
         return;
       }
+      // M3.5: разрешаем РОВНО один графемный кластер. Без этого юзер
+      // вводил несколько эмодзи подряд («❤️❤️💜💙💜💜») и они шли
+      // на бэк как одна реакция, а сетка пикера разъезжалась.
+      var n = cmCountGraphemes(s);
+      if (n !== 1) {
+        if (window.showToast) window.showToast('Нужен ровно 1 эмодзи (введено: ' + n + ')', 'err');
+        return;
+      }
       var list = cmGetCustomEmojis();
+      if (list.length >= CM_CUSTOM_EMOJI_MAX) {
+        if (window.showToast) window.showToast('Достигнут лимит ' + CM_CUSTOM_EMOJI_MAX + ' эмодзи', 'err');
+        return;
+      }
       // Не дублируем — ни кастомные, ни базовые.
       if (list.indexOf(s) !== -1 || EMOJI_PICKER_LIST.indexOf(s) !== -1) {
         if (window.showToast) window.showToast('Уже в избранном', 'err');
@@ -325,12 +355,13 @@
     if (m.pinned) el.classList.add('cm-msg-pinned');
     if (m.kind === 'admin_post') el.classList.add('cm-msg-post');
 
-    // M3.4: если у юзера нет своего display_prefix, но он админ — показываем
-    // дефолтный бейдж «Admin», чтобы ReZero и др. админы были видны без ручной настройки.
-    var prefixText = m.display_prefix || (m.is_admin ? 'Admin' : null);
+    // M3.4/M3.5: если у юзера нет своего display_prefix, но он админ —
+    // показываем дефолтный бейдж «Владелец» (раньше было «Admin»),
+    // чтобы ReZero и др. админы были видны без ручной настройки.
+    var prefixText = m.display_prefix || (m.is_admin ? 'Владелец' : null);
     var head = '<div class="cm-msg-head">' +
       '<span class="cm-msg-author">@' + esc(m.username) +
-        (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin && !m.display_prefix ? ' cm-msg-prefix-admin' : '') + '">' + esc(prefixText) + '</span>' : '') +
+        (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin && !m.display_prefix ? ' cm-msg-prefix-owner' : '') + '">' + esc(prefixText) + '</span>' : '') +
       '</span>' +
       (m.kind === 'admin_post' ? '<span class="cm-msg-badge">пост</span>' : '') +
       '<span class="cm-msg-meta-icons">' +
@@ -339,6 +370,19 @@
       '</span>' +
       '<span class="cm-msg-time">' + esc(fmtDate(m.created_at)) + '</span>' +
       '</div>';
+    // M3.5: Telegram-style цитата ответа над телом сообщения. Клик
+    // по цитате скроллит к оригиналу (если он ещё в DOM).
+    var replyHtml = '';
+    if (m.reply_to) {
+      var rt = m.reply_to;
+      replyHtml = '<div class="cm-msg-reply" data-reply-id="' + esc(rt.id) + '" ' +
+        'onclick="event.stopPropagation();cmScrollToMsg(\'' + esc(rt.id) + '\')">' +
+        '<div class="cm-msg-reply-bar"></div>' +
+        '<div class="cm-msg-reply-body">' +
+          '<div class="cm-msg-reply-author">@' + esc(rt.username) + '</div>' +
+          '<div class="cm-msg-reply-text">' + esc(rt.text_snippet) + '</div>' +
+        '</div></div>';
+    }
     var body = '<div class="cm-msg-body">' + highlightMentions(m.text || '') + '</div>';
     var imgs = '';
     if (m.images && m.images.length) {
@@ -364,17 +408,31 @@
             '</button>';
         }).join('') + '</div>';
     }
-    el.innerHTML = head + body + imgs + rx;
+    el.innerHTML = head + replyHtml + body + imgs + rx;
 
-    // Открытие action-sheet по клику на сам пузырь (не на реакцию/картинку)
+    // Открытие action-sheet по клику на сам пузырь (не на реакцию/картинку/цитату)
     el.addEventListener('click', function (ev) {
-      // Если клик попал на ссылку @-упоминания — игнорируем (доп. ничего не делаем).
-      if (ev.target.closest('.cm-rx-chip, img, a')) return;
+      // Если клик попал на ссылку @-упоминания / реакцию / картинку / цитату — игнорируем.
+      if (ev.target.closest('.cm-rx-chip, img, a, .cm-msg-reply')) return;
       cmOpenSheet(m.id);
     });
 
     return el;
   }
+
+  // M3.5: скролл к оригиналу при клике на цитату ответа.
+  window.cmScrollToMsg = function (msgId) {
+    var list = document.getElementById('cmChatList');
+    if (!list) return;
+    var el = list.querySelector('.cm-msg[data-id="' + msgId + '"]');
+    if (!el) {
+      if (window.showToast) window.showToast('Сообщение не найдено в чате', 'err');
+      return;
+    }
+    el.scrollIntoView({behavior: 'smooth', block: 'center'});
+    el.classList.add('cm-msg-flash');
+    setTimeout(function () { el.classList.remove('cm-msg-flash'); }, 1400);
+  };
 
   // ── Composer (отправка) ─────────────────────────────────────────────
   window.cmSendMessage = function () {
@@ -382,12 +440,16 @@
     if (!inp) return;
     var text = (inp.value || '').trim();
     if (!text && !STATE.images.length) return;
-    L('SEND', 'len=' + text.length + ' imgs=' + STATE.images.length);
+    var replyTo = STATE.replyTo;  // M3.5
+    L('SEND', 'len=' + text.length + ' imgs=' + STATE.images.length + ' reply=' + (replyTo ? replyTo.id : '-'));
     var btn = document.getElementById('cmSendBtn');
     if (btn) btn.disabled = true;
-    http('POST', '/api/community/messages', {text: text, images: STATE.images})
+    var payload = {text: text, images: STATE.images};
+    if (replyTo && replyTo.id) payload.reply_to_id = replyTo.id;
+    http('POST', '/api/community/messages', payload)
       .then(function () {
         inp.value = ''; STATE.images = []; renderImagesPreview();
+        STATE.replyTo = null; cmRenderReplyBar();  // M3.5
         autosizeTextarea(inp);
         loadMessages();
       })
@@ -395,13 +457,70 @@
       .finally(function () { if (btn) btn.disabled = false; });
   };
 
-  // ── Реакция (тоггл) ─────────────────────────────────────────────────
+  // ── Реакция (Telegram-style: один эмодзи на юзера) ──────────────────
+  // M3.5: оптимистичное обновление — сразу мутируем кеш и перерисовываем
+  // конкретное сообщение, без ожидания ответа сервера. Если сервер ругнётся,
+  // откатываемся и перерисовываем повторно.
   window.cmReact = function (msgId, code) {
     L('REACT', 'msg=' + msgId + ' code=' + code);
+    var m = STATE.msgsCache[msgId];
+    if (!m) {
+      // Кеш потерян (например после reload) — fallback на старый сценарий.
+      http('POST', '/api/community/messages/' + msgId + '/react', {emoji: code})
+        .then(function () { loadMessages(); cmCloseSheet(); })
+        .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+      return;
+    }
+    // Snapshot для отката.
+    var snapshot = JSON.parse(JSON.stringify(m.reactions || []));
+    // Оптимистичная single-reaction логика (зеркалит бэк):
+    var rxs = (m.reactions || []).map(function (r) { return Object.assign({}, r); });
+    var myOld = null;
+    rxs.forEach(function (r) { if (r.mine) myOld = r.emoji; });
+    // Снимаем мою старую реакцию (любую).
+    rxs = rxs.map(function (r) {
+      if (r.mine) { r = Object.assign({}, r, {mine: false, count: r.count - 1}); }
+      return r;
+    }).filter(function (r) { return r.count > 0; });
+    if (myOld !== code) {
+      // Ставлю новую (если такой уже есть в массиве — увеличиваю counter).
+      var found = false;
+      rxs = rxs.map(function (r) {
+        if (r.emoji === code) { found = true; return Object.assign({}, r, {mine: true, count: r.count + 1}); }
+        return r;
+      });
+      if (!found) rxs.push({emoji: code, count: 1, mine: true});
+    }
+    m.reactions = rxs;
+    cmRerenderMessage(msgId);
+    cmCloseSheet();
+
     http('POST', '/api/community/messages/' + msgId + '/react', {emoji: code})
-      .then(function () { loadMessages(); cmCloseSheet(); })
-      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+      .then(function (resp) {
+        // Сервер вернул свежий объект — обновим кеш и перерисуем (синхронизация).
+        if (resp && resp.message) {
+          STATE.msgsCache[msgId] = resp.message;
+          cmRerenderMessage(msgId);
+        }
+      })
+      .catch(function (e) {
+        // Откат
+        m.reactions = snapshot;
+        cmRerenderMessage(msgId);
+        if (window.showToast) window.showToast(e.message, 'err');
+      });
   };
+
+  // M3.5: пересоздать DOM-элемент одного сообщения (без перезагрузки чата).
+  function cmRerenderMessage(msgId) {
+    var list = document.getElementById('cmChatList');
+    if (!list) return;
+    var old = list.querySelector('.cm-msg[data-id="' + msgId + '"]');
+    var m = STATE.msgsCache[msgId];
+    if (!old || !m) return;
+    var fresh = renderMessage(m);
+    old.parentNode.replaceChild(fresh, old);
+  }
 
   // ── Action-sheet (Telegram-like) ────────────────────────────────────
   window.cmOpenSheet = function (msgId) {
@@ -433,6 +552,12 @@
     var isMine = window.__currentUserId && m.user_id === window.__currentUserId;
     var rows = [];
     rows.push(actionRow(ICONS.copy, 'Скопировать текст', 'cmCopyMsg(\'' + esc(msgId) + '\')'));
+    // M3.5: «Ответить» доступно ВСЕМ, у кого есть право писать в чат
+    // (как в Telegram). Прячем только для удалённых сообщений и для
+    // забаненных/неавторизованных.
+    if (STATE.isAuth && !STATE.chatBan && !m.is_deleted) {
+      rows.push(actionRow(ICONS.reply, 'Ответить', 'cmReply(\'' + esc(msgId) + '\')'));
+    }
     if (isMine && !m.is_deleted) {
       rows.push(actionRow(ICONS.edit, 'Редактировать', 'cmEditMsg(\'' + esc(msgId) + '\')'));
     }
@@ -502,29 +627,91 @@
     });
   };
 
+  // M3.5: оптимистичное удаление — DOM убираем сразу, при ошибке загружаем заново.
   window.cmDeleteMsg = function (msgId, asAdmin) {
     var msg = asAdmin ? 'Удалить сообщение модерацией?' : 'Удалить своё сообщение?';
     cmConfirm(msg, function () {
+      var list = document.getElementById('cmChatList');
+      var el = list ? list.querySelector('.cm-msg[data-id="' + msgId + '"]') : null;
+      var prev = el ? el.outerHTML : null;
+      var nextSibling = el ? el.nextSibling : null;
+      var parent = el ? el.parentNode : null;
+      if (el) el.remove();
       // M3.4: правильный путь — /messages/<id>/admin (ранее фронт слал /admin/messages/<id> → 405)
       var url = asAdmin ? '/api/community/messages/' + msgId + '/admin'
                         : '/api/community/messages/' + msgId;
       http('DELETE', url)
-        .then(loadMessages)
-        .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+        .then(function () {
+          // Сервер всё равно вернёт «удалённый огрызок» при следующем poll,
+          // но мы уже скрыли DOM — хорошее ощущение Telegram-like.
+          delete STATE.msgsCache[msgId];
+        })
+        .catch(function (e) {
+          if (parent && prev) {
+            // Откат: вставляем элемент обратно туда же.
+            var tmp = document.createElement('div');
+            tmp.innerHTML = prev;
+            parent.insertBefore(tmp.firstChild, nextSibling);
+          }
+          if (window.showToast) window.showToast(e.message, 'err');
+        });
     });
   };
 
+  // M3.5: оптимистичный pin/unpin — мутируем m.pinned, перерисовываем msg
+  // и блок закреплённых; при ошибке откатываемся.
   window.cmPin = function (msgId) {
+    var m = STATE.msgsCache[msgId];
+    var prev = m ? m.pinned : null;
+    if (m) { m.pinned = true; cmRerenderMessage(msgId); }
     http('POST', '/api/community/messages/' + msgId + '/pin')
       .then(loadMessages)
-      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+      .catch(function (e) {
+        if (m) { m.pinned = prev; cmRerenderMessage(msgId); }
+        if (window.showToast) window.showToast(e.message, 'err');
+      });
   };
 
   window.cmUnpin = function (msgId) {
+    var m = STATE.msgsCache[msgId];
+    var prev = m ? m.pinned : null;
+    if (m) { m.pinned = false; cmRerenderMessage(msgId); }
     http('DELETE', '/api/community/messages/' + msgId + '/pin')
       .then(loadMessages)
-      .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
+      .catch(function (e) {
+        if (m) { m.pinned = prev; cmRerenderMessage(msgId); }
+        if (window.showToast) window.showToast(e.message, 'err');
+      });
   };
+
+  // ── M3.5: Reply (Telegram-style) ────────────────────────────────────
+  window.cmReply = function (msgId) {
+    var m = STATE.msgsCache[msgId];
+    if (!m) return;
+    var snippet = (m.text || '').slice(0, 120) || '[медиа]';
+    STATE.replyTo = {id: msgId, username: m.username, snippet: snippet};
+    cmRenderReplyBar();
+    var inp = document.getElementById('cmInput');
+    if (inp) { try { inp.focus(); } catch (_e) {} }
+  };
+  window.cmCancelReply = function () {
+    STATE.replyTo = null;
+    cmRenderReplyBar();
+  };
+  function cmRenderReplyBar() {
+    var bar = document.getElementById('cmComposerReply');
+    if (!bar) return;
+    if (!STATE.replyTo) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    var rt = STATE.replyTo;
+    bar.style.display = '';
+    bar.innerHTML =
+      '<div class="cm-composer-reply-bar"></div>' +
+      '<div class="cm-composer-reply-body">' +
+        '<div class="cm-composer-reply-author">Ответ @' + esc(rt.username) + '</div>' +
+        '<div class="cm-composer-reply-text">' + esc(rt.snippet) + '</div>' +
+      '</div>' +
+      '<button class="cm-composer-reply-x" type="button" onclick="cmCancelReply()" title="Отменить ответ">×</button>';
+  }
 
   window.cmBanUser = function (username) {
     // M3.4: бэкенд ждёт POST /api/community/bans с {days, reason}
@@ -556,6 +743,42 @@
   // попали в STATE.images ДО того, как юзер успеет кликнуть «отправить».
   // Раньше использовался forEach с асинхронным FileReader → race condition,
   // и при 2 фото на сервер уходило только 1 (см. логи 25.04: images=1).
+  //
+  // M3.5: каждое фото ужимаем через <canvas>: max сторона 1280, JPEG q=0.85.
+  // Современные смартфонные снимки 2-4MB ужимаются до 100-300 KB и комфортно
+  // влезают в новый бэкенд-лимит 2.5 MB. Если на каком-то этапе сжатие
+  // упало — возвращаем оригинал (а бэк уже умеет принимать до 2.5 MB).
+  var _CM_MAX_SIDE = 1280;
+  var _CM_JPEG_Q   = 0.85;
+
+  function _compressDataUrl(dataUrl) {
+    return new Promise(function (resolve) {
+      try {
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth, h = img.naturalHeight;
+            if (!w || !h) { resolve(dataUrl); return; }
+            var scale = Math.min(1, _CM_MAX_SIDE / Math.max(w, h));
+            var dw = Math.round(w * scale), dh = Math.round(h * scale);
+            var cv = document.createElement('canvas');
+            cv.width = dw; cv.height = dh;
+            var ctx = cv.getContext('2d');
+            ctx.drawImage(img, 0, 0, dw, dh);
+            // Если оригинал PNG с прозрачностью — toDataURL('image/jpeg') её
+            // потеряет (фон станет чёрным). Это ок для мессенджера.
+            var out = cv.toDataURL('image/jpeg', _CM_JPEG_Q);
+            // Если сжатый внезапно тяжелее оригинала (бывает на тонких PNG) —
+            // возвращаем оригинал.
+            resolve(out.length < dataUrl.length ? out : dataUrl);
+          } catch (_e) { resolve(dataUrl); }
+        };
+        img.onerror = function () { resolve(dataUrl); };
+        img.src = dataUrl;
+      } catch (_e) { resolve(dataUrl); }
+    });
+  }
+
   function _readFilesAsDataUrls(files, remaining) {
     var arr = Array.from(files).slice(0, remaining);
     return Promise.all(arr.map(function (f) {
@@ -564,6 +787,9 @@
         rd.onload = function () { resolve(rd.result); };
         rd.onerror = function () { resolve(null); };
         rd.readAsDataURL(f);
+      }).then(function (raw) {
+        if (!raw) return null;
+        return _compressDataUrl(raw);
       });
     })).then(function (results) {
       return results.filter(function (x) { return !!x; });

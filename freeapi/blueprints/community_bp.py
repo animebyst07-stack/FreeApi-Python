@@ -211,11 +211,13 @@ def community_send_message():
     text = (data.get('text') or '').strip()
     images = data.get('images') or []
     mentions = data.get('mentions') or []
+    reply_to_id = (data.get('reply_to_id') or '').strip() or None  # M3.5
     if not text and not images:
         return error('Сообщение пустое', 400)
     try:
         msg, mention_ids = cm.create_message(
             uid, text, kind='message', images=images, mentions=mentions,
+            reply_to_id=reply_to_id,
         )
     except ValueError as ve:
         return error(str(ve), 400)

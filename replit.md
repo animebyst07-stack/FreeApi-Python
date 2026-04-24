@@ -51,6 +51,28 @@ Flask + SQLite web application for a Telegram-backed AI API platform. The fronte
 - Test chat history is persisted per API key in browser storage and restored after switching keys or reopening the chat view.
 - The sidebar includes an "Отзывы" shortcut, the landing empty-review copy points users to the reviews section, full API keys wrap visibly in key cards, and the context meter moved above the chat input.
 
+## Autonomous Agent Mode (постоянная память)
+
+- Project owner = `animebyst07-stack` (Termux user, Russian-only chat).
+- Repo: `animebyst07-stack/FreeApi-Python` on GitHub. Main branch only.
+- Workspace clone is at `/home/runner/workspace/freeapi-repo/` →
+  symlink to the actual git repo `/home/runner/FreeApi-Python/`.
+  Therefore writes via path `freeapi-repo/...` go straight to the repo.
+- The agent works AUTONOMOUSLY at night while the user sleeps. The user
+  has explicitly asked for this and granted a GitHub PAT for direct
+  pushes via the Contents API. While in autonomous mode:
+    * never wait for confirmation, never ask clarifying questions;
+    * push every change to GitHub immediately (blob → tree → commit → ref);
+    * keep `plan.txt` (in the repo AND mirrored to
+      `/home/runner/workspace/plan.txt`) up to date — this is the only
+      contract the user reads in the morning;
+    * Russian-only in all comments / docs / log messages / commit msgs;
+    * `git checkout` / `git reset` / destructive git ops are FORBIDDEN
+      for the main agent — use `git fetch` + replay edits instead.
+- Background workflows `artifacts/api-server` and `artifacts/mockup-sandbox`
+  are unrelated Replit scaffolding and must NOT be touched. The Termux
+  Flask app is started by the user manually on his phone, not by Replit.
+
 ## Validation Commands
 
 - `PYTHONPATH=FreeApi-Python python -m compileall -q FreeApi-Python/freeapi FreeApi-Python/api.py`
