@@ -59,7 +59,11 @@ input,textarea,select{font-family:inherit;color:inherit;background:none;border:n
 /* G3: рефакторинг шапки сайдбара — аватар слева, справа имя+роль на одной оптической оси, TG-статус снизу. */
 .sidebar-profile{padding:20px 54px 16px 16px;border-bottom:1px solid #111;flex-shrink:0;position:relative}
 .sb-head{display:flex;align-items:center;gap:12px;min-width:0}
-.sb-avatar{width:44px;height:44px;border-radius:12px;background:#111;border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#555;flex-shrink:0}
+.sb-avatar{width:44px;height:44px;border-radius:12px;background:#111;border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#555;flex-shrink:0;overflow:hidden}
+.sb-avatar[data-auth="1"]{cursor:pointer;transition:border-color .15s,transform .15s}
+.sb-avatar[data-auth="1"]:hover{border-color:#3a3a3a;transform:scale(1.03)}
+.sb-avatar[data-auth="1"]:focus-visible{border-color:#7eb6ff}
+.sb-avatar-img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
 .sb-id{display:flex;flex-direction:column;justify-content:center;min-width:0;gap:3px}
 .sb-username{font-size:15px;font-weight:600;color:#ddd;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-role{font-size:10.5px;letter-spacing:.5px;color:#606060;line-height:1.2}
@@ -1020,3 +1024,33 @@ body:has(#view-dashboard.active){background:#000!important}
 .notif-card.notif-card-link .notif-card-msg::after{content:' →';color:#7eb6ff;font-weight:600;margin-left:4px}
 .rv-card-flash{animation:rvCardFlash 2.2s ease-out 1;border-color:#7eb6ff !important;box-shadow:0 0 0 2px rgba(126,182,255,.25)}
 @keyframes rvCardFlash{0%{background:rgba(126,182,255,.18)}40%{background:rgba(126,182,255,.10)}100%{background:transparent}}
+
+/* G5 — кадрирование аватарки */
+.avatar-crop-stage{margin-top:14px;background:#000;border:1px solid #1e1e1e;border-radius:12px;padding:10px;display:flex;align-items:center;justify-content:center}
+#avatarCropCanvas{display:block;width:320px;height:320px;max-width:100%;border-radius:8px;touch-action:none;cursor:grab;background:#000}
+#avatarCropCanvas:active{cursor:grabbing}
+.avatar-crop-zoom{-webkit-appearance:none;appearance:none;width:100%;height:4px;background:#1e1e1e;border-radius:2px;outline:none;margin-top:6px}
+.avatar-crop-zoom::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#e8eaed;border:1px solid #2a2a2a;cursor:pointer}
+.avatar-crop-zoom::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#e8eaed;border:1px solid #2a2a2a;cursor:pointer}
+@media(max-width:420px){
+  .avatar-crop-stage{padding:6px}
+  #avatarCropCanvas{width:280px;height:280px}
+}
+
+/* G6 — фон-сетка корректно тянется на широких экранах.
+   Раньше radial-gradient(ellipse 30%/82%) на 16:9 давал «короткий» овал
+   по горизонтали, и по бокам от центра возникали чёрные поля.
+   Решение: круглая маска (farthest-side) + увеличенный размер сетки на
+   широких viewport-ах, чтобы сетка действительно перекрывала экран. */
+.bg-mesh{
+  mask-image:radial-gradient(circle farthest-side at 50% 50%,#000 60%,transparent 100%);
+  -webkit-mask-image:radial-gradient(circle farthest-side at 50% 50%,#000 60%,transparent 100%);
+}
+@media(min-width:1100px){
+  .bg-wrap{inset:-300px}
+  .bg-mesh{width:200%;height:200%;top:-50%;left:-50%}
+}
+@media(min-width:1700px){
+  .bg-wrap{inset:-400px}
+  .bg-mesh{width:240%;height:240%;top:-70%;left:-70%}
+}

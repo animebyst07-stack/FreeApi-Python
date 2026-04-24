@@ -31,6 +31,7 @@ import './views/stats.js';
 import './views/models.js';
 import './views/docs.js';
 import './views/logcodes.js';
+import './views/profile_avatar.js';
 
 window.__FPA_MAIN_LOADED__ = true;
 console.debug('[FPA] main.js loaded (step 0.5.13-fix)');

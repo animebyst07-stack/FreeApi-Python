@@ -1504,6 +1504,28 @@ request them. Three live endpoints to introspect the environment:
 </div>
 </div>
 
+<!-- G5: скрытый input для выбора файла + модалка кадрирования аватарки -->
+<input type="file" id="sbAvatarFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
+<div class="overlay" id="avatarCropModal" onclick="overlayClick(event,this)">
+<div class="modal" style="max-width:380px">
+  <button class="modal-close" id="avatarCropCancel" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <h2 style="font-size:17px">Кадрирование аватарки</h2>
+  <p class="modal-sub">Перетаскивайте картинку, колесо/жест — масштаб</p>
+  <div class="avatar-crop-stage">
+    <canvas id="avatarCropCanvas" width="320" height="320"></canvas>
+  </div>
+  <div class="form-row" style="margin-top:14px">
+    <label class="form-label" for="avatarCropZoom">Масштаб</label>
+    <input type="range" id="avatarCropZoom" min="1" max="6" step="0.01" value="1" class="avatar-crop-zoom">
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+    <button class="btn btn-outline" id="avatarCropReset" type="button" style="flex:1;min-width:120px;height:42px;display:none">Сбросить</button>
+    <button class="btn btn-outline" id="avatarCropCancel2" type="button" style="flex:1;min-width:120px;height:42px" onclick="closeModal('avatarCropModal')">Отмена</button>
+    <button class="btn btn-primary" id="avatarCropApply" type="button" style="flex:1;min-width:120px;height:42px">Применить</button>
+  </div>
+</div>
+</div>
+
 <!-- Custom Confirm Modal -->
 <div class="overlay" id="confirmModal">
 <div class="modal" style="max-width:380px">
@@ -2804,7 +2826,9 @@ function updateSidebar(){
   if(sbUsr){
     if(authed){
       sbUsr.textContent=user.username;
-      if(sbAvatar) sbAvatar.textContent=user.username.charAt(0).toUpperCase();
+      // G5: рендер аватарки делает модуль profile_avatar.js (img / буква).
+      if(window.renderSidebarAvatar){ window.renderSidebarAvatar(user); }
+      else if(sbAvatar) sbAvatar.textContent=user.username.charAt(0).toUpperCase();
       if(sbRole){
         if(isAdmin) sbRole.innerHTML='<span class="badge-owner">Владелец</span>';
         else sbRole.textContent='Пользователь';
@@ -2813,7 +2837,8 @@ function updateSidebar(){
       updateSidebarTg();
     } else {
       sbUsr.textContent='Гость';
-      if(sbAvatar) sbAvatar.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      if(window.renderSidebarAvatar){ window.renderSidebarAvatar(null); }
+      else if(sbAvatar) sbAvatar.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
       if(sbRole) sbRole.textContent='Не авторизован';
       if(sbTg) sbTg.style.display='none';
     }

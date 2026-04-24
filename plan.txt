@@ -780,6 +780,109 @@ F6 — Целостность реестра кодов журнала (✓ ВЫ
   спонсоров, промокодов и подсказок бота. Они задокументированы
   заранее и не мешают — оставлены как есть.
 
+
+╔══════════════════════════════════════════════════════════╗
+║  G5 — АВАТАРКА ПРОФИЛЯ (загрузка + кадрирование)         ║
+║  Статус: РЕАЛИЗОВАНО.                                     ║
+╚══════════════════════════════════════════════════════════╝
+
+  Цель: дать пользователю возможность загрузить и обрезать
+  свою аватарку прямо через сайдбар, без сторонних JS-библиотек
+  (Termux-friendly).
+
+  Архитектура хранения:
+    • Поле users.avatar TEXT (NULL допустим).
+      Хранится готовый data URL (jpeg/png base64).
+    • Никаких файловых блобов на диске — простой бэкап через
+      sqlite3 .backup, не плодим вторую систему файлов.
+    • Лимит: ≤ 200 KB после кадра, длина строки ≤ 280 000 симв.
+
+  Миграция: 008_user_avatar.sql — ALTER TABLE users ADD COLUMN.
+
+  Бэкенд (freeapi/blueprints/auth_bp.py):
+    • PUT    /api/auth/avatar
+        body: {"data_url": "data:image/jpeg;base64,..."}
+        валидация: префикс jpeg/png, длина, decoded size ≤ 200 KB.
+        log: AVA_SET_111 — Категория «Профиль».
+    • DELETE /api/auth/avatar
+        сбрасывает поле в NULL.
+        log: AVA_DEL_112.
+    • GET    /api/auth/me — теперь подмешивает avatar в user
+        (через repo.get_user_avatar, отдельным запросом).
+
+  Репозиторий (freeapi/repos/users.py):
+    • get_user_avatar / set_user_avatar / clear_user_avatar.
+    • Намеренно НЕ добавляли avatar в get_user_by_id —
+      чтобы все существующие места не таскали блоб.
+
+  Коды журнала (log_codes.py):
+    AVA_SET_111 | Профиль | Аватарка профиля обновлена |
+    AVA_DEL_112 | Профиль | Аватарка профиля удалена   |
+
+  Фронтенд:
+    • Новый ESM-модуль static/js/views/profile_avatar.js
+      (зарегистрирован в static/js/main.js).
+      ─ Делегированные обработчики click/change.
+      ─ Cropper в <canvas 320×320>: drag (mouse + 1 touch),
+        zoom через колесо/2-touch-pinch/range-input.
+      ─ Экспорт в финальный canvas 256×256 → toBlob(jpeg)
+        с понижением качества 0.92 → 0.85 → 0.78, чтобы
+        результат стабильно влезал в 180–200 KB.
+      ─ После успеха — window.user.avatar = ...; renderSidebarAvatar.
+    • Новая модалка #avatarCropModal (static/index.html).
+      Скрытый <input type="file" #sbAvatarFile> — accept
+      jpeg/png/webp/gif, чтоб телефонная галерея «увидела» файл.
+    • .sb-avatar получает data-auth="1" для авторизованных,
+      role="button", tabindex="0", title="Сменить аватарку".
+      hover/focus подсветка через CSS.
+    • renderSidebarAvatar(user|null):
+        – нет user → svg-плейсхолдер,
+        – avatar есть → <img class="sb-avatar-img">,
+        – иначе → первая буква username.
+    • Inline-блок updateAuth() переключён на renderSidebarAvatar
+      (с fallback-веткой на старое поведение, если модуль ещё
+      не загрузился — defer-порядок).
+
+  Стили (static/css/main.css):
+    • .sb-avatar overflow:hidden + .sb-avatar-img object-fit:cover.
+    • .sb-avatar[data-auth="1"]: cursor + hover transform/border.
+    • .avatar-crop-stage / #avatarCropCanvas / .avatar-crop-zoom.
+    • Адаптация ≤ 420 px (canvas 280×280).
+
+
+╔══════════════════════════════════════════════════════════╗
+║  G6 — ФОН-СЕТКА НА ШИРОКИХ ЭКРАНАХ                       ║
+║  Статус: РЕАЛИЗОВАНО.                                     ║
+╚══════════════════════════════════════════════════════════╝
+
+  Симптом: на десктопе/широком окне по бокам сцены появлялись
+  чёрные «пустоты» — фон-сетка не дотягивалась до краёв.
+
+  Корень проблемы:
+    .bg-mesh имела размер 160% × 160% (top:-30%, left:-30%),
+    маска — radial-gradient(ellipse at 50% 50%, black 30%, transparent 82%).
+    Эллипс на 16:9 viewport-е получался коротким по горизонтали:
+    radial-gradient «ellipse» по умолчанию использует
+    farthest-corner с пропорциями контейнера, и при ширине ≫ высоты
+    стопы 30/82 % приходились на относительно узкую среднюю полосу.
+
+  Фикс (main.css):
+    1. Заменили маску на круглую с явным размером:
+         radial-gradient(circle farthest-side at 50% 50%,
+                         #000 60%, transparent 100%)
+       Теперь активная зона — круг, привязанный к МЕНЬШЕМУ
+       измерению контейнера (а сам контейнер — viewport+overscroll),
+       но за счёт увеличения сетки на широких — круг гарантированно
+       перекрывает экран по бокам.
+    2. Медиа-точки:
+         @media(min-width:1100px) → bg-wrap inset:-300px,
+                                    bg-mesh 200%/200%, top/left -50%.
+         @media(min-width:1700px) → bg-wrap inset:-400px,
+                                    bg-mesh 240%/240%, top/left -70%.
+
+  Не трогалось: правило `body:has(#view-dashboard.active)` и
+  скрытие .bg-wrap на дашборде (там нужен полностью чёрный фон).
+
 ══════════════════════════════════════════════════════════
 КОНЕЦ ПЛАНА
 ══════════════════════════════════════════════════════════
