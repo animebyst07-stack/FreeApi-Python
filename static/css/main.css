@@ -56,13 +56,14 @@ input,textarea,select{font-family:inherit;color:inherit;background:none;border:n
   .hamburger{display:none}
   .main-content{margin-right:260px}
 }
+/* G3: рефакторинг шапки сайдбара — аватар слева, справа имя+роль на одной оптической оси, TG-статус снизу. */
 .sidebar-profile{padding:20px 54px 16px 16px;border-bottom:1px solid #111;flex-shrink:0;position:relative}
-.sb-avatar{width:40px;height:40px;border-radius:12px;background:#111;border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;margin-bottom:10px;font-size:16px;font-weight:700;color:#555}
-/* G2: имя + бейдж роли — единый inline-блок, бейдж центрируется по ширине имени. */
-.sb-id{display:inline-flex;flex-direction:column;align-items:center;max-width:100%}
-.sb-username{font-size:14px;font-weight:600;color:#ddd;line-height:1.3;text-align:center}
-.sb-role{font-size:11px;color:#606060;margin-top:6px;text-align:center;display:block}
-.sb-tg{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:#747474}
+.sb-head{display:flex;align-items:center;gap:12px;min-width:0}
+.sb-avatar{width:44px;height:44px;border-radius:12px;background:#111;border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#555;flex-shrink:0}
+.sb-id{display:flex;flex-direction:column;justify-content:center;min-width:0;gap:3px}
+.sb-username{font-size:15px;font-weight:600;color:#ddd;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-role{font-size:10.5px;letter-spacing:.5px;color:#606060;line-height:1.2}
+.sb-tg{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:#747474}
 .sb-tg-dot{width:6px;height:6px;border-radius:50%;background:#333;flex-shrink:0}
 .sb-tg-dot.ok{background:#22c55e}
 .sb-tg-dot.pending{background:#f59e0b;animation:blink 2s infinite}
