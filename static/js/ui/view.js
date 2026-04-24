@@ -8,7 +8,7 @@
    classic-script `function NAME(){}` ⇒ автоматически window.NAME).
    Зовём их через window.* — после распиливания views/* останется без правок. */
 
-const VIEWS = ['landing','dashboard','history','models','logcodes','chat','docs','admin','support','reviews','notifications'];
+const VIEWS = ['landing','dashboard','history','models','logcodes','chat','docs','admin','support','reviews','notifications','community'];
 const SB_MAP = {
   landing:    'sbLanding',
   models:     'sbModels',
@@ -17,7 +17,8 @@ const SB_MAP = {
   chat:       'sbChat',
   support:    'sbSupport',
   admin:      'sbAdmin',
-  reviews:    'sbReviews'
+  reviews:    'sbReviews',
+  community:  'sbCommunity'
 };
 
 export function updateSidebarActive(v){
@@ -66,6 +67,7 @@ export function goView(v){
   if (v === 'support'       && typeof window.initSupportView  === 'function') window.initSupportView();
   if (v === 'reviews'       && typeof window.initReviewsView  === 'function') window.initReviewsView();
   if (v === 'notifications' && typeof window.loadNotifications === 'function') window.loadNotifications();
+  if (v === 'community'     && typeof window.initCommunityView === 'function') window.initCommunityView();
 }
 
 window.goView = goView;

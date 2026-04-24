@@ -27,6 +27,7 @@ import './views/reviews.js';
 import './views/notifications.js';
 import './views/support.js';
 import './views/admin.js';
+import './views/community.js';
 import './views/stats.js';
 import './views/models.js';
 import './views/docs.js';

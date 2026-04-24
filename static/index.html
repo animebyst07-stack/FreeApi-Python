@@ -89,6 +89,11 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       Отзывы
     </div>
+    <div class="sb-item" id="sbCommunity" onclick="goView('community');closeSidebar()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
+      Чат / Посты
+      <div class="sb-item-badge" id="sbCommunityBadge" style="display:none"></div>
+    </div>
     <div class="sb-item" id="sbAdmin" onclick="goView('admin');closeSidebar()" style="display:none">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       Администрирование
@@ -1059,9 +1064,22 @@ request them. Three live endpoints to introspect the environment:
       <!-- 0.5.13c: дубль-карточка «Уведомления для Админа» удалена.
            Все админ-уведомления теперь показываются единым списком на
            странице «Уведомления» (раздел /notifications) вместе с обычными
-           уведомлениями пользователя — см. static/js/views/notifications.js.
-           Это убирает разрыв UX, когда часть уведомлений лежала в админке,
-           а часть — в общем разделе. -->
+           уведомлениями пользователя — см. static/js/views/notifications.js. -->
+
+      <!-- M2/блок 6.1.1: управление списком админов -->
+      <div class="card" id="adminAdminsCard">
+        <div class="card-head"><h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Администраторы</h3></div>
+        <div class="card-body">
+          <div style="font-size:12px;color:#888;margin-bottom:10px">Список пользователей с админ-ролью. Назначать и снимать может только суперадмин (ReZero).</div>
+          <div id="adminAdminsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"><div style="color:#666;font-size:12px">Загрузка…</div></div>
+          <div id="adminAdminsAddBlock" style="display:none">
+            <div style="display:flex;gap:6px">
+              <input type="text" id="adminAddInput" placeholder="Логин нового админа" style="flex:1;background:#0e0e0e;border:1px solid #222;border-radius:8px;color:#eee;padding:8px 10px;font:inherit">
+              <button class="btn btn-primary btn-sm" onclick="adminAddAdmin()">Добавить</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <!-- 0.5.13-UI: карточка «Отзывы» удалена из админки —
          все действия (удалить/ответить) доступны прямо в разделе «Отзывы». -->
@@ -1106,6 +1124,72 @@ request them. Three live endpoints to introspect the environment:
 
 </div>
 </div><!-- /view-reviews -->
+
+<!-- ===================== VIEW: COMMUNITY (M2) ===================== -->
+<div class="view" id="view-community">
+<div class="container" style="max-width:880px;padding-top:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+    <div>
+      <h1 style="font-size:22px;font-weight:700;margin:0">Сообщество</h1>
+      <p style="font-size:12px;color:#888;margin:4px 0 0">Общий чат и посты администрации</p>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" id="cmTabChat" onclick="cmSwitchTab('chat')" style="background:#1a1a1a">Чат</button>
+      <button class="btn btn-ghost btn-sm" id="cmTabPosts" onclick="cmSwitchTab('posts')">Посты</button>
+    </div>
+  </div>
+
+  <div id="cmBanPlate" style="display:none;background:#2a1010;border:1px solid #4a1c1c;border-radius:10px;padding:12px 14px;color:#ffb4b4;font-size:13px;margin-bottom:12px"></div>
+
+  <div id="cmPinned" style="display:none;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+    <div style="font-size:11px;color:#888;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">📌 Закреплено</div>
+    <div id="cmPinnedList"></div>
+  </div>
+
+  <!-- Чат -->
+  <div id="cmChatPane">
+    <div id="cmChatList" style="background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;padding:14px;min-height:300px;max-height:60vh;overflow-y:auto;margin-bottom:12px;font-size:13.5px">
+      <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
+    </div>
+    <div id="cmComposer" style="display:flex;flex-direction:column;gap:8px;background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;padding:10px">
+      <div id="cmImagesPreview" style="display:none;flex-wrap:wrap;gap:6px"></div>
+      <textarea id="cmInput" placeholder="Напишите сообщение… @имя — упомянуть пользователя" rows="2" style="width:100%;background:#0e0e0e;border:1px solid #222;border-radius:8px;color:#eee;padding:8px 10px;resize:vertical;font:inherit"></textarea>
+      <div id="cmMentionPopup" style="display:none;position:relative"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="display:flex;gap:6px">
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
+            📎 Фото
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmFileInput" onchange="cmHandleFiles(event)">
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#888;cursor:pointer">
+            <input type="checkbox" id="cmMuteMentions" onchange="cmToggleMute(event)"> игнорировать @
+          </label>
+        </div>
+        <button class="btn btn-primary btn-sm" id="cmSendBtn" onclick="cmSendMessage()">Отправить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Посты -->
+  <div id="cmPostsPane" style="display:none">
+    <div id="cmAdminPostComposer" style="display:none;background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="font-size:12px;color:#888;font-weight:600;margin-bottom:8px">Новый пост (только администрация)</div>
+      <div id="cmPostImagesPreview" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <textarea id="cmPostInput" placeholder="Текст поста…" rows="3" style="width:100%;background:#0e0e0e;border:1px solid #222;border-radius:8px;color:#eee;padding:8px 10px;resize:vertical;font:inherit;margin-bottom:8px"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
+          📎 Фото
+          <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmPostFileInput" onchange="cmHandlePostFiles(event)">
+        </label>
+        <button class="btn btn-primary btn-sm" id="cmPostBtn" onclick="cmCreatePost()">Опубликовать</button>
+      </div>
+    </div>
+    <div id="cmPostsList" style="display:flex;flex-direction:column;gap:12px">
+      <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
+    </div>
+  </div>
+</div>
+</div><!-- /view-community -->
 
 <!-- ===================== MODALS ===================== -->
 
