@@ -19,6 +19,34 @@ PLAN — Сессия: «Сообщество» (общественный чат
     push в community_bp._notify_mentions с уважением mute_mentions,
     log_codes CM_TG_LINK_*/CM_TG_PUSH_*, фронт-блок «Уведомления в Telegram»
     в community.js под header'ом раздела «Чат / Посты».
+[x] M3.1 — полный визуальный рефакторинг «Сообщества».
+    Полноэкранный layout (cm-page: header sticky / body scroll / composer sticky),
+    чёрный фон + canvas с медленно плавающими серыми частицами
+    (cmParticles, requestAnimationFrame, плотность ~1 точка / 16k px,
+    автостоп при уходе с view), полное удаление эмодзи —
+    везде SVG outline-иконки (Lucide-стиль): иконки composer'а
+    (скрепка/самолётик), header'а (TG / mute on-off), сообщений
+    (✎ изменено / 📌 закреплено / 🚫 удалено), действий
+    (reply/copy/edit/pin/unpin/trash/ban/history) и реакций.
+    Реакции — фиксированный набор из 8 SVG (like/heart/fire/laugh/
+    wow/sad/clap/party), хранятся как короткие текстовые коды
+    (укладываются в существующую валидацию <=16 байт в
+    repos/community.toggle_reaction). Старые emoji-реакции
+    рендерятся fallback'ом как текст.
+    Telegram-style action-sheet: клик по сообщению → bottom sheet
+    с grip, цитатой автора+текста, баром реакций (8 кнопок) и
+    списком действий контекстно (для своего/чужого/админа).
+    Backdrop с blur, Esc закрывает sheet и TG-модал.
+    TG-настройки переехали из <details>-блока в самостоятельный
+    модал (cm-modal) + чип-строка cm-tg-line (показывается только
+    если TG доступен и не привязан) + icon-button в header'е.
+    Адаптация для широких экранов: max-width 720 у body/composer.
+    Файлы: static/css/main.css (+~310 строк блока «M3.1»),
+    static/index.html (полностью переписан блок view-community),
+    static/js/views/community.js (полная переработка модуля,
+    новые: ICONS/REACTIONS словари, cmOpenSheet/cmCloseSheet,
+    cmCopyMsg, startParticles/stopParticles, cmOpenTgModal/cmCloseTgModal,
+    autosizeTextarea; убраны: cmReactPrompt, инлайн-actions, чекбокс mute).
 [ ] M4 — модерация AI-агентом постов чата (re-use moderator settings).
 [ ] M5 — статистика для админа (графики активности чата).
 [ ] M6 — мобильная адаптация раздела «Сообщество» + dark/light доводка.

@@ -1127,78 +1127,112 @@ request them. Three live endpoints to introspect the environment:
 
 <!-- ===================== VIEW: COMMUNITY (M2) ===================== -->
 <div class="view" id="view-community">
-<div class="container" style="max-width:880px;padding-top:20px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
-    <div>
-      <h1 style="font-size:22px;font-weight:700;margin:0">Сообщество</h1>
-      <p style="font-size:12px;color:#888;margin:4px 0 0">Общий чат и посты администрации</p>
-    </div>
-    <div style="display:flex;gap:6px">
-      <button class="btn btn-ghost btn-sm" id="cmTabChat" onclick="cmSwitchTab('chat')" style="background:#1a1a1a">Чат</button>
-      <button class="btn btn-ghost btn-sm" id="cmTabPosts" onclick="cmSwitchTab('posts')">Посты</button>
-    </div>
-  </div>
+  <!-- M3.1: полноэкранный layout «Сообщество». -->
+  <div class="cm-page">
+    <canvas class="cm-particles" id="cmParticles"></canvas>
 
-  <div id="cmBanPlate" style="display:none;background:#2a1010;border:1px solid #4a1c1c;border-radius:10px;padding:12px 14px;color:#ffb4b4;font-size:13px;margin-bottom:12px"></div>
-
-  <!-- M3: блок привязки Telegram для пушей о @упоминаниях -->
-  <details id="cmTgLinkBlock" style="display:none;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px">
-    <summary style="cursor:pointer;color:#ddd;font-weight:600;outline:none">
-      🔔 Уведомления в Telegram <span id="cmTgLinkBadge" style="font-size:11px;color:#888;font-weight:400;margin-left:6px"></span>
-    </summary>
-    <div id="cmTgLinkBody" style="margin-top:10px;color:#bbb;line-height:1.5">
-      <div style="color:#666;text-align:center;padding:14px 0">Загрузка…</div>
-    </div>
-  </details>
-
-  <div id="cmPinned" style="display:none;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:10px 12px;margin-bottom:12px">
-    <div style="font-size:11px;color:#888;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">📌 Закреплено</div>
-    <div id="cmPinnedList"></div>
-  </div>
-
-  <!-- Чат -->
-  <div id="cmChatPane">
-    <div id="cmChatList" style="background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;padding:14px;min-height:300px;max-height:60vh;overflow-y:auto;margin-bottom:12px;font-size:13.5px">
-      <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
-    </div>
-    <div id="cmComposer" style="display:flex;flex-direction:column;gap:8px;background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;padding:10px">
-      <div id="cmImagesPreview" style="display:none;flex-wrap:wrap;gap:6px"></div>
-      <textarea id="cmInput" placeholder="Напишите сообщение… @имя — упомянуть пользователя" rows="2" style="width:100%;background:#0e0e0e;border:1px solid #222;border-radius:8px;color:#eee;padding:8px 10px;resize:vertical;font:inherit"></textarea>
-      <div id="cmMentionPopup" style="display:none;position:relative"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <div style="display:flex;gap:6px">
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
-            📎 Фото
-            <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmFileInput" onchange="cmHandleFiles(event)">
-          </label>
-          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#888;cursor:pointer">
-            <input type="checkbox" id="cmMuteMentions" onchange="cmToggleMute(event)"> игнорировать @
-          </label>
+    <header class="cm-header">
+      <div style="min-width:0">
+        <h1 class="cm-header-title">Сообщество</h1>
+        <p class="cm-header-sub" id="cmHeaderSub">Общий чат и посты администрации</p>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+        <div class="cm-tabs" role="tablist">
+          <button class="cm-tab active" id="cmTabChat" onclick="cmSwitchTab('chat')" type="button">Чат</button>
+          <button class="cm-tab" id="cmTabPosts" onclick="cmSwitchTab('posts')" type="button">Посты</button>
         </div>
-        <button class="btn btn-primary btn-sm" id="cmSendBtn" onclick="cmSendMessage()">Отправить</button>
+        <button class="cm-iconbtn" id="cmTgIconBtn" onclick="cmOpenTgModal()" type="button" title="Telegram-уведомления" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
+        <button class="cm-iconbtn" id="cmMuteIconBtn" onclick="cmToggleMute()" type="button" title="Игнорировать @-упоминания">
+          <svg id="cmMuteOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg id="cmMuteOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="cm-banplate" id="cmBanPlate" style="display:none"></div>
+    <div class="cm-tg-line" id="cmTgLine" onclick="cmOpenTgModal()" title="Открыть настройки Telegram-уведомлений">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      <span id="cmTgLineText">Подключить Telegram, чтобы получать пуши о @упоминаниях</span>
+      <span class="cm-tg-status" id="cmTgLineStatus"></span>
+    </div>
+    <div class="cm-pinned" id="cmPinned">
+      <div class="cm-pinned-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1V2H8v4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+        Закреплено
+      </div>
+      <div id="cmPinnedList"></div>
+    </div>
+
+    <!-- Чат -->
+    <div class="cm-body" id="cmChatList" data-pane="chat">
+      <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
+    </div>
+
+    <!-- Посты -->
+    <div class="cm-posts-pane" id="cmPostsPane" data-pane="posts" style="display:none">
+      <div class="container-narrow">
+        <div id="cmAdminPostComposer" style="display:none;background:rgba(10,10,10,.78);border:1px solid #1c1c1c;border-radius:12px;padding:12px;margin-bottom:14px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+          <div style="font-size:12px;color:#888;font-weight:600;margin-bottom:8px">Новый пост (только администрация)</div>
+          <div id="cmPostImagesPreview" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+          <textarea id="cmPostInput" placeholder="Текст поста…" rows="3" style="width:100%;background:#0e0e0e;border:1px solid #222;border-radius:8px;color:#eee;padding:8px 10px;resize:vertical;font:inherit;margin-bottom:8px"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <label class="cm-composer-icon" style="margin:0" title="Прикрепить фото">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.83l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmPostFileInput" onchange="cmHandlePostFiles(event)">
+            </label>
+            <button class="cm-composer-send" onclick="cmCreatePost()" id="cmPostBtn" title="Опубликовать">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="cmPostsList" style="display:flex;flex-direction:column;gap:12px">
+          <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Composer (только для чата) -->
+    <div class="cm-composer" id="cmComposer">
+      <div class="cm-composer-imgs" id="cmImagesPreview"></div>
+      <div class="cm-mention-pop" id="cmMentionPopup" style="display:none"></div>
+      <div class="cm-composer-row">
+        <label class="cm-composer-icon" title="Прикрепить фото" style="margin:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.83l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmFileInput" onchange="cmHandleFiles(event)">
+        </label>
+        <textarea id="cmInput" placeholder="Сообщение…  @имя — упомянуть" rows="1"></textarea>
+        <button class="cm-composer-send" id="cmSendBtn" onclick="cmSendMessage()" title="Отправить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Посты -->
-  <div id="cmPostsPane" style="display:none">
-    <div id="cmAdminPostComposer" style="display:none;background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;padding:12px;margin-bottom:14px">
-      <div style="font-size:12px;color:#888;font-weight:600;margin-bottom:8px">Новый пост (только администрация)</div>
-      <div id="cmPostImagesPreview" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-      <textarea id="cmPostInput" placeholder="Текст поста…" rows="3" style="width:100%;background:#0e0e0e;border:1px solid #222;border-radius:8px;color:#eee;padding:8px 10px;resize:vertical;font:inherit;margin-bottom:8px"></textarea>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
-          📎 Фото
-          <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" id="cmPostFileInput" onchange="cmHandlePostFiles(event)">
-        </label>
-        <button class="btn btn-primary btn-sm" id="cmPostBtn" onclick="cmCreatePost()">Опубликовать</button>
-      </div>
+  <!-- Action sheet (поднимается снизу при клике на сообщение) -->
+  <div class="cm-sheet-backdrop" id="cmSheetBackdrop" onclick="cmCloseSheet()"></div>
+  <div class="cm-sheet" id="cmSheet" role="dialog" aria-label="Действия с сообщением">
+    <div class="cm-sheet-grip"></div>
+    <div class="cm-sheet-quote" id="cmSheetQuote"></div>
+    <div class="cm-rx-bar" id="cmSheetRxBar"></div>
+    <div class="cm-sheet-actions" id="cmSheetActions"></div>
+  </div>
+
+  <!-- TG settings modal -->
+  <div class="cm-modal-backdrop" id="cmTgBackdrop" onclick="cmCloseTgModal()"></div>
+  <div class="cm-modal" id="cmTgModal" role="dialog" aria-label="Telegram-уведомления">
+    <div class="cm-modal-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:#a8c4ff"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      <h3>Уведомления в Telegram</h3>
+      <button class="cm-iconbtn" onclick="cmCloseTgModal()" title="Закрыть" style="width:30px;height:30px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
-    <div id="cmPostsList" style="display:flex;flex-direction:column;gap:12px">
-      <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
+    <div class="cm-modal-body" id="cmTgModalBody">
+      <div style="color:#666;text-align:center;padding:18px 0">Загрузка…</div>
     </div>
   </div>
-</div>
 </div><!-- /view-community -->
 
 <!-- ===================== MODALS ===================== -->

@@ -1059,3 +1059,360 @@ body:has(#view-dashboard.active){background:#000!important}
   .bg-wrap{inset:-400px}
   .bg-mesh{width:240%;height:240%;top:-70%;left:-70%}
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   M3.1 — Полноэкранный чат «Сообщество» (рефакторинг визуала).
+   Layout: header(sticky) + scrollable list + composer(sticky).
+   Фон — canvas с медленно плавающими частицами (позади всего).
+   Без эмодзи: SVG-иконки, action-sheet снизу, как в Telegram.
+   ════════════════════════════════════════════════════════════════════ */
+
+#view-community.active{
+  position:fixed;
+  inset:0;
+  display:flex;
+  background:#000;
+  z-index:1;
+  /* Скрываем глобальный .bg-mesh внутри чата, у нас свой canvas. */
+}
+#view-community.active ~ .bg-wrap,
+#view-community.active .bg-wrap{display:none !important}
+
+.cm-page{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  width:100%;
+  position:relative;
+  overflow:hidden;
+}
+.cm-particles{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  z-index:0;
+  display:block;
+}
+.cm-page > .cm-header,
+.cm-page > .cm-body,
+.cm-page > .cm-composer,
+.cm-page > .cm-tg-line,
+.cm-page > .cm-pinned,
+.cm-page > .cm-banplate{position:relative;z-index:2}
+
+/* Header */
+.cm-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:14px 16px 10px;
+  background:rgba(0,0,0,0.68);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border-bottom:1px solid #161616;
+  flex-shrink:0;
+}
+.cm-header-title{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0;color:#fff;line-height:1.1}
+.cm-header-sub{font-size:11px;color:#7a7a7a;margin:2px 0 0;line-height:1}
+.cm-tabs{display:flex;background:#0e0e0e;border:1px solid #1c1c1c;border-radius:10px;padding:3px}
+.cm-tab{
+  background:transparent;border:0;color:#888;font:inherit;font-size:12.5px;font-weight:500;
+  padding:6px 14px;border-radius:7px;cursor:pointer;transition:.18s;
+}
+.cm-tab.active{background:#1f1f1f;color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+
+/* Topbar inside header — иконки настроек/админ */
+.cm-iconbtn{
+  width:34px;height:34px;border:1px solid #1c1c1c;background:#0c0c0c;border-radius:9px;
+  color:#bbb;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:.15s;flex-shrink:0;
+}
+.cm-iconbtn:hover{background:#161616;color:#fff;border-color:#262626}
+.cm-iconbtn.active{background:#1d2433;color:#a8c4ff;border-color:#2c4570}
+.cm-iconbtn svg{width:18px;height:18px;display:block}
+
+/* Pinned strip (сжатая, под header'ом) */
+.cm-pinned{
+  display:none;
+  margin:0 12px 0;
+  padding:8px 12px;
+  background:rgba(20,20,20,.72);
+  border:1px solid #1f1f1f;
+  border-radius:10px;
+  color:#bbb;
+  font-size:12px;
+  flex-shrink:0;
+  margin-top:8px;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+.cm-pinned-head{font-size:10px;color:#7a7a7a;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.cm-pinned-head svg{width:11px;height:11px}
+.cm-pinned-item{padding:4px 0;border-top:1px dashed #1f1f1f;color:#aaa;font-size:12.5px;line-height:1.45}
+.cm-pinned-item:first-of-type{border-top:0}
+.cm-pinned-item b{color:#ddd}
+
+.cm-banplate{
+  margin:8px 12px 0;
+  padding:10px 12px;
+  background:rgba(60,16,16,.72);
+  border:1px solid #4a1c1c;
+  border-radius:10px;
+  color:#ffb4b4;
+  font-size:12.5px;
+  flex-shrink:0;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+
+/* TG-line (свёрнутая строка-чип под header'ом) */
+.cm-tg-line{
+  display:none;
+  margin:8px 12px 0;
+  padding:8px 12px;
+  background:rgba(15,15,15,.72);
+  border:1px solid #1c1c1c;
+  border-radius:10px;
+  flex-shrink:0;
+  color:#bbb;font-size:12px;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  cursor:pointer;
+  display:none;
+  align-items:center;
+  gap:8px;
+}
+.cm-tg-line.shown{display:flex}
+.cm-tg-line svg{width:14px;height:14px;color:#a8c4ff;flex-shrink:0}
+.cm-tg-line .cm-tg-status{margin-left:auto;font-size:11px;color:#7a7a7a}
+
+/* Body — scroll контейнер */
+.cm-body{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:14px 12px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  scroll-behavior:smooth;
+}
+.cm-body::-webkit-scrollbar{width:6px}
+.cm-body::-webkit-scrollbar-thumb{background:#1c1c1c;border-radius:3px}
+
+/* Сообщение */
+.cm-msg{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:8px 10px;
+  border-radius:12px;
+  background:rgba(15,15,15,.55);
+  border:1px solid #161616;
+  cursor:pointer;
+  transition:background .12s, border-color .12s, transform .08s;
+  user-select:none;
+  -webkit-user-select:none;
+  position:relative;
+}
+.cm-msg:active{transform:scale(.997)}
+.cm-msg.cm-msg-mine{background:rgba(15,22,30,.55);border-color:#1d2a3a}
+.cm-msg.cm-msg-pinned{border-color:#2a3a52;background:rgba(15,22,32,.55)}
+.cm-msg.cm-msg-deleted{background:transparent;border:1px dashed #1c1c1c;cursor:default;opacity:.7}
+.cm-msg.cm-msg-deleted:active{transform:none}
+.cm-msg.cm-msg-post{background:rgba(20,18,30,.6);border-color:#262540}
+
+.cm-msg-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.2}
+.cm-msg-author{color:#fff;font-weight:600;font-size:13px}
+.cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0}
+.cm-msg-badge{font-size:9.5px;background:#262540;color:#a8b8ff;padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.cm-msg-body{color:#e6e6e6;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.cm-msg-meta-icons{display:inline-flex;gap:5px;color:#666;align-items:center}
+.cm-msg-meta-icons svg{width:11px;height:11px;display:block}
+
+.cm-msg-deleted-text{color:#666;font-size:12px;font-style:italic;display:flex;align-items:center;gap:6px}
+.cm-msg-deleted-text svg{width:13px;height:13px;color:#555;flex-shrink:0}
+
+.cm-msg-imgs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.cm-msg-imgs img{
+  max-width:140px;max-height:140px;border-radius:8px;
+  border:1px solid #1f1f1f;cursor:zoom-in;display:block;object-fit:cover;
+}
+
+/* Реакции под сообщением */
+.cm-msg-rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.cm-rx-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px;border-radius:12px;
+  background:rgba(20,20,20,.85);border:1px solid #232323;
+  font-size:11.5px;color:#cfcfcf;cursor:pointer;
+  transition:.12s;line-height:1;
+}
+.cm-rx-chip:hover{background:#1f1f1f}
+.cm-rx-chip.mine{background:#15263e;border-color:#2c5b9c;color:#cfe2ff}
+.cm-rx-chip svg{width:13px;height:13px;display:block}
+.cm-rx-chip .cm-rx-cnt{font-weight:600;font-size:11px}
+
+/* @-mention в тексте */
+.cm-mention{color:#7ab1ff;font-weight:500;cursor:pointer}
+.cm-mention:hover{text-decoration:underline}
+
+/* Composer */
+.cm-composer{
+  flex-shrink:0;
+  padding:8px 10px 10px;
+  background:rgba(0,0,0,.78);
+  border-top:1px solid #161616;
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.cm-composer-imgs{display:none;flex-wrap:wrap;gap:5px}
+.cm-composer-imgs img{width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid #232323}
+.cm-composer-imgs .cm-composer-rmimg{
+  position:absolute;top:-4px;right:-4px;width:16px;height:16px;
+  border-radius:50%;background:#a32;color:#fff;border:0;font-size:10px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.cm-composer-imgs > div{position:relative}
+
+.cm-composer-row{
+  display:flex;align-items:flex-end;gap:6px;
+  background:#0a0a0a;border:1px solid #1c1c1c;border-radius:12px;
+  padding:5px 5px 5px 8px;
+}
+.cm-composer-row textarea{
+  flex:1;background:transparent;border:0;color:#eee;font:inherit;
+  font-size:14px;line-height:1.45;padding:7px 4px;resize:none;outline:none;
+  min-height:24px;max-height:120px;overflow-y:auto;
+}
+.cm-composer-row textarea::placeholder{color:#555}
+
+.cm-composer-icon{
+  width:34px;height:34px;border:0;background:transparent;color:#888;
+  border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:.12s;
+}
+.cm-composer-icon:hover{background:#1a1a1a;color:#ddd}
+.cm-composer-icon svg{width:19px;height:19px}
+.cm-composer-send{
+  width:36px;height:36px;border:0;border-radius:9px;
+  background:#fff;color:#000;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:.12s;
+}
+.cm-composer-send:hover{background:#e6e6e6}
+.cm-composer-send:disabled{background:#222;color:#666;cursor:not-allowed}
+.cm-composer-send svg{width:17px;height:17px}
+
+.cm-mention-pop{
+  position:relative;background:#0c0c0c;border:1px solid #232323;
+  border-radius:10px;max-height:160px;overflow-y:auto;font-size:13px;
+}
+.cm-mention-pop > div{padding:7px 10px;cursor:pointer;color:#ddd;border-bottom:1px solid #161616}
+.cm-mention-pop > div:hover{background:#161616}
+
+/* Action sheet (bottom sheet, как в Telegram) */
+.cm-sheet-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.55);
+  z-index:1000;opacity:0;pointer-events:none;transition:opacity .18s ease;
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
+.cm-sheet-backdrop.open{opacity:1;pointer-events:auto}
+.cm-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  background:#0e0e0e;border-top:1px solid #232323;
+  border-radius:16px 16px 0 0;
+  z-index:1001;
+  transform:translateY(110%);
+  transition:transform .22s cubic-bezier(.25,.46,.45,.94);
+  padding:8px 0 max(14px,env(safe-area-inset-bottom));
+  max-height:80vh;overflow-y:auto;
+  box-shadow:0 -8px 32px rgba(0,0,0,.5);
+}
+.cm-sheet.open{transform:translateY(0)}
+.cm-sheet-grip{
+  width:36px;height:4px;background:#2a2a2a;border-radius:2px;
+  margin:6px auto 8px;
+}
+.cm-sheet-quote{
+  margin:6px 14px 10px;padding:8px 10px;
+  background:#1a1a1a;border-radius:8px;border-left:3px solid #2c5b9c;
+  font-size:12px;color:#bbb;max-height:60px;overflow:hidden;
+}
+.cm-sheet-quote b{color:#fff;display:block;font-size:11px;margin-bottom:2px}
+
+.cm-rx-bar{
+  display:flex;justify-content:space-around;align-items:center;
+  gap:4px;padding:6px 10px 10px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;
+  flex-wrap:nowrap;overflow-x:auto;
+}
+.cm-rx-bar-btn{
+  width:42px;height:42px;border-radius:50%;border:0;background:#161616;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;color:#ddd;
+  transition:transform .12s ease, background .12s;flex-shrink:0;
+}
+.cm-rx-bar-btn:hover{background:#1f1f1f;transform:scale(1.08)}
+.cm-rx-bar-btn.active{background:#15263e;color:#cfe2ff}
+.cm-rx-bar-btn svg{width:22px;height:22px}
+
+.cm-sheet-actions{display:flex;flex-direction:column;padding:0 4px}
+.cm-sheet-action{
+  display:flex;align-items:center;gap:14px;
+  padding:13px 14px;background:transparent;border:0;color:#e6e6e6;
+  font:inherit;font-size:14.5px;cursor:pointer;text-align:left;
+  border-radius:9px;width:100%;transition:background .1s;
+}
+.cm-sheet-action:hover{background:#171717}
+.cm-sheet-action:active{background:#1d1d1d}
+.cm-sheet-action svg{width:20px;height:20px;color:#888;flex-shrink:0}
+.cm-sheet-action.danger{color:#ff8a8a}
+.cm-sheet-action.danger svg{color:#a44}
+
+/* TG settings modal */
+.cm-modal-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1002;
+  opacity:0;pointer-events:none;transition:opacity .18s;
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+}
+.cm-modal-backdrop.open{opacity:1;pointer-events:auto}
+.cm-modal{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-46%);
+  background:#0e0e0e;border:1px solid #232323;border-radius:14px;
+  z-index:1003;width:calc(100% - 28px);max-width:440px;max-height:88vh;overflow-y:auto;
+  opacity:0;pointer-events:none;transition:opacity .18s, transform .22s;
+}
+.cm-modal.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.cm-modal-head{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px 8px;border-bottom:1px solid #1a1a1a;
+}
+.cm-modal-head h3{margin:0;font-size:15px;font-weight:600;color:#fff;flex:1}
+.cm-modal-body{padding:14px 16px 16px;color:#bbb;font-size:13px;line-height:1.55}
+.cm-modal-body code{background:#1a1a1a;padding:1px 5px;border-radius:4px;color:#cfe2ff;font-size:12px}
+.cm-modal-body input[type=text]{
+  width:100%;background:#0e0e0e;border:1px solid #232323;border-radius:8px;
+  color:#eee;padding:9px 11px;font-size:13.5px;font:inherit;
+}
+
+/* Адаптация для widescreen — центрировать контент */
+@media(min-width:760px){
+  .cm-body, .cm-composer, .cm-tg-line, .cm-pinned, .cm-banplate{
+    max-width:720px;
+    margin-left:auto;margin-right:auto;
+  }
+  .cm-composer{border-top:0;background:transparent;padding-bottom:14px}
+  .cm-composer-row{background:#0a0a0a;border:1px solid #1c1c1c}
+}
+
+/* Posts pane (упрощённый, оставлен пока) */
+.cm-posts-pane{
+  flex:1;overflow-y:auto;padding:14px 12px;
+}
+.cm-posts-pane .container-narrow{max-width:720px;margin:0 auto}
+
