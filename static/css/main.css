@@ -63,6 +63,9 @@ input,textarea,select{font-family:inherit;color:inherit;background:none;border:n
 .sb-id{display:flex;flex-direction:column;justify-content:center;min-width:0;gap:3px}
 .sb-username{font-size:15px;font-weight:600;color:#ddd;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-role{font-size:10.5px;letter-spacing:.5px;color:#606060;line-height:1.2}
+/* G4: бейдж в .sb-role не имеет фона (background-clip:text, fill:transparent),
+   поэтому padding-left:7px только сдвигает текст вправо. Сбрасываем. */
+.sb-role .badge-owner,.sb-role .badge-moderator{padding:0;border-radius:0}
 .sb-tg{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:#747474}
 .sb-tg-dot{width:6px;height:6px;border-radius:50%;background:#333;flex-shrink:0}
 .sb-tg-dot.ok{background:#22c55e}
