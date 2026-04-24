@@ -97,6 +97,96 @@
     '😊','😁','👀','🤯','💔','🥺','😍','🫠',
   ];
 
+  // ── M3.4: кастомные избранные эмодзи (хранятся в localStorage) ────
+  var CM_CUSTOM_EMOJI_KEY = 'cm_custom_emojis_v1';
+  var CM_CUSTOM_EMOJI_MAX = 24;
+
+  function cmGetCustomEmojis() {
+    try {
+      var raw = localStorage.getItem(CM_CUSTOM_EMOJI_KEY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.filter(function (x) { return typeof x === 'string' && x; }) : [];
+    } catch (_e) { return []; }
+  }
+  function cmSaveCustomEmojis(arr) {
+    try { localStorage.setItem(CM_CUSTOM_EMOJI_KEY, JSON.stringify(arr.slice(0, CM_CUSTOM_EMOJI_MAX))); }
+    catch (_e) {}
+  }
+  window.cmAddCustomEmoji = function (msgId) {
+    cmPrompt('Введите эмодзи (например 🦊). Максимум ' + CM_CUSTOM_EMOJI_MAX + ' штук.', '', function (v) {
+      var s = (v || '').trim();
+      if (!s) return;
+      // Telegram-style: 1-2 кодовые точки достаточно для большинства emoji.
+      if (s.length > 16) {
+        if (window.showToast) window.showToast('Слишком длинно (макс. 16 символов)', 'err');
+        return;
+      }
+      var list = cmGetCustomEmojis();
+      // Не дублируем — ни кастомные, ни базовые.
+      if (list.indexOf(s) !== -1 || EMOJI_PICKER_LIST.indexOf(s) !== -1) {
+        if (window.showToast) window.showToast('Уже в избранном', 'err');
+      } else {
+        list.push(s);
+        cmSaveCustomEmojis(list);
+        if (window.showToast) window.showToast('Добавлено: ' + s, 'ok');
+      }
+      // Перерисовать пикер, если он открыт для этого сообщения.
+      if (STATE.sheetMsgId) {
+        var m = STATE.msgsCache[STATE.sheetMsgId];
+        var rxBar = document.getElementById('cmSheetRxBar');
+        if (m && rxBar) {
+          var mineSet = {};
+          (m.reactions || []).forEach(function (r) { if (r.mine) mineSet[r.emoji] = true; });
+          rxBar.innerHTML = renderEmojiPicker(STATE.sheetMsgId, mineSet);
+        }
+      }
+    });
+  };
+  window.cmRemoveCustomEmoji = function (emoji, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    var list = cmGetCustomEmojis();
+    var idx = list.indexOf(emoji);
+    if (idx === -1) return;
+    list.splice(idx, 1);
+    cmSaveCustomEmojis(list);
+    if (window.showToast) window.showToast('Убрано из избранных', 'ok');
+    if (STATE.sheetMsgId) {
+      var m = STATE.msgsCache[STATE.sheetMsgId];
+      var rxBar = document.getElementById('cmSheetRxBar');
+      if (m && rxBar) {
+        var mineSet = {};
+        (m.reactions || []).forEach(function (r) { if (r.mine) mineSet[r.emoji] = true; });
+        rxBar.innerHTML = renderEmojiPicker(STATE.sheetMsgId, mineSet);
+      }
+    }
+  };
+
+  // SVG-плюс для кнопки «добавить свой эмодзи»
+  var ICON_PLUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+  function renderEmojiPicker(msgId, mineSet) {
+    mineSet = mineSet || {};
+    var custom = cmGetCustomEmojis();
+    var stdHtml = EMOJI_PICKER_LIST.map(function (e) {
+      var active = mineSet[e] ? ' active' : '';
+      return '<button class="cm-emoji-btn' + active + '" type="button" ' +
+        'onclick="cmReact(\'' + esc(msgId) + '\',\'' + esc(e) + '\')">' + e + '</button>';
+    }).join('');
+    var customHtml = custom.map(function (e) {
+      var active = mineSet[e] ? ' active' : '';
+      return '<span class="cm-emoji-btn-wrap">' +
+        '<button class="cm-emoji-btn cm-emoji-btn-custom' + active + '" type="button" ' +
+          'onclick="cmReact(\'' + esc(msgId) + '\',\'' + esc(e) + '\')">' + esc(e) + '</button>' +
+        '<button class="cm-emoji-btn-rm" type="button" title="Убрать из избранных" ' +
+          'onclick="cmRemoveCustomEmoji(\'' + esc(e) + '\',event)">×</button>' +
+        '</span>';
+    }).join('');
+    var addBtn = '<button class="cm-emoji-btn cm-emoji-btn-add" type="button" title="Добавить свой эмодзи в избранное" ' +
+      'onclick="cmAddCustomEmoji(\'' + esc(msgId) + '\')">' + ICON_PLUS_SVG + '</button>';
+    return '<div class="cm-emoji-picker">' + stdHtml + customHtml + addBtn + '</div>';
+  }
+
   // Обратная совместимость: старые coded-реакции → SVG
   var _LEGACY_REACTIONS = {
     like:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/><path d="M2 10h5v12H2z"/></svg>',
@@ -235,9 +325,12 @@
     if (m.pinned) el.classList.add('cm-msg-pinned');
     if (m.kind === 'admin_post') el.classList.add('cm-msg-post');
 
+    // M3.4: если у юзера нет своего display_prefix, но он админ — показываем
+    // дефолтный бейдж «Admin», чтобы ReZero и др. админы были видны без ручной настройки.
+    var prefixText = m.display_prefix || (m.is_admin ? 'Admin' : null);
     var head = '<div class="cm-msg-head">' +
       '<span class="cm-msg-author">@' + esc(m.username) +
-        (m.display_prefix ? '<span class="cm-msg-prefix">' + esc(m.display_prefix) + '</span>' : '') +
+        (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin && !m.display_prefix ? ' cm-msg-prefix-admin' : '') + '">' + esc(prefixText) + '</span>' : '') +
       '</span>' +
       (m.kind === 'admin_post' ? '<span class="cm-msg-badge">пост</span>' : '') +
       '<span class="cm-msg-meta-icons">' +
@@ -325,17 +418,12 @@
     var snippet = (m.text || '').slice(0, 120);
     quote.innerHTML = '<b>@' + esc(m.username) + '</b>' + esc(snippet || '[медиа]');
 
-    // Emoji Picker (вместо фиксированных SVG-реакций)
+    // Emoji Picker (вместо фиксированных SVG-реакций) + M3.4: кастомные избранные эмодзи
     if (STATE.isAuth && !STATE.chatBan) {
       var mineSet = {};
       (m.reactions || []).forEach(function (r) { if (r.mine) mineSet[r.emoji] = true; });
       rxBar.style.display = '';
-      rxBar.innerHTML = '<div class="cm-emoji-picker">' +
-        EMOJI_PICKER_LIST.map(function (e) {
-          var active = mineSet[e] ? ' active' : '';
-          return '<button class="cm-emoji-btn' + active + '" type="button" ' +
-            'onclick="cmReact(\'' + esc(msgId) + '\',\'' + e + '\')">' + e + '</button>';
-        }).join('') + '</div>';
+      rxBar.innerHTML = renderEmojiPicker(msgId, mineSet);
     } else {
       rxBar.style.display = 'none';
       rxBar.innerHTML = '';
@@ -417,7 +505,8 @@
   window.cmDeleteMsg = function (msgId, asAdmin) {
     var msg = asAdmin ? 'Удалить сообщение модерацией?' : 'Удалить своё сообщение?';
     cmConfirm(msg, function () {
-      var url = asAdmin ? '/api/community/admin/messages/' + msgId
+      // M3.4: правильный путь — /messages/<id>/admin (ранее фронт слал /admin/messages/<id> → 405)
+      var url = asAdmin ? '/api/community/messages/' + msgId + '/admin'
                         : '/api/community/messages/' + msgId;
       http('DELETE', url)
         .then(loadMessages)
@@ -438,11 +527,14 @@
   };
 
   window.cmBanUser = function (username) {
-    cmPrompt('Забанить @' + username + ' на сколько часов?', '24', function (hours) {
-      if (!hours) return;
+    // M3.4: бэкенд ждёт POST /api/community/bans с {days, reason}
+    cmPrompt('Забанить @' + username + ' на сколько дней? (1..365)', '7', function (days) {
+      if (!days) return;
+      var d = parseInt(days, 10) || 7;
+      if (d < 1) d = 1; else if (d > 365) d = 365;
       cmPrompt('Причина (оставьте пустым для пропуска):', '', function (reason) {
-        http('POST', '/api/community/admin/bans', {username: username, hours: parseInt(hours, 10) || 24, reason: reason || ''})
-          .then(function () { if (window.showToast) window.showToast('Бан выдан', 'ok'); })
+        http('POST', '/api/community/bans', {username: username, days: d, reason: reason || ''})
+          .then(function () { if (window.showToast) window.showToast('Бан выдан на ' + d + ' дн.', 'ok'); })
           .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
       });
     });
@@ -460,24 +552,45 @@
   // ── Composer images / mute ──────────────────────────────────────────
   var CM_MAX_IMAGES = 10;
 
+  // M3.4: читаем файлы через Promise.all, чтобы все картинки гарантированно
+  // попали в STATE.images ДО того, как юзер успеет кликнуть «отправить».
+  // Раньше использовался forEach с асинхронным FileReader → race condition,
+  // и при 2 фото на сервер уходило только 1 (см. логи 25.04: images=1).
+  function _readFilesAsDataUrls(files, remaining) {
+    var arr = Array.from(files).slice(0, remaining);
+    return Promise.all(arr.map(function (f) {
+      return new Promise(function (resolve) {
+        var rd = new FileReader();
+        rd.onload = function () { resolve(rd.result); };
+        rd.onerror = function () { resolve(null); };
+        rd.readAsDataURL(f);
+      });
+    })).then(function (results) {
+      return results.filter(function (x) { return !!x; });
+    });
+  }
+
   window.cmHandleFiles = function (ev) {
     var files = ev.target.files;
-    if (!files) return;
-    var remaining = CM_MAX_IMAGES - STATE.images.length;
-    var arr = Array.prototype.slice.call(files, 0, remaining);
+    if (!files || !files.length) return;
     if (STATE.images.length >= CM_MAX_IMAGES) {
       if (window.showToast) window.showToast('Максимум ' + CM_MAX_IMAGES + ' фото', 'err');
       ev.target.value = '';
       return;
     }
-    arr.forEach(function (f) {
-      if (STATE.images.length >= CM_MAX_IMAGES) return;
-      var rd = new FileReader();
-      rd.onload = function () {
-        STATE.images.push(rd.result);
-        renderImagesPreview();
-      };
-      rd.readAsDataURL(f);
+    var remaining = CM_MAX_IMAGES - STATE.images.length;
+    var sendBtn = document.getElementById('cmSendBtn');
+    if (sendBtn) sendBtn.disabled = true;
+    _readFilesAsDataUrls(files, remaining).then(function (urls) {
+      urls.forEach(function (u) {
+        if (STATE.images.length < CM_MAX_IMAGES) STATE.images.push(u);
+      });
+      renderImagesPreview();
+      L('FILES', 'loaded=' + urls.length + ' total=' + STATE.images.length);
+    }).catch(function (e) {
+      L('FILES_FAIL', e.message, 'error');
+    }).finally(function () {
+      if (sendBtn) sendBtn.disabled = false;
     });
     ev.target.value = '';
   };
@@ -505,23 +618,21 @@
 
   window.cmHandlePostFiles = function (ev) {
     var files = ev.target.files;
-    if (!files) return;
-    var remaining = CM_MAX_IMAGES - STATE.postImages.length;
-    var arr = Array.prototype.slice.call(files, 0, remaining);
+    if (!files || !files.length) return;
     if (STATE.postImages.length >= CM_MAX_IMAGES) {
       if (window.showToast) window.showToast('Максимум ' + CM_MAX_IMAGES + ' фото', 'err');
       ev.target.value = '';
       return;
     }
-    arr.forEach(function (f) {
-      if (STATE.postImages.length >= CM_MAX_IMAGES) return;
-      var rd = new FileReader();
-      rd.onload = function () {
-        STATE.postImages.push(rd.result);
-        renderPostImagesPreview();
-      };
-      rd.readAsDataURL(f);
-    });
+    var remaining = CM_MAX_IMAGES - STATE.postImages.length;
+    var btn = document.getElementById('cmPostBtn');
+    if (btn) btn.disabled = true;
+    _readFilesAsDataUrls(files, remaining).then(function (urls) {
+      urls.forEach(function (u) {
+        if (STATE.postImages.length < CM_MAX_IMAGES) STATE.postImages.push(u);
+      });
+      renderPostImagesPreview();
+    }).finally(function () { if (btn) btn.disabled = false; });
     ev.target.value = '';
   };
   window.cmRemovePostImg = function (i) { STATE.postImages.splice(i, 1); renderPostImagesPreview(); };

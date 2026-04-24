@@ -24,7 +24,7 @@ ALLOWED_IMG_PREFIXES = (
     'data:image/png;base64,',
     'data:image/webp;base64,',
 )
-MAX_IMAGES_PER_MESSAGE = 4
+MAX_IMAGES_PER_MESSAGE = 10  # M3.4: согласовано с фронтом (CM_MAX_IMAGES = 10)
 MAX_TEXT_LEN = 2000
 
 
@@ -176,14 +176,22 @@ def create_message(user_id, text, kind='message', images=None, mentions=None):
 
 
 def get_message(message_id, viewer_uid=None, include_deleted=False):
-    """Полный объект сообщения с автором/картинками/реакциями/pin-флагом."""
+    """Полный объект сообщения с автором/картинками/реакциями/pin-флагом.
+
+    M3.4: дополнительно возвращаем is_admin автора (учитывая ReZero как
+    суперадмина). Нужно фронту, чтобы рисовать дефолтный бейдж «Admin»
+    у админов без своего display_prefix.
+    """
     with db() as conn:
         r = conn.execute(
-            'SELECT m.*, u.username, u.avatar, u.display_prefix '
+            'SELECT m.*, u.username, u.avatar, u.display_prefix, '
+            '       (CASE WHEN u.username = ? '
+            '             OR EXISTS(SELECT 1 FROM admins a WHERE a.user_id = u.id) '
+            '          THEN 1 ELSE 0 END) AS is_admin '
             'FROM community_messages m '
             'JOIN users u ON u.id = m.user_id '
             'WHERE m.id=?',
-            (message_id,),
+            ('ReZero', message_id),
         ).fetchone()
         if not r:
             return None
@@ -200,6 +208,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
                 'username': r['username'],
                 'avatar': r['avatar'],
                 'display_prefix': r['display_prefix'],
+                'is_admin': bool(r['is_admin']),
                 'kind': r['kind'],
                 'is_deleted': 1,
                 'deleted_by': r['deleted_by'],
@@ -209,6 +218,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
                 'updated_at': r['updated_at'],
             }
         msg = row(r)
+        msg['is_admin'] = bool(r['is_admin'])
         # images
         msg['images'] = [
             x['data_url'] for x in conn.execute(

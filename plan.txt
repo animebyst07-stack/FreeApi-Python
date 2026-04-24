@@ -429,3 +429,91 @@ M3.3 — СЕССИЯ 2026-04-25: 5 задач по UI
             Убрать иконку mute из шапки чата.
             Добавить toggle-switch с подписью «Отключить уведомления об
             упоминаниях» в раздел «Уведомления».
+
+  → ВЫПОЛНЕНО (коммит fa9036e). Все 5 пунктов M3.3 закрыты.
+
+────────────────────────────────────────────────────────────────────────
+M3.4 — СЕССИЯ 2026-04-25 (вечер): 5 задач по фидбеку из логов
+────────────────────────────────────────────────────────────────────────
+
+ВВОДНЫЕ (из присланного логи_1777069257939.txt + скриншот):
+- ReZero отправил сообщение, прикрепив 2 фото — на сервер дошло images=1
+  (см. строку 124 лога: `[COMMUNITY][NEW] ... images=1`).
+- Нажатие «Удалить (модерация)» в action-sheet → 405 Method Not Allowed.
+  (Строка 239: `DELETE /api/community/admin/messages/<id> ... 405`).
+  Бэкенд ждёт путь `/api/community/messages/<id>/admin`, фронт шлёт
+  `/api/community/admin/messages/<id>` — пути перепутаны.
+- Префикс «Admin»/собственный display_prefix у ReZero не виден в чате —
+  поле в БД пустое (никто не заполнил), а fallback на фронте отсутствует.
+- Юзер хочет в emoji-picker SVG-кнопку «+» в конце ряда, через которую
+  можно добавить свой эмодзи в избранные (с возможностью удалить).
+
+[x] M3.4-1. Фикс «прикрепил 2 фото — улетело 1»:
+            Перевести cmHandleFiles / cmHandlePostFiles на Promise.all
+            от FileReader. Гарантируем, что ВСЕ data-URL попали в
+            STATE.images / STATE.postImages до того, как юзер кликнет
+            «отправить». Заодно блокируем кнопку отправки на время
+            чтения файлов (защита от быстрого клика).
+            Файл: static/js/views/community.js (cmHandleFiles,
+            cmHandlePostFiles, _readFilesAsDataUrls).
+            Дополнительно: в repos/community.py поднял
+            MAX_IMAGES_PER_MESSAGE с 4 до 10 — ровно столько, сколько
+            разрешает фронт (CM_MAX_IMAGES). Иначе тихо отбрасывались
+            бы фото №5..№10.
+
+[x] M3.4-2. Фикс «Удалить (модерация) → 405»:
+            Поправил URL в cmDeleteMsg(asAdmin=true) на правильный
+            `/api/community/messages/<id>/admin` (бэкенд именно его
+            маршрутизирует, см. blueprints/community_bp.py:292).
+            Заодно поправил cmBanUser: фронт слал на несуществующий
+            `/api/community/admin/bans` с ключом `hours`, бэк ждёт
+            `/api/community/bans` с `days`. Изменил и текст промпта.
+            Файл: static/js/views/community.js (cmDeleteMsg, cmBanUser).
+
+[x] M3.4-3. SVG-плюс «добавить свой эмодзи в избранные» + удаление:
+            В конце сетки emoji-picker появляется отдельная кнопка с
+            SVG-иконкой «+» (нейтральный пунктирный бордер, hover →
+            синий). По клику открывается cmPrompt — юзер вводит свой
+            эмодзи (или 1-2 любых символа до 16 байт, как у обычных
+            реакций бэкенда). Сохранение в localStorage
+            (cm_custom_emojis_v1, до 24 шт.). Кастомные эмодзи рисуются
+            ПЕРЕД кнопкой «+», у каждого в правом верхнем углу маленький
+            красный «×» (cm-emoji-btn-rm) — клик удаляет из избранных.
+            Дубли (с базовым набором или другим кастомным) отбрасываются
+            с тостом «Уже в избранном». Перерисовка пикера живая —
+            добавил/удалил → сразу видно в открытом sheet.
+            Файлы: static/js/views/community.js (cmGetCustomEmojis,
+            cmSaveCustomEmojis, cmAddCustomEmoji, cmRemoveCustomEmoji,
+            renderEmojiPicker, ICON_PLUS_SVG); static/css/main.css
+            (.cm-emoji-btn-add / .cm-emoji-btn-wrap / .cm-emoji-btn-rm /
+            .cm-emoji-btn-custom).
+
+[x] M3.4-4. Префикс «Admin» у ReZero (и любого админа без своего
+            display_prefix):
+            Бэкенд (repos/community.py) теперь в SELECT для get_message
+            подмешивает is_admin автора через подзапрос:
+              CASE WHEN u.username='ReZero'
+                   OR EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id)
+                THEN 1 ELSE 0 END.
+            Поле уезжает на фронт. В renderMessage появился fallback:
+            `prefixText = m.display_prefix || (m.is_admin ? 'Admin' : null)`.
+            У такого «авто-Admin» бейджа отдельный класс
+            cm-msg-prefix-admin (синий акцент через
+            rgba(80,140,255,.15) + border #2c5b9c).
+            Дополнительно: в admins.ensure_super_admin_seeded() при
+            старте сервиса прописываем ReZero display_prefix='Admin' в
+            БД, если он пустой — чтобы и в БД, и на фронте было
+            одинаково. Никогда не перезаписываем уже выставленный
+            пользовательский префикс.
+
+[x] M3.4-5. Чек логов (служебная):
+            Прочитан logi_1777069257939.txt полностью. Найдены три
+            подтверждённых ошибки на сервере (405 на /admin/messages),
+            одна расходящаяся метрика (images=1 vs 2) и одна
+            визуальная (нет префикса). Все три закрыты выше пунктами
+            M3.4-1..-4. Кроме них в логах ничего критичного нет — все
+            остальные запросы /api/community/* возвращают 200, реакции
+            ставятся/снимаются корректно, TG-бот не настроен, что
+            соответствует ожиданиям (available=False, пуш не пытаемся).
+
+ИТОГ M3.4: 5/5 задач закрыты, push выполнен через GitHub API.

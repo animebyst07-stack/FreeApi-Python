@@ -1453,6 +1453,47 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-emoji-btn:active{transform:scale(.88)}
 .cm-emoji-btn.active{background:#15263e;border-color:#2c5b9c}
 
+/* M3.4: кнопка «+» (добавить кастомный эмодзи) */
+.cm-emoji-btn-add{
+  color:#9a9a9a;
+  border:1px dashed #2c2c2c;
+}
+.cm-emoji-btn-add:hover{color:#cfe2ff;border-color:#2c5b9c;background:#15263e}
+.cm-emoji-btn-add svg{width:18px;height:18px;display:block}
+
+/* M3.4: обёртка для кастомного эмодзи + крестик удаления */
+.cm-emoji-btn-wrap{
+  position:relative;
+  display:inline-flex;
+}
+.cm-emoji-btn-rm{
+  position:absolute;
+  top:-2px;right:-2px;
+  width:14px;height:14px;
+  background:#3a1414;border:1px solid #6a2a2a;
+  color:#ffb4b4;
+  border-radius:50%;
+  font-size:10px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  padding:0;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .1s,background .12s;
+}
+.cm-emoji-btn-rm:hover{background:#5a1f1f;transform:scale(1.15)}
+.cm-emoji-btn-custom{
+  border:1px solid #2a2a2a;
+  background:#171717;
+}
+
+/* M3.4: дефолтный бейдж «Admin» для админов без своего display_prefix */
+.cm-msg-prefix.cm-msg-prefix-admin{
+  background:rgba(80,140,255,.15);
+  color:#a0c4ff;
+  border-color:#2c5b9c;
+  font-weight:600;
+}
+
 /* Эмодзи-чип под сообщением (нативный эмодзи вместо SVG) */
 .cm-rx-chip span{font-size:17px;line-height:1;display:block}
 
