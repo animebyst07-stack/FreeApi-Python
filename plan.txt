@@ -1,6 +1,22 @@
 PLAN — Сессия: «Сообщество» (общественный чат) + фикс бана отзывов
 ====================================================================
 
+──────────────────── СТАТУС РЕАЛИЗАЦИИ ────────────────────
+[x] M1 (Блок 0) — Скользящее окно 5 удалений / 7 дней + is_admin helper.
+    Commit cbb5aaa (бэкенд) — миграция 009, repos/review_removals,
+    agent._do_delete переписан, /api/reviews/state, helpers.is_admin.
+[x] M2 (Блоки 1+2+6.1.1) — таблица admins, сообщество, чат+посты UI.
+    Commits cbb5aaa (бэкенд: миграции 010+011, repos/admins, repos/community,
+    blueprints/community_bp, /api/admin/admins, GC-задачи, log_codes CM_*/ADM_*/REV_BAN_*)
+    и 36ac4c6 (фронтенд: «Чат / Посты» в сайдбаре, view-community,
+    views/community.js, views/admin.js — управление админами).
+[ ] M3 — пуш-уведомления @-mentions через TG (tg_notify.py).
+[ ] M4 — модерация AI-агентом постов чата (re-use moderator settings).
+[ ] M5 — статистика для админа (графики активности чата).
+[ ] M6 — мобильная адаптация раздела «Сообщество» + dark/light доводка.
+────────────────────────────────────────────────────────────
+
+
 КОНТЕКСТ ПРОЕКТА (из аудита)
 - Бэкенд: Flask + blueprints в freeapi/blueprints/, репозитории в freeapi/repos/.
 - БД: SQLite, миграции в freeapi/migrations/00X_*.sql (next = 009).
