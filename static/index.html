@@ -1660,8 +1660,11 @@ request them. Three live endpoints to introspect the environment:
 </div>
 </div>
 
-<!-- G5: скрытый input для выбора файла + модалка кадрирования аватарки -->
-<input type="file" id="sbAvatarFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
+<!-- G5/T10: скрытый input для выбора файла + модалка кадрирования аватарки.
+     accept расширен под видео — фронт сам выберет кропер или видеоредактор. -->
+<input type="file" id="sbAvatarFile"
+       accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+       style="display:none">
 <div class="overlay" id="avatarCropModal" onclick="overlayClick(event,this)">
 <div class="modal" style="max-width:380px">
   <button class="modal-close" id="avatarCropCancel" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -1678,6 +1681,34 @@ request them. Three live endpoints to introspect the environment:
     <button class="btn btn-outline" id="avatarCropReset" type="button" style="flex:1;min-width:120px;height:42px;display:none">Сбросить</button>
     <button class="btn btn-outline" id="avatarCropCancel2" type="button" style="flex:1;min-width:120px;height:42px" onclick="closeModal('avatarCropModal')">Отмена</button>
     <button class="btn btn-primary" id="avatarCropApply" type="button" style="flex:1;min-width:120px;height:42px">Применить</button>
+  </div>
+</div>
+</div>
+
+<!-- T10: модалка обрезки видео-аватарки (≤10с, авто-loop предпросмотр) -->
+<div class="overlay" id="videoTrimModal" onclick="overlayClick(event,this)">
+<div class="modal" style="max-width:420px">
+  <button class="modal-close" id="videoTrimCancel" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <h2 style="font-size:17px">Обрезка видео-аватарки</h2>
+  <p class="modal-sub">Выберите фрагмент длительностью не более 10 секунд. Он будет циклически повторяться в аватарке.</p>
+  <div class="video-trim-stage">
+    <video id="videoTrimPreview" playsinline muted preload="metadata"></video>
+  </div>
+  <div class="video-trim-row">
+    <label class="form-label" for="videoTrimStart">Начало <span id="videoTrimStartLbl" class="video-trim-val">0.0 с</span></label>
+    <input type="range" id="videoTrimStart" min="0" max="10" step="0.05" value="0" class="avatar-crop-zoom">
+  </div>
+  <div class="video-trim-row">
+    <label class="form-label" for="videoTrimEnd">Конец <span id="videoTrimEndLbl" class="video-trim-val">10.0 с</span></label>
+    <input type="range" id="videoTrimEnd" min="0" max="10" step="0.05" value="10" class="avatar-crop-zoom">
+  </div>
+  <div class="video-trim-meta">
+    Длина петли: <b><span id="videoTrimDurLbl">0.0 с</span></b> / Всего: <span id="videoTrimTotalLbl">0.0 с</span>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+    <button class="btn btn-outline" id="videoTrimReset" type="button" style="flex:1;min-width:120px;height:42px">Сбросить аватарку</button>
+    <button class="btn btn-outline" id="videoTrimCancel2" type="button" style="flex:1;min-width:120px;height:42px" onclick="closeModal('videoTrimModal');if(window.closeVideoTrimmer)window.closeVideoTrimmer()">Отмена</button>
+    <button class="btn btn-primary" id="videoTrimApply" type="button" style="flex:1;min-width:120px;height:42px">Применить</button>
   </div>
 </div>
 </div>
@@ -1909,8 +1940,9 @@ function renderReviews(items){
     }
     var sc=r.score||0;
     var scoreClr=sc>=9?'#4ade80':sc>=7?'#86efac':sc>=4?'#f59e0b':'#ef4444';
+    var _authorMedia=r.avatar_media||(r.avatar?{kind:'image',url:r.avatar}:null);
     var _authorHtml=window.renderAuthorChip
-      ?window.renderAuthorChip(r.username,r.avatar,authorBadge)
+      ?window.renderAuthorChip(r.username,_authorMedia,authorBadge)
       :'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge;
     return '<div class="review-card" data-rv-card="'+esc(r.id)+'"><div class="review-meta"><div class="review-author">'+_authorHtml+'</div><span>'+formatDate(r.updated_at||r.created_at)+'</span><span class="review-score" style="color:'+scoreClr+';border-color:'+scoreClr+'22">'+esc(r.score)+'/10</span></div><div class="review-text">'+esc(r.text)+'</div>'+renderReviewImgs(imgs)+adminBlock+renderLikesBar(r)+'</div>';
   }).join('');
@@ -3450,8 +3482,9 @@ window.loadReviews=loadReviews;
       var likesBar=window.renderLikesBar?renderLikesBar(r):'';
       var _sc=r.score||0;
       var _scoreClr=_sc>=9?'#4ade80':_sc>=7?'#86efac':_sc>=4?'#f59e0b':'#ef4444';
+      var _authorMedia=r.avatar_media||(r.avatar?{kind:'image',url:r.avatar}:null);
       var _authorHtml=window.renderAuthorChip
-        ?window.renderAuthorChip(r.username,r.avatar,authorBadge)
+        ?window.renderAuthorChip(r.username,_authorMedia,authorBadge)
         :'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+esc(r.username||'user')+authorBadge;
       return '<div class="review-card" data-rv-card="'+esc(r.id)+'">'
         +'<div class="review-meta"><div class="review-author">'+_authorHtml+'</div>'

@@ -241,7 +241,9 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
     """
     with db() as conn:
         r = conn.execute(
-            'SELECT m.*, u.username, u.avatar, u.display_prefix, u.last_seen_at, '
+            'SELECT m.*, u.username, u.avatar, u.avatar_kind, u.avatar_path, '
+            '       u.avatar_clip_start, u.avatar_clip_end, u.avatar_updated_at, '
+            '       u.display_prefix, u.last_seen_at, '
             '       (CASE WHEN u.username = ? '
             '             OR EXISTS(SELECT 1 FROM admins a WHERE a.user_id = u.id) '
             '          THEN 1 ELSE 0 END) AS is_admin '
@@ -259,11 +261,13 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
                 d = conn.execute('SELECT username FROM users WHERE id=?',
                                  (r['deleted_by'],)).fetchone()
                 deleter = d['username'] if d else None
+            from freeapi.repos.users import build_avatar_media
             return {
                 'id': r['id'],
                 'user_id': r['user_id'],
                 'username': r['username'],
                 'avatar': r['avatar'],
+                'avatar_media': build_avatar_media(r['user_id'], r),
                 'display_prefix': r['display_prefix'],
                 'is_admin': bool(r['is_admin']),
                 'last_seen_at': int(r['last_seen_at'] or 0),
@@ -278,6 +282,9 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
         msg = row(r)
         msg['is_admin'] = bool(r['is_admin'])
         msg['last_seen_at'] = int(r['last_seen_at'] or 0)
+        # T10: payload медиа-аватарки автора (image/gif/video).
+        from freeapi.repos.users import build_avatar_media
+        msg['avatar_media'] = build_avatar_media(r['user_id'], r)
         # images
         msg['images'] = [
             x['data_url'] for x in conn.execute(

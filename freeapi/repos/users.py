@@ -70,6 +70,101 @@ def clear_user_avatar(user_id):
         conn.execute('UPDATE users SET avatar = NULL WHERE id = ?', (user_id,))
 
 
+# ─── T10: расширенные аватарки (image/gif/video с обрезкой) ──────────
+# Новые колонки avatar_kind/avatar_path/avatar_clip_start/avatar_clip_end
+# хранят медиа-файл на диске. Старая колонка avatar (data URL) тоже
+# остаётся валидным источником и читается как kind='image'.
+
+_AVATAR_COLS = (
+    'avatar', 'avatar_kind', 'avatar_path',
+    'avatar_clip_start', 'avatar_clip_end', 'avatar_updated_at',
+)
+
+
+def _row_to_avatar(uid, r):
+    """Внутренний конвертер sqlite-row → payload для UI.
+
+    Приоритет: новый файл (avatar_kind+avatar_path) > старый data URL.
+    Возвращает None, если у юзера ничего нет.
+    """
+    if r is None:
+        return None
+    kind = r['avatar_kind'] if 'avatar_kind' in r.keys() else None
+    path = r['avatar_path'] if 'avatar_path' in r.keys() else None
+    if kind in ('image', 'gif', 'video') and path:
+        ts = r['avatar_updated_at'] if 'avatar_updated_at' in r.keys() else ''
+        ver = (ts or '').replace(' ', '_').replace(':', '') or '1'
+        return {
+            'kind': kind,
+            'url': f'/api/auth/avatar/{uid}?v={ver}',
+            'clip_start': r['avatar_clip_start'] if 'avatar_clip_start' in r.keys() else None,
+            'clip_end':   r['avatar_clip_end']   if 'avatar_clip_end'   in r.keys() else None,
+        }
+    legacy = r['avatar'] if 'avatar' in r.keys() else None
+    if legacy:
+        return {'kind': 'image', 'url': legacy, 'clip_start': None, 'clip_end': None}
+    return None
+
+
+def get_user_avatar_media(user_id):
+    """Полный payload медиа-аватарки для /api/auth/me и серверной логики.
+
+    Возвращает dict {kind, url, clip_start, clip_end} либо None.
+    """
+    with db() as conn:
+        r = conn.execute(
+            f'SELECT {", ".join(_AVATAR_COLS)} FROM users WHERE id=?',
+            (user_id,),
+        ).fetchone()
+        return _row_to_avatar(user_id, r)
+
+
+def build_avatar_media(user_id, row_like):
+    """Сериализатор для случаев, когда колонки уже выбраны JOIN-ом.
+
+    row_like — sqlite Row или dict с ключами avatar/avatar_kind/avatar_path/
+    avatar_clip_start/avatar_clip_end/avatar_updated_at. Если каких-то нет —
+    функция отдаст результат по тому, что есть (legacy data URL → image).
+    """
+    return _row_to_avatar(user_id, row_like)
+
+
+def set_user_avatar_media(user_id, kind, rel_path, clip_start=None, clip_end=None):
+    """Сохранить путь к медиа-файлу. Старый legacy data URL обнуляется.
+
+    rel_path — относительный путь от UPLOADS_DIR (например 'avatars/<uid>.mp4').
+    """
+    now = msk_now()
+    with db() as conn:
+        conn.execute(
+            'UPDATE users SET avatar=NULL, avatar_kind=?, avatar_path=?, '
+            'avatar_clip_start=?, avatar_clip_end=?, avatar_updated_at=? '
+            'WHERE id=?',
+            (kind, rel_path, clip_start, clip_end, now, user_id),
+        )
+
+
+def clear_user_avatar_media(user_id):
+    """Полный сброс — и legacy avatar, и новые поля."""
+    with db() as conn:
+        conn.execute(
+            'UPDATE users SET avatar=NULL, avatar_kind=NULL, avatar_path=NULL, '
+            'avatar_clip_start=NULL, avatar_clip_end=NULL, avatar_updated_at=NULL '
+            'WHERE id=?',
+            (user_id,),
+        )
+
+
+def get_user_avatar_path(user_id):
+    """Только относительный путь файла для send_from_directory."""
+    with db() as conn:
+        r = conn.execute(
+            'SELECT avatar_path FROM users WHERE id=?',
+            (user_id,),
+        ).fetchone()
+        return r['avatar_path'] if r and r['avatar_path'] else None
+
+
 # ─── M3: TG-уведомления о @упоминаниях ──────────────────────────────
 # Связь юзер→чат с ботом:
 #   • tg_notify_chat_id   — числовой chat_id личного диалога с TG_NOTIFY_TOKEN-ботом.

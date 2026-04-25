@@ -5,6 +5,21 @@ from freeapi.database import db, row, rows, msk_now
 from freeapi.security import uuid4
 
 
+def _attach_avatar_media(items):
+    """T10: после rows() добавляем avatar_media каждому отзыву.
+
+    items — список dict (после row()/rows()). Каждый элемент должен содержать
+    user_id и поля u.avatar*/u.avatar_kind/* (мы их выбрали в SELECT).
+    """
+    if not items:
+        return items
+    from freeapi.repos.users import build_avatar_media
+    for it in items:
+        uid = it.get('user_id') or ''
+        it['avatar_media'] = build_avatar_media(uid, it)
+    return items
+
+
 def _count_week_edits(edit_timestamps_json):
     """Считает количество правок за последние 7 дней из JSON-списка timestamp строк."""
     import json as _json
@@ -114,12 +129,15 @@ def get_approved_reviews(limit=10, offset=0, viewer_uid=None):
         ).fetchone()
         total = total_row['cnt'] if total_row else 0
         items = rows(conn.execute(
-            'SELECT r.id, r.score, r.text, r.ai_response, r.images, r.admin_images, r.reply_by, r.created_at, r.updated_at, r.status, u.username, u.avatar '
+            'SELECT r.id, r.score, r.text, r.ai_response, r.images, r.admin_images, r.reply_by, r.created_at, r.updated_at, r.status, '
+            '       r.user_id, u.username, u.avatar, u.avatar_kind, u.avatar_path, '
+            '       u.avatar_clip_start, u.avatar_clip_end, u.avatar_updated_at '
             'FROM reviews r JOIN users u ON r.user_id = u.id '
             "WHERE r.status IN ('approved', 'flagged') ORDER BY r.updated_at DESC LIMIT ? OFFSET ?",
             (limit, offset)
         ).fetchall())
         items = _enrich_reviews_with_likes(conn, items, viewer_uid)
+        _attach_avatar_media(items)
         return items, total
 
 
@@ -136,10 +154,13 @@ def get_avg_review_score():
 
 def get_pending_reviews():
     with db() as conn:
-        return rows(conn.execute(
-            'SELECT r.*, u.username, u.avatar FROM reviews r JOIN users u ON r.user_id = u.id '
+        items = rows(conn.execute(
+            'SELECT r.*, u.username, u.avatar, u.avatar_kind, u.avatar_path, '
+            '       u.avatar_clip_start, u.avatar_clip_end, u.avatar_updated_at '
+            'FROM reviews r JOIN users u ON r.user_id = u.id '
             "WHERE r.status = 'pending' ORDER BY r.created_at ASC"
         ).fetchall())
+        return _attach_avatar_media(items)
 
 
 def get_all_reviews_admin(limit=10, offset=0):
@@ -147,9 +168,12 @@ def get_all_reviews_admin(limit=10, offset=0):
         total_row = conn.execute('SELECT COUNT(*) AS cnt FROM reviews').fetchone()
         total = total_row['cnt'] if total_row else 0
         items = rows(conn.execute(
-            'SELECT r.*, u.username, u.avatar FROM reviews r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC LIMIT ? OFFSET ?',
+            'SELECT r.*, u.username, u.avatar, u.avatar_kind, u.avatar_path, '
+            '       u.avatar_clip_start, u.avatar_clip_end, u.avatar_updated_at '
+            'FROM reviews r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC LIMIT ? OFFSET ?',
             (limit, offset)
         ).fetchall())
+        _attach_avatar_media(items)
         return items, total
 
 

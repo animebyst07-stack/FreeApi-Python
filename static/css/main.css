@@ -63,7 +63,8 @@ input,textarea,select{font-family:inherit;color:inherit;background:none;border:n
 .sb-avatar[data-auth="1"]{cursor:pointer;transition:border-color .15s,transform .15s}
 .sb-avatar[data-auth="1"]:hover{border-color:#3a3a3a;transform:scale(1.03)}
 .sb-avatar[data-auth="1"]:focus-visible{border-color:#fff}
-.sb-avatar-img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
+.sb-avatar-img,.sb-avatar-video{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit;background:#000}
+.sb-avatar-video{pointer-events:none}
 .sb-id{display:flex;flex-direction:column;justify-content:center;min-width:0;gap:3px}
 .sb-username{font-size:15px;font-weight:600;color:#ddd;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-role{font-size:10.5px;letter-spacing:.5px;color:#606060;line-height:1.2}
@@ -1039,7 +1040,8 @@ body:has(#view-dashboard.active){background:#000!important}
 
 /* G7 — автор-чип в карточках отзывов. */
 .author-avatar{width:22px;height:22px;border-radius:50%;background:#1a1a1a;border:1px solid #262626;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;font-size:10px;font-weight:700;color:#bdc1c6;line-height:1;vertical-align:middle;margin-right:6px}
-.author-avatar-img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
+.author-avatar-img,.author-avatar-video{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit;background:#000}
+.author-avatar-video{pointer-events:none}
 .author-avatar-letter{text-transform:uppercase}
 
 /* G6 — фон-сетка корректно тянется на широких экранах.
@@ -1250,7 +1252,14 @@ body:has(#view-dashboard.active){background:#000!important}
   -webkit-user-select:none;
   margin-top:1px;
 }
-.cm-msg-avatar-img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
+.cm-msg-avatar-img,.cm-msg-avatar-video{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit;background:#000}
+.cm-msg-avatar-video{pointer-events:none}
+/* T10: видеоредактор для аватарки */
+.video-trim-stage{margin:14px 0 6px;border-radius:14px;overflow:hidden;background:#000;border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;max-height:340px}
+.video-trim-stage video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.video-trim-row{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.video-trim-val{float:right;color:#bdc1c6;font-weight:600}
+.video-trim-meta{margin-top:10px;font-size:12px;color:#9aa0a6;text-align:center}
 .cm-msg-avatar-letter{}
 .cm-msg-content{
   flex:1 1 auto;

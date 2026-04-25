@@ -463,12 +463,25 @@
   }
 
   // ── Рендер одного сообщения ─────────────────────────────────────────
-  // M3.6: круглая аватарка слева от каждого сообщения (Telegram-style).
-  // Если у юзера есть data-url avatar → рисуем <img>; иначе — буква.
+  // M3.6 / T10: круглая аватарка слева. Поддерживает image / gif / video
+  // через avatar_media (новое поле). Старое avatar (data URL) всё ещё
+  // понимается как kind='image'.
   function renderMsgAvatar(m) {
-    if (m.avatar) {
+    var media = m.avatar_media || (m.avatar ? { kind: 'image', url: m.avatar } : null);
+    if (media && media.kind === 'video') {
+      var cs = isFinite(media.clip_start) ? Number(media.clip_start) : 0;
+      var ce = isFinite(media.clip_end) ? Number(media.clip_end) : (cs + 10);
+      var fragUrl = esc(media.url) + '#t=' + cs.toFixed(2) + ',' + ce.toFixed(2);
       return '<div class="cm-msg-avatar">' +
-        '<img class="cm-msg-avatar-img" src="' + esc(m.avatar) + '" alt="">' +
+        '<video class="cm-msg-avatar-video" src="' + fragUrl + '" ' +
+        'autoplay muted playsinline preload="auto" ' +
+        'data-clip-start="' + cs.toFixed(2) + '" ' +
+        'data-clip-end="' + ce.toFixed(2) + '" disablepictureinpicture></video>' +
+        '</div>';
+    }
+    if (media) {
+      return '<div class="cm-msg-avatar">' +
+        '<img class="cm-msg-avatar-img" src="' + esc(media.url) + '" alt="">' +
         '</div>';
     }
     var ch = String(m.username || '?').trim().charAt(0).toUpperCase() || '?';
