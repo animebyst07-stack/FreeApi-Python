@@ -480,10 +480,10 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .admin-mini{font-size:11px;color:#666;font-family:'JetBrains Mono',monospace}
 
 /* ─── ROLE BADGES ─── */
-.badge-owner{display:inline-flex;align-items:center;line-height:1;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:3px 7px;border-radius:5px;background:linear-gradient(90deg,#fff,#888,#fff);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:badge-shift 4s linear infinite;vertical-align:middle}
+.badge-owner{display:inline-flex;align-items:center;line-height:1;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:3px 7px;border-radius:5px;background:linear-gradient(90deg,#8b5cf6,#3b82f6,#8b5cf6);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:badge-shift 4s linear infinite;vertical-align:middle}
 @keyframes badge-shift{0%{background-position:0% center}100%{background-position:200% center}}
 /* D2-2: «Модератор» — медленный плавный градиент сине-голубой → белый → светло-голубой. */
-.badge-moderator{display:inline-flex;align-items:center;line-height:1;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:3px 7px;border-radius:5px;background:linear-gradient(90deg,#bbb,#fff,#bbb);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:badge-mod-shift 8s ease-in-out infinite;vertical-align:middle;border:none;position:relative;top:-1px}
+.badge-moderator{display:inline-flex;align-items:center;line-height:1;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:3px 7px;border-radius:5px;background:linear-gradient(90deg,#3b82f6,#7eb6ff,#e0eaff,#7eb6ff,#3b82f6);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:badge-mod-shift 8s ease-in-out infinite;vertical-align:middle;border:none;position:relative;top:-1px}
 @keyframes badge-mod-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
 /* ─── REVIEW LIKES ─── */
@@ -1271,7 +1271,28 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-msg-head{display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.2}
 .cm-msg-author{color:#fff;font-weight:600;font-size:13px;line-height:1.15}
 .cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0;line-height:1.15}
-.cm-msg-badge{font-size:9.5px;background:rgba(255,255,255,.08);color:#cfcfcf;border:1px solid #2a2a2a;padding:3px 6px 2px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+/* M3.6: бейдж «пост» — серо-белый переливающийся текст (как .cm-msg-prefix-owner,
+   но в монохромной палитре). Фон и рамка убраны — остаётся только мерцающий текст. */
+.cm-msg-badge{
+  font-size:9.5px;
+  background:linear-gradient(90deg,#fff,#888,#fff);
+  background-size:200% auto;
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  color:transparent;
+  animation:badge-shift 4s linear infinite;
+  border:none;
+  padding:3px 6px 2px;
+  border-radius:4px;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  line-height:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
 .cm-msg-prefix{font-size:10px;background:rgba(255,255,255,.07);color:#9a9a9a;padding:3px 6px 2px;border-radius:4px;font-weight:500;margin-left:0;border:1px solid #252525;letter-spacing:.02em;line-height:1;display:inline-flex;align-items:center;justify-content:center}
 .cm-msg-body{color:#e6e6e6;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .cm-msg-meta-icons{display:inline-flex;gap:5px;color:#666;align-items:center}
@@ -1568,12 +1589,14 @@ body:has(#view-dashboard.active){background:#000!important}
   background:#171717;
 }
 
-/* M3.6: «Владелец» для админов — монохромный белый bold с лёгким
-   мерцанием через анимацию opacity (вместо сине-фиолетового градиента).
-   Сохраняем визуальное выделение, но в чёрно-белой палитре. */
+/* M3.4 (legacy)/M3.5: дефолтный бейдж «Владелец» для админов без своего
+   display_prefix. Сине-фиолетовый градиент — выделяет статус. */
+/* M3.5.1: переливающийся «Владелец» — копируем эффект с .badge-owner из
+   бокового меню (анимированный gradient через background-clip:text). Фон
+   и border убираем, остаётся только переливающийся жирный текст. */
 .cm-msg-prefix.cm-msg-prefix-admin,
 .cm-msg-prefix.cm-msg-prefix-owner{
-  background:linear-gradient(90deg,#fff,#888,#fff);
+  background:linear-gradient(90deg,#8b5cf6,#3b82f6,#8b5cf6);
   background-size:200% auto;
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
