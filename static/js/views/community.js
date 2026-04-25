@@ -440,6 +440,18 @@
   }
 
   // ── Рендер одного сообщения ─────────────────────────────────────────
+  // M3.6: круглая аватарка слева от каждого сообщения (Telegram-style).
+  // Если у юзера есть data-url avatar → рисуем <img>; иначе — буква.
+  function renderMsgAvatar(m) {
+    if (m.avatar) {
+      return '<div class="cm-msg-avatar">' +
+        '<img class="cm-msg-avatar-img" src="' + esc(m.avatar) + '" alt="">' +
+        '</div>';
+    }
+    var ch = String(m.username || '?').trim().charAt(0).toUpperCase() || '?';
+    return '<div class="cm-msg-avatar cm-msg-avatar-letter">' + esc(ch) + '</div>';
+  }
+
   function renderMessage(m) {
     var el = document.createElement('div');
     el.className = 'cm-msg';
@@ -517,30 +529,85 @@
             '</button>';
         }).join('') + '</div>';
     }
-    el.innerHTML = head + replyHtml + body + imgs + rx;
+    // M3.6: новая структура — flex-row: [аватар] [контент]
+    el.innerHTML = renderMsgAvatar(m) +
+      '<div class="cm-msg-content">' + head + replyHtml + body + imgs + rx + '</div>';
 
-    // Открытие action-sheet по клику на сам пузырь (не на реакцию/картинку/цитату)
+    // Открытие action-sheet по клику на сам пузырь (не на реакцию/картинку/цитату/аватарку)
     el.addEventListener('click', function (ev) {
-      // Если клик попал на ссылку @-упоминания / реакцию / картинку / цитату — игнорируем.
-      if (ev.target.closest('.cm-rx-chip, img, a, .cm-msg-reply')) return;
+      // Если клик попал на ссылку @-упоминания / реакцию / картинку / цитату / аватарку — игнорируем.
+      if (ev.target.closest('.cm-rx-chip, img, a, .cm-msg-reply, .cm-msg-avatar')) return;
       cmOpenSheet(m.id);
     });
 
     return el;
   }
 
-  // M3.5: скролл к оригиналу при клике на цитату ответа.
-  window.cmScrollToMsg = function (msgId) {
-    var list = document.getElementById('cmChatList');
-    if (!list) return;
-    var el = list.querySelector('.cm-msg[data-id="' + msgId + '"]');
-    if (!el) {
-      if (window.showToast) window.showToast('Сообщение не найдено в чате', 'err');
-      return;
-    }
-    el.scrollIntoView({behavior: 'smooth', block: 'center'});
+  // M3.5/M3.6: скролл к оригиналу при клике на цитату ответа.
+  // Ищем сообщение в DOM обеих лент (чат + посты). Если нашли в неактивной
+  // вкладке — переключаемся туда и скроллим. Если вообще не нашли — пробуем
+  // подтянуть из API (узнать kind), переключиться на нужную вкладку и
+  // догрузить ленту, потом скроллим.
+  function _cmFindMsgInDom(msgId) {
+    var sel = '.cm-msg[data-id="' + String(msgId).replace(/"/g, '\\"') + '"]';
+    var inChat = document.querySelector('#cmChatList ' + sel);
+    var inPosts = document.querySelector('#cmPostsList ' + sel);
+    if (inChat) return { el: inChat, tab: 'chat' };
+    if (inPosts) return { el: inPosts, tab: 'posts' };
+    return null;
+  }
+
+  function _cmFlashAndScroll(el) {
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('cm-msg-flash');
     setTimeout(function () { el.classList.remove('cm-msg-flash'); }, 1400);
+  }
+
+  function _cmTryScroll(msgId) {
+    var hit = _cmFindMsgInDom(msgId);
+    if (!hit) return false;
+    if (hit.tab !== STATE.tab) {
+      cmSwitchTab(hit.tab);
+      // даём ленте перерисоваться после загрузки
+      setTimeout(function () {
+        var hit2 = _cmFindMsgInDom(msgId);
+        if (hit2) _cmFlashAndScroll(hit2.el);
+      }, 80);
+    } else {
+      _cmFlashAndScroll(hit.el);
+    }
+    return true;
+  }
+
+  window.cmScrollToMsg = function (msgId) {
+    if (!msgId) return;
+    if (_cmTryScroll(msgId)) return;
+    // Сообщения нет в DOM ни одной из лент — спрашиваем сервер про его kind,
+    // переключаем вкладку, ждём догрузки и пробуем ещё раз.
+    http('GET', '/api/community/message/' + encodeURIComponent(msgId))
+      .then(function (resp) {
+        var msg = resp && resp.message;
+        if (!msg) {
+          if (window.showToast) window.showToast('Сообщение не найдено', 'err');
+          return;
+        }
+        var targetTab = (msg.kind === 'admin_post') ? 'posts' : 'chat';
+        if (targetTab !== STATE.tab) cmSwitchTab(targetTab);
+        // Ждём, пока loadMessages/loadPosts отрисует свежий список.
+        var attempts = 0;
+        var iv = setInterval(function () {
+          attempts++;
+          if (_cmTryScroll(msgId)) { clearInterval(iv); return; }
+          if (attempts >= 20) {
+            clearInterval(iv);
+            if (window.showToast) window.showToast('Сообщение не найдено', 'err');
+          }
+        }, 150);
+      })
+      .catch(function () {
+        if (window.showToast) window.showToast('Сообщение не найдено', 'err');
+      });
   };
 
   // ── Composer (отправка) ─────────────────────────────────────────────

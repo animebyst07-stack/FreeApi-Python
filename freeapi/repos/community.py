@@ -207,7 +207,7 @@ def _load_reply_snippet(conn, reply_to_id):
     if not reply_to_id:
         return None
     r = conn.execute(
-        'SELECT m.id, m.text, m.is_deleted, u.username '
+        'SELECT m.id, m.text, m.is_deleted, m.kind, u.username '
         'FROM community_messages m JOIN users u ON u.id = m.user_id '
         'WHERE m.id=?', (reply_to_id,),
     ).fetchone()
@@ -225,6 +225,7 @@ def _load_reply_snippet(conn, reply_to_id):
         'username': r['username'],
         'text_snippet': snippet,
         'is_deleted': bool(r['is_deleted']),
+        'kind': r['kind'],
     }
 
 
