@@ -48,7 +48,41 @@ def _save_state(state: dict):
         logger.warning('[TgNotify] Не удалось сохранить state: %s', exc)
 
 
+# T11.2: session-blacklist для chat_id, для которых Telegram уже сказал
+# "chat not found"/blocked/deactivated. Чтобы не спамить ошибками каждый
+# раз, когда меняется URL Cloudflare-тоннеля.
+_RUNTIME_DEAD_CHATS: set = set()
+_DEAD_CHAT_MARKERS = (
+    'chat not found',
+    'bot was blocked',
+    'user is deactivated',
+    'forbidden: bot was blocked by the user',
+    "forbidden: user is deactivated",
+    'chat_id is empty',
+    'peer_id_invalid',
+)
+
+
+def _is_dead_chat_error(description: str) -> bool:
+    if not description:
+        return False
+    low = description.lower()
+    return any(m in low for m in _DEAD_CHAT_MARKERS)
+
+
+def _is_ok(result) -> bool:
+    return bool(result and isinstance(result, dict) and result.get('ok'))
+
+
 def _tg_api(token: str, method: str, data: dict) -> Optional[dict]:
+    """HTTP-вызов Bot API.
+
+    Возвращает:
+      - dict {'ok': True, 'result': ...}              — успех
+      - dict {'ok': False, 'error_code': int,
+               'description': str}                    — Telegram сказал «нет»
+      - None                                          — сетевой/прочий сбой
+    """
     url = f'https://api.telegram.org/bot{token}/{method}'
     payload = json.dumps(data).encode('utf-8')
     req = urllib.request.Request(
@@ -65,8 +99,13 @@ def _tg_api(token: str, method: str, data: dict) -> Optional[dict]:
             body = json.loads(exc.read().decode('utf-8'))
         except Exception:
             pass
-        logger.warning('[TgNotify] HTTP %s %s: %s', exc.code, method, body.get('description', exc))
-        return None
+        description = body.get('description', str(exc))
+        logger.warning('[TgNotify] HTTP %s %s: %s', exc.code, method, description)
+        return {
+            'ok': False,
+            'error_code': exc.code,
+            'description': description,
+        }
     except Exception as exc:
         logger.warning('[TgNotify] Ошибка запроса %s: %s', method, exc)
         return None
@@ -75,51 +114,141 @@ def _tg_api(token: str, method: str, data: dict) -> Optional[dict]:
 def _normalize_chat_id(raw: str):
     """Привести chat_id к виду, понятному Telegram Bot API.
 
-    ВАЖНО: личные chat_id (диалог бот↔юзер) — это положительные числа
-    (обычно 8-10 цифр). Их НЕЛЬЗЯ префиксовать -100 — это формат для
-    супергрупп/каналов и приведёт к "Bad Request: chat not found".
+    ВАЖНО: однозначно по строке отличить ЛИЧНЫЙ chat_id (положительное
+    число, диалог бот↔юзер) от RAW-id СУПЕРГРУППЫ/КАНАЛА (тоже
+    положительное число, требующее префикса -100) — НЕВОЗМОЖНО.
+    Поэтому здесь делаем «лучшее предположение», а реальный выбор
+    формы происходит в `_resolve_chat_id` через getChat (с кешем).
 
     Поведение:
-      - "@username" → как есть (паблик-канал/бот);
-      - отрицательное число → как есть (группа/канал, уже в нужном формате);
-      - положительное число → возвращаем как int БЕЗ -100 (личный диалог);
-      - строка вида "supergroup:<id>" → принудительно навешиваем -100
-        (для редкого случая, когда админ задал id канала без префикса).
+      - "@username"                       → как есть (паблик-канал/бот);
+      - "-100…", "-…"                     → int (уже в нужной форме);
+      - "supergroup:<id>" / "channel:<id>"
+                                          → принудительно префикс -100;
+      - "user:<id>" / "private:<id>"      → принудительно личный (без -100);
+      - просто положительное число        → возвращаем int как есть;
+        (если это окажется RAW-id канала, _resolve_chat_id попробует
+         форму -100<id> и закеширует рабочую).
     """
     raw = str(raw).strip()
     if not raw:
         return raw
     if raw.startswith('@'):
         return raw
-    if raw.lower().startswith('supergroup:'):
-        try:
-            num = int(raw.split(':', 1)[1])
-            if num > 0:
-                num = int(f'-100{num}')
-            return num
-        except (ValueError, IndexError):
-            return raw
+    low = raw.lower()
+    for prefix in ('supergroup:', 'channel:'):
+        if low.startswith(prefix):
+            try:
+                num = int(raw.split(':', 1)[1])
+                if num > 0:
+                    num = int(f'-100{num}')
+                return num
+            except (ValueError, IndexError):
+                return raw
+    for prefix in ('user:', 'private:'):
+        if low.startswith(prefix):
+            try:
+                return int(raw.split(':', 1)[1])
+            except (ValueError, IndexError):
+                return raw
     try:
         return int(raw)
     except ValueError:
         return raw
 
 
+# T11.4: кеш резолва raw_input → реальный chat_id, понятный TG.
+# Заполняется в _resolve_chat_id (через getChat с двумя формами для
+# положительных чисел: <id> и -100<id>).
+_RESOLVED_CHAT_CACHE: dict = {}
+
+
+def _resolve_chat_id(token: str, raw_id):
+    """Вернуть рабочий chat_id для Bot API, кешируя результат.
+
+    Логика для положительного целого:
+      1) пробуем форму как есть (личный диалог);
+      2) если getChat вернул "chat not found" — пробуем -100<id>
+         (RAW-id супергруппы/канала);
+      3) рабочая форма кешируется на сессию.
+
+    Для @username, отрицательных int, явных префиксов supergroup:/channel:/
+    user:/private: — берём _normalize_chat_id и доверяем.
+    """
+    key = str(raw_id).strip()
+    if not key:
+        return None
+    if key in _RESOLVED_CHAT_CACHE:
+        return _RESOLVED_CHAT_CACHE[key]
+
+    base = _normalize_chat_id(key)
+
+    needs_probe = (
+        token
+        and isinstance(base, int)
+        and base > 0
+        and not key.lower().startswith(('user:', 'private:'))
+    )
+    if not needs_probe:
+        _RESOLVED_CHAT_CACHE[key] = base
+        return base
+
+    ok, _descr = _probe_chat(token, base)
+    if ok:
+        _RESOLVED_CHAT_CACHE[key] = base
+        logger.info('[TgNotify] chat resolve: raw=%s → %s (личный/как есть)', key, base)
+        return base
+
+    alt = int(f'-100{base}')
+    ok2, descr2 = _probe_chat(token, alt)
+    if ok2:
+        _RESOLVED_CHAT_CACHE[key] = alt
+        logger.info('[TgNotify] chat resolve: raw=%s → %s (супергруппа/канал, +префикс -100)',
+                    key, alt)
+        return alt
+
+    # Обе формы недоступны — кешируем "как есть" + помечаем dead, чтобы
+    # дальше не спамить запросами при каждом sendMessage.
+    _RESOLVED_CHAT_CACHE[key] = base
+    _mark_dead_chat(base, f'getChat провалился в обеих формах ({descr2})')
+    return base
+
+
+def _mark_dead_chat(chat_id, description: str):
+    """Добавить chat_id в session-blacklist + понятный warning один раз."""
+    key = str(chat_id)
+    if key in _RUNTIME_DEAD_CHATS:
+        return
+    _RUNTIME_DEAD_CHATS.add(key)
+    logger.warning(
+        '[TgNotify] chat=%s исключён из рассылки до перезапуска: %s. '
+        'Если это личный чат — пользователь должен открыть бота '
+        'в Telegram и нажать Start.',
+        chat_id, description,
+    )
+
+
 def _send_new(token: str, chat_id, text: str) -> Optional[int]:
+    if str(chat_id) in _RUNTIME_DEAD_CHATS:
+        return None
     result = _tg_api(token, 'sendMessage', {
         'chat_id': chat_id,
         'text': text,
         'parse_mode': 'HTML',
         'disable_web_page_preview': True,
     })
-    if result and result.get('ok'):
+    if _is_ok(result):
         msg_id = result['result']['message_id']
         logger.info('[TgNotify] Отправлено новое сообщение в %s (id=%s)', chat_id, msg_id)
         return msg_id
+    if isinstance(result, dict) and _is_dead_chat_error(result.get('description', '')):
+        _mark_dead_chat(chat_id, result.get('description', ''))
     return None
 
 
 def _edit_message(token: str, chat_id, message_id: int, text: str) -> bool:
+    if str(chat_id) in _RUNTIME_DEAD_CHATS:
+        return False
     result = _tg_api(token, 'editMessageText', {
         'chat_id': chat_id,
         'message_id': message_id,
@@ -127,9 +256,11 @@ def _edit_message(token: str, chat_id, message_id: int, text: str) -> bool:
         'parse_mode': 'HTML',
         'disable_web_page_preview': True,
     })
-    if result and result.get('ok'):
+    if _is_ok(result):
         logger.info('[TgNotify] Сообщение отредактировано в %s (id=%s)', chat_id, message_id)
         return True
+    if isinstance(result, dict) and _is_dead_chat_error(result.get('description', '')):
+        _mark_dead_chat(chat_id, result.get('description', ''))
     return False
 
 
@@ -146,8 +277,10 @@ def notify_new_url(token: str, chat_ids: List[str], new_url: str):
     changed = False
 
     for raw_id in chat_ids:
-        chat_id = _normalize_chat_id(raw_id)
-        if not chat_id:
+        # T11.4: для положительных чисел резолвер сам подберёт нужную
+        # форму (личный <id> или RAW-канал -100<id>).
+        chat_id = _resolve_chat_id(token, raw_id)
+        if chat_id in (None, ''):
             continue
         state_key = str(chat_id)
         try:
@@ -170,12 +303,22 @@ def notify_new_url(token: str, chat_ids: List[str], new_url: str):
 
 def validate_token(token: str) -> bool:
     result = _tg_api(token, 'getMe', {})
-    if result and result.get('ok'):
+    if _is_ok(result):
         name = result['result'].get('username', '?')
         logger.info('[TgNotify] Токен бота валиден: @%s', name)
         return True
     logger.error('[TgNotify] Токен бота невалиден')
     return False
+
+
+def _probe_chat(token: str, chat_id) -> Tuple[bool, str]:
+    """getChat для конкретного chat_id. (ok, описание_ошибки)."""
+    result = _tg_api(token, 'getChat', {'chat_id': chat_id})
+    if _is_ok(result):
+        return True, ''
+    if isinstance(result, dict):
+        return False, str(result.get('description') or 'unknown')
+    return False, 'network error'
 
 
 def load_notify_config() -> Tuple[str, List[str]]:
@@ -194,7 +337,7 @@ def load_notify_config() -> Tuple[str, List[str]]:
         except (EOFError, OSError):
             token = ''
         if token:
-            _append_env('TG_NOTIFY_TOKEN', token)
+            _set_env_var('TG_NOTIFY_TOKEN', token)
             os.environ['TG_NOTIFY_TOKEN'] = token
 
     if token and not chats_raw:
@@ -204,7 +347,23 @@ def load_notify_config() -> Tuple[str, List[str]]:
         except (EOFError, OSError):
             chats_raw = ''
         if chats_raw:
-            _append_env('TG_NOTIFY_CHATS', chats_raw)
+            # T11.4: для каждого raw-id вызываем общий резолвер —
+            # он сам пробует и личную, и канальную (-100<id>) форму
+            # через getChat и кеширует рабочую. Юзер сразу видит,
+            # какая именно форма уехала в TG.
+            for raw_id in [c.strip() for c in chats_raw.split(',') if c.strip()]:
+                resolved = _resolve_chat_id(token, raw_id)
+                if resolved in (None, '') or str(resolved) in _RUNTIME_DEAD_CHATS:
+                    print(
+                        f'  [!] {raw_id}: бот НЕ может писать в этот чат. '
+                        f'Проверьте, что бот добавлен в канал/группу '
+                        f'и имеет право «Post Messages», а для личного '
+                        f'диалога — что юзер открыл бота и нажал Start. '
+                        f'Сохраняю значение в .env как есть.'
+                    )
+                else:
+                    print(f'  [✓] {raw_id} → доступен (форма для API: {resolved})')
+            _set_env_var('TG_NOTIFY_CHATS', chats_raw)
             os.environ['TG_NOTIFY_CHATS'] = chats_raw
 
     if not token:
@@ -219,16 +378,66 @@ def load_notify_config() -> Tuple[str, List[str]]:
     return token, chat_ids
 
 
-def _append_env(key: str, value: str):
+def _set_env_var(key: str, value: str) -> bool:
+    """Корректный upsert переменной в .env (рядом с api.py).
+
+    - Если файла нет — создаёт.
+    - Если ключ уже есть в любом виде (с пустым значением, в кавычках,
+      с/без trailing-комментария) — заменяет ВСЮ строку на `KEY=value`.
+    - Если ключа нет — добавляет в конец, отдельной строкой.
+    - Сохраняет порядок и комментарии.
+    - При успехе обновляет os.environ[key] = value.
+    - Возвращает True/False.
+    """
     env_path = Path(__file__).resolve().parent.parent / '.env'
     try:
-        existing = env_path.read_text('utf-8') if env_path.exists() else ''
-        if key not in existing:
-            with open(env_path, 'a', encoding='utf-8') as f:
-                f.write(f'\n{key}={value}\n')
-            logger.info('[TgNotify] Сохранено в .env: %s', key)
+        if env_path.exists():
+            text = env_path.read_text('utf-8')
+            # Сохраняем перевод строки в конце, если был.
+            had_trailing_nl = text.endswith('\n')
+            lines = text.split('\n')
+            if had_trailing_nl and lines and lines[-1] == '':
+                lines.pop()  # убираем пустой хвост, добавим обратно при записи
+        else:
+            lines = []
+            had_trailing_nl = True
+
+        new_line = f'{key}={value}'
+        replaced = False
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            # Пропускаем пустые и комментарии.
+            if not stripped or stripped.startswith('#'):
+                continue
+            if '=' not in stripped:
+                continue
+            cur_key = stripped.split('=', 1)[0].strip()
+            if cur_key == key:
+                lines[i] = new_line
+                replaced = True
+                break
+
+        if not replaced:
+            lines.append(new_line)
+
+        out = '\n'.join(lines) + ('\n' if had_trailing_nl else '\n')
+        env_path.write_text(out, encoding='utf-8')
+
+        os.environ[key] = value
+        logger.info(
+            '[TgNotify] Сохранено в .env: %s (%s)',
+            key, 'updated' if replaced else 'created',
+        )
+        return True
     except Exception as exc:
-        logger.warning('[TgNotify] Не удалось сохранить .env: %s', exc)
+        logger.warning('[TgNotify] Не удалось сохранить .env (%s=...): %s', key, exc)
+        return False
+
+
+# Backward-compat alias: на случай, если старый код где-то ещё вызывает
+# _append_env. Делегируем на корректный upsert.
+def _append_env(key: str, value: str):
+    _set_env_var(key, value)
 
 
 # ─── M3: ПУШИ ПО @-УПОМИНАНИЯМ И DEEP-LINK ПРИВЯЗКА ─────────────────
@@ -254,7 +463,7 @@ def get_bot_username(token: str):
     if cached and cached.get('username'):
         return cached['username']
     result = _tg_api(token, 'getMe', {})
-    if result and result.get('ok'):
+    if _is_ok(result):
         username = result['result'].get('username') or ''
         _BOT_INFO_CACHE[token] = {'username': username}
         return username or None
@@ -268,17 +477,26 @@ def send_html_to_user(token: str, chat_id, text: str) -> bool:
     """
     if not token or not chat_id or not text:
         return False
-    cid = _normalize_chat_id(str(chat_id))
+    # T11.4: тот же резолвер, что в notify_new_url — поддержка
+    # RAW-id канала (положительное число → авто -100<id>).
+    cid = _resolve_chat_id(token, str(chat_id))
+    if cid in (None, ''):
+        return False
+    if str(cid) in _RUNTIME_DEAD_CHATS:
+        return False
     result = _tg_api(token, 'sendMessage', {
         'chat_id': cid,
         'text': text,
         'parse_mode': 'HTML',
         'disable_web_page_preview': True,
     })
-    if result and result.get('ok'):
+    if _is_ok(result):
         logger.info('[TgNotify] mention/push delivered chat=%s', cid)
         return True
-    logger.warning('[TgNotify] mention/push failed chat=%s', cid)
+    if isinstance(result, dict) and _is_dead_chat_error(result.get('description', '')):
+        _mark_dead_chat(cid, result.get('description', ''))
+    else:
+        logger.warning('[TgNotify] mention/push failed chat=%s', cid)
     return False
 
 
@@ -356,7 +574,7 @@ def poll_link_updates(token: str, on_link) -> int:
         'allowed_updates': ['message'],
     }
     result = _tg_api(token, 'getUpdates', payload)
-    if not result or not result.get('ok'):
+    if not _is_ok(result):
         return 0
 
     updates = result.get('result') or []
