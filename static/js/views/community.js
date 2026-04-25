@@ -359,10 +359,14 @@
     // показываем дефолтный бейдж «Владелец» (раньше было «Admin»),
     // чтобы ReZero и др. админы были видны без ручной настройки.
     var prefixText = m.display_prefix || (m.is_admin ? 'Владелец' : null);
+    // M3.5.1: префикс вынесен из <span.cm-msg-author> наружу, чтобы он был
+    // полноправным flex-соседом badge'а «пост». Иначе из-за align по baseline
+    // разнокалиберные шрифты (13/10/9.5px) визуально выстраивались лесенкой.
+    // Класс cm-msg-prefix-owner теперь ставится для ВСЕХ админов (раньше — только
+    // если у юзера не было кастомного префикса), чтобы переливался как .badge-owner.
     var head = '<div class="cm-msg-head">' +
-      '<span class="cm-msg-author">@' + esc(m.username) +
-        (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin && !m.display_prefix ? ' cm-msg-prefix-owner' : '') + '">' + esc(prefixText) + '</span>' : '') +
-      '</span>' +
+      '<span class="cm-msg-author">@' + esc(m.username) + '</span>' +
+      (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin ? ' cm-msg-prefix-owner' : '') + '">' + esc(prefixText) + '</span>' : '') +
       (m.kind === 'admin_post' ? '<span class="cm-msg-badge">пост</span>' : '') +
       '<span class="cm-msg-meta-icons">' +
         (m.versions_count > 0 ? '<span title="изменено">' + ICONS.edited + '</span>' : '') +
@@ -512,10 +516,12 @@
   };
 
   // M3.5: пересоздать DOM-элемент одного сообщения (без перезагрузки чата).
+  // M3.5.1: ищем глобально (а не только в #cmChatList), чтобы фикс работал
+  // и для постов в #cmPostsList — иначе оптимистичная реакция на пост
+  // мутировала кеш, но DOM оставался старым (визуально реакция не появлялась).
   function cmRerenderMessage(msgId) {
-    var list = document.getElementById('cmChatList');
-    if (!list) return;
-    var old = list.querySelector('.cm-msg[data-id="' + msgId + '"]');
+    var safe = String(msgId).replace(/(["\\])/g, '\\$1');
+    var old = document.querySelector('.cm-msg[data-id="' + safe + '"]');
     var m = STATE.msgsCache[msgId];
     if (!old || !m) return;
     var fresh = renderMessage(m);

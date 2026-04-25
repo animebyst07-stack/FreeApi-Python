@@ -1229,11 +1229,14 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-msg.cm-msg-deleted:active{transform:none}
 .cm-msg.cm-msg-post{background:rgba(20,18,30,.6);border-color:#262540}
 
-.cm-msg-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.2}
-.cm-msg-author{color:#fff;font-weight:600;font-size:13px}
-.cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0}
-.cm-msg-badge{font-size:9.5px;background:#262540;color:#a8b8ff;padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-.cm-msg-prefix{font-size:10px;background:rgba(255,255,255,.07);color:#9a9a9a;padding:1px 5px;border-radius:4px;font-weight:500;margin-left:5px;vertical-align:middle;border:1px solid #252525;letter-spacing:.02em}
+/* M3.5.1: align-items:flex-end — все теги (Владелец, пост, badge) выравниваются
+   по нижней границе строки автора. Раньше align:center давал «лесенку» из-за
+   разной высоты шрифтов (13/10/9.5px). Префикс теперь flex-сосед, не inline. */
+.cm-msg-head{display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.2}
+.cm-msg-author{color:#fff;font-weight:600;font-size:13px;line-height:1.15}
+.cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0;line-height:1.15}
+.cm-msg-badge{font-size:9.5px;background:#262540;color:#a8b8ff;padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;line-height:1.15;display:inline-flex;align-items:center}
+.cm-msg-prefix{font-size:10px;background:rgba(255,255,255,.07);color:#9a9a9a;padding:2px 6px;border-radius:4px;font-weight:500;margin-left:0;border:1px solid #252525;letter-spacing:.02em;line-height:1.15;display:inline-flex;align-items:center}
 .cm-msg-body{color:#e6e6e6;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .cm-msg-meta-icons{display:inline-flex;gap:5px;color:#666;align-items:center}
 .cm-msg-meta-icons svg{width:11px;height:11px;display:block}
@@ -1433,19 +1436,21 @@ body:has(#view-dashboard.active){background:#000!important}
 .cm-posts-pane .container-narrow{max-width:720px;margin:0 auto}
 
 /* ── Emoji Picker (в action-sheet, вместо SVG-реакций) ────────────── */
-/* M3.5: переделан на grid с фиксированной шириной ячейки 38×38, чтобы
-   обычные emoji-кнопки и кастомные (в обёртке .cm-emoji-btn-wrap) были
-   одинакового размера. Раньше flex-wrap + inline-flex давали разный
-   контент-box у обёртки → сетка «ехала», особенно при склейке нескольких
-   эмодзи в одну запись. */
+/* M3.5.1: возвращён flex-wrap (вместо grid auto-fill, который схлопывал
+   контейнер в одну колонку на узком popup'е). Чтобы сетка не «ехала» от
+   разных типов кнопок (обычная vs обёртка кастомного эмодзи), у обоих
+   жёстко зафиксирован flex:0 0 38px. */
 .cm-emoji-picker{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,38px);
+  display:flex;
+  flex-wrap:wrap;
   gap:4px;
   padding:6px 4px;
   justify-content:flex-start;
+  width:100%;
+  box-sizing:border-box;
 }
 .cm-emoji-btn{
+  flex:0 0 38px;
   width:38px;height:38px;
   font-size:20px;
   display:inline-flex;align-items:center;justify-content:center;
@@ -1475,9 +1480,11 @@ body:has(#view-dashboard.active){background:#000!important}
    занимает 100% обёртки, крестик абсолютно позиционирован сверху. */
 .cm-emoji-btn-wrap{
   position:relative;
+  flex:0 0 38px;
   width:38px;height:38px;
   display:inline-flex;
   align-items:center;justify-content:center;
+  box-sizing:border-box;
 }
 .cm-emoji-btn-wrap .cm-emoji-btn{
   width:100%;height:100%;
@@ -1505,13 +1512,24 @@ body:has(#view-dashboard.active){background:#000!important}
 
 /* M3.4 (legacy)/M3.5: дефолтный бейдж «Владелец» для админов без своего
    display_prefix. Сине-фиолетовый градиент — выделяет статус. */
+/* M3.5.1: переливающийся «Владелец» — копируем эффект с .badge-owner из
+   бокового меню (анимированный gradient через background-clip:text). Фон
+   и border убираем, остаётся только переливающийся жирный текст. */
 .cm-msg-prefix.cm-msg-prefix-admin,
 .cm-msg-prefix.cm-msg-prefix-owner{
-  background:linear-gradient(90deg,rgba(139,92,246,.18),rgba(59,130,246,.18));
-  color:#cdb8ff;
-  border-color:#5a3aa0;
-  font-weight:600;
+  background:linear-gradient(90deg,#8b5cf6,#3b82f6,#8b5cf6);
+  background-size:200% auto;
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  color:transparent;
+  animation:badge-shift 4s linear infinite;
+  border:none;
+  padding:1px 4px;
+  font-weight:700;
   letter-spacing:.04em;
+  text-transform:uppercase;
+  font-size:10px;
 }
 
 /* ── M3.5: цитата ответа В сообщении (Telegram-style) ─────────────── */
