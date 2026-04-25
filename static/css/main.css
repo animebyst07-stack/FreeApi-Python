@@ -611,10 +611,20 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:9px;background:rgba(0,0,0,.6);border:1px solid #222;color:#888;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
 .lightbox-nav:hover{background:#111;color:#fff;border-color:#444}
 .lightbox-prev{left:16px}
-.lightbox-next{right:58px}
+.lightbox-next{right:16px}
 .lightbox-download{position:absolute;top:16px;right:60px;width:36px;height:36px;border-radius:9px;background:#111;border:1px solid #222;color:#888;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;text-decoration:none}
 .lightbox-download:hover{background:#1e1e1e;color:#fff;border-color:#444}
 .lightbox-counter{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:12px;color:#666;background:rgba(0,0,0,.6);padding:4px 12px;border-radius:20px}
+@media(max-width:520px){
+  .lightbox{padding:8px}
+  .lightbox-img{max-height:80vh}
+  .lightbox-nav{width:32px;height:32px}
+  .lightbox-prev{left:8px}
+  .lightbox-next{right:8px}
+  .lightbox-close{top:10px;right:10px;width:32px;height:32px}
+  .lightbox-download{top:10px;right:50px;width:32px;height:32px}
+  .lightbox-counter{bottom:10px;font-size:11px;padding:3px 10px}
+}
 
 /* ─── ADMIN CHAT COPY BTN ─── */
 #chatAdminCopyBtn{display:none}
