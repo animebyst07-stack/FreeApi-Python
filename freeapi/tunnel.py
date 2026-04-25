@@ -1,40 +1,26 @@
 """
-CloudflareManager — полностью автономный менеджер cloudflared-тоннеля.
+CloudflareManager — простой менеджер cloudflared-тоннеля.
 
 Возможности:
- - Запуск/остановка/перезапуск cloudflared процесса
- - Фоновый чекер интернета (пинг TCP до 8.8.8.8:53)
- - Авто-переподключение при обрыве: ждёт возврата интернета,
-   убивает старый процесс, запускает новый, извлекает URL
- - Вызывает callback on_url(url) при получении новой ссылки
- - Graceful shutdown (stop() безопасно завершает всё)
+ - Запуск/остановка cloudflared процесса
+ - Извлечение URL тоннеля из stdout
+ - Вызов callback on_url(url) при получении новой ссылки
+ - Graceful shutdown (stop() безопасно завершает процесс)
+
+ВАЖНО: проверка интернета и авто-перезапуск при «обрыве» намеренно
+удалены. На слабом мобильном интернете пинг 8.8.8.8 регулярно
+ложно срабатывал и убивал рабочий тоннель. cloudflared сам умеет
+держать соединение и переподключаться при кратковременных потерях.
 """
 import re
-import socket
 import subprocess
 import threading
-import time
 import logging
-from typing import Callable, Optional, Any
+from typing import Callable, Optional
 
 logger = logging.getLogger('freeapi')
 
 _CF_URL_RE = re.compile(r'https://[a-z0-9\-]+\.trycloudflare\.com')
-
-_INTERNET_CHECK_HOST = '8.8.8.8'
-_INTERNET_CHECK_PORT = 53
-_INTERNET_CHECK_TIMEOUT = 3.0
-_INTERNET_POLL_INTERVAL = 10
-_RECONNECT_POLL_INTERVAL = 5
-
-
-def _has_internet() -> bool:
-    try:
-        socket.setdefaulttimeout(_INTERNET_CHECK_TIMEOUT)
-        with socket.create_connection((_INTERNET_CHECK_HOST, _INTERNET_CHECK_PORT), timeout=_INTERNET_CHECK_TIMEOUT):
-            return True
-    except OSError:
-        return False
 
 
 def _print_tunnel_url(url: str):
@@ -51,17 +37,17 @@ class CloudflareManager:
         self._current_url: Optional[str] = None
 
     # ------------------------------------------------------------------ #
-    #  Public API                                                           #
+    #  Public API                                                        #
     # ------------------------------------------------------------------ #
 
     def start(self):
-        """Запустить тоннель и мониторинг. Не блокирует вызывающий поток."""
-        t = threading.Thread(target=self._monitor_loop, daemon=True, name='cf-monitor')
+        """Запустить тоннель в фоне. Не блокирует вызывающий поток."""
+        t = threading.Thread(target=self._run_once, daemon=True, name='cf-runner')
         t.start()
         logger.info('[Cloudflare] Менеджер запущен (порт %s)', self._port)
 
     def stop(self):
-        """Graceful shutdown: завершить мониторинг и процесс cloudflared."""
+        """Graceful shutdown: завершить процесс cloudflared."""
         logger.info('[Cloudflare] Получен сигнал остановки...')
         self._stop_event.set()
         self._kill_proc()
@@ -72,8 +58,14 @@ class CloudflareManager:
         return self._current_url
 
     # ------------------------------------------------------------------ #
-    #  Internal                                                             #
+    #  Internal                                                          #
     # ------------------------------------------------------------------ #
+
+    def _run_once(self):
+        """Однократный запуск тоннеля. Без авто-рестарта по сети."""
+        if self._stop_event.is_set():
+            return
+        self._start_proc()
 
     def _start_proc(self) -> Optional[str]:
         """Запустить cloudflared, вернуть найденный URL или None."""
@@ -138,49 +130,3 @@ class CloudflareManager:
             logger.info('[Cloudflare] Процесс завершён')
         except Exception as exc:
             logger.warning('[Cloudflare] Ошибка при завершении процесса: %s', exc)
-
-    def _proc_alive(self) -> bool:
-        with self._proc_lock:
-            return self._proc is not None and self._proc.poll() is None
-
-    def _monitor_loop(self):
-        """
-        Основной цикл:
-        1. Ждёт интернета при старте.
-        2. Запускает тоннель.
-        3. Следит за соединением; при потере — ждёт восстановления
-           и перезапускает тоннель.
-        """
-        while not self._stop_event.is_set():
-            if not _has_internet():
-                logger.warning('[Cloudflare] Нет интернета, ожидаю...')
-                self._wait_internet()
-                if self._stop_event.is_set():
-                    break
-
-            self._start_proc()
-            if self._stop_event.is_set():
-                break
-
-            while not self._stop_event.is_set():
-                time.sleep(_INTERNET_POLL_INTERVAL)
-                if not _has_internet():
-                    logger.warning('[Cloudflare] Интернет пропал, останавливаю тоннель...')
-                    self._kill_proc()
-                    self._wait_internet()
-                    if self._stop_event.is_set():
-                        break
-                    logger.info('[Cloudflare] Интернет восстановлен, перезапускаю тоннель...')
-                    break
-                if not self._proc_alive():
-                    logger.warning('[Cloudflare] Процесс упал, перезапускаю...')
-                    break
-
-        self._kill_proc()
-
-    def _wait_internet(self):
-        """Блокирует пока нет интернета (или до stop_event)."""
-        while not self._stop_event.is_set():
-            time.sleep(_RECONNECT_POLL_INTERVAL)
-            if _has_internet():
-                return
