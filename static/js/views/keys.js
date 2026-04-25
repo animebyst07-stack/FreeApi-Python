@@ -27,16 +27,10 @@
       var keys = d.keys || [];
       window.allKeys = keys;
       renderKeys(keys);
-      var hasKeys = keys.length > 0;
-      // Кнопка «Новый ключ» — теперь видна ВСЕГДА: при пустом списке ключей
-      // setup-форма больше не торчит inline на дашборде, а открывается
-      // модалкой по этой кнопке (или авто-открытием ниже). Иначе юзер
-      // без ключей не увидит как начать.
+      // Привязка Telegram — опциональна. Кнопка «Новый ключ» видна всегда;
+      // модалку настройки открываем ТОЛЬКО по явному клику пользователя.
+      // Никаких авто-попапов после входа/регистрации больше нет.
       _q('btnNewKey').style.display = '';
-      // Если ключей нет и юзер не закрывал модалку только что — авто-открыть.
-      if (!hasKeys && !window._setupModalDismissed && !_isSetupModalOpen()) {
-        _openSetupModalFresh();
-      }
     });
   }
 
@@ -75,7 +69,7 @@
   function renderKeys(keys){
     var list = _q('keysList');
     if (!keys.length) {
-      list.innerHTML = '<div class="key-empty"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><p>Ключей пока нет</p><small>Настройте Telegram-аккаунт выше</small></div>';
+      list.innerHTML = '<div class="key-empty"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><p>Ключей пока нет</p><small>Когда захотите получить API-ключ — нажмите «Новый ключ» и подключите Telegram-аккаунт. Все остальные разделы доступны и без привязки.</small></div>';
       return;
     }
     list.innerHTML = '';
