@@ -241,7 +241,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
     """
     with db() as conn:
         r = conn.execute(
-            'SELECT m.*, u.username, u.avatar, u.display_prefix, '
+            'SELECT m.*, u.username, u.avatar, u.display_prefix, u.last_seen_at, '
             '       (CASE WHEN u.username = ? '
             '             OR EXISTS(SELECT 1 FROM admins a WHERE a.user_id = u.id) '
             '          THEN 1 ELSE 0 END) AS is_admin '
@@ -266,6 +266,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
                 'avatar': r['avatar'],
                 'display_prefix': r['display_prefix'],
                 'is_admin': bool(r['is_admin']),
+                'last_seen_at': int(r['last_seen_at'] or 0),
                 'kind': r['kind'],
                 'is_deleted': 1,
                 'deleted_by': r['deleted_by'],
@@ -276,6 +277,7 @@ def get_message(message_id, viewer_uid=None, include_deleted=False):
             }
         msg = row(r)
         msg['is_admin'] = bool(r['is_admin'])
+        msg['last_seen_at'] = int(r['last_seen_at'] or 0)
         # images
         msg['images'] = [
             x['data_url'] for x in conn.execute(

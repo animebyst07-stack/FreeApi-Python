@@ -1,14 +1,37 @@
 import logging
 import os
+import time
 from datetime import timedelta
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from freeapi.rate_limit import check_rate_limit
 from freeapi.routes import register_routes
 
 logger = logging.getLogger('freeapi')
+
+# M3.6: внутрипроцессный кэш для троттлинга записи last_seen_at в БД.
+# Пишем не чаще раза в _LAST_SEEN_THROTTLE_SEC секунд на пользователя,
+# чтобы не нагружать SQLite на каждый /api/ запрос.
+_LAST_SEEN_CACHE: dict = {}
+_LAST_SEEN_THROTTLE_SEC = 25
+
+
+def _touch_last_seen(uid: str) -> None:
+    if not uid:
+        return
+    now = int(time.time())
+    last = _LAST_SEEN_CACHE.get(uid, 0)
+    if now - last < _LAST_SEEN_THROTTLE_SEC:
+        return
+    _LAST_SEEN_CACHE[uid] = now
+    try:
+        from freeapi.database import db
+        with db() as conn:
+            conn.execute('UPDATE users SET last_seen_at=? WHERE id=?', (now, uid))
+    except Exception:
+        logger.exception('[LastSeen] failed to update for uid=%s', uid)
 
 _STATIC_EXTENSIONS = {
     '.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
@@ -113,6 +136,10 @@ def create_app():
                 if not check_rate_limit(ip, path, limit=limit, window=window):
                     logger.warning('[RateLimit] Заблокирован %s → %s (limit=%d/%ds)', ip, path, limit, window)
                     return jsonify({'error': True, 'message': 'Слишком много запросов. Попробуйте позже.', 'log_code': 'RATE_LIMIT_429'}), 429
+            # M3.6: трогаем last_seen_at авторизованного юзера (троттл — внутри функции).
+            uid = session.get('user_id')
+            if uid:
+                _touch_last_seen(uid)
             return None
 
         if _is_static_asset(path):

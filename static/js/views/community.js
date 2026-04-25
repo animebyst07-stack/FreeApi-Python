@@ -67,6 +67,29 @@
     return s.length > 16 ? s.slice(5, 16).replace('T', ' ') : s;
   }
 
+  // M3.6: «online / был N минут назад» по unix-таймштампу last_seen_at.
+  // < 60 сек → online; до часа → минуты; до суток → часы; до месяца → дни;
+  // дальше — пусто (показывать «был полгода назад» бессмысленно).
+  function fmtLastSeen(unixSec) {
+    if (!unixSec) return '';
+    var ago = Math.floor(Date.now() / 1000) - Number(unixSec);
+    if (ago < 0) ago = 0;
+    if (ago < 60) return 'online';
+    if (ago < 3600) {
+      var m = Math.floor(ago / 60);
+      return 'был ' + m + ' мин назад';
+    }
+    if (ago < 86400) {
+      var h = Math.floor(ago / 3600);
+      return 'был ' + h + ' ч назад';
+    }
+    if (ago < 86400 * 30) {
+      var d = Math.floor(ago / 86400);
+      return 'был ' + d + ' д назад';
+    }
+    return '';
+  }
+
   function highlightMentions(text) {
     return esc(text).replace(/@([A-Za-zА-Яа-яЁё0-9_]{2,32})/g,
       '<span class="cm-mention">@$1</span>');
@@ -481,10 +504,22 @@
     // разнокалиберные шрифты (13/10/9.5px) визуально выстраивались лесенкой.
     // Класс cm-msg-prefix-owner теперь ставится для ВСЕХ админов (раньше — только
     // если у юзера не было кастомного префикса), чтобы переливался как .badge-owner.
+    // M3.6: статус «онлайн / был N мин назад» рядом с ником.
+    // Считаем дельту по часам клиента — допускаем небольшой дрейф.
+    var onlineHtml = '';
+    if (m.last_seen_at) {
+      var lbl = fmtLastSeen(m.last_seen_at);
+      if (lbl) {
+        var isOnline = lbl === 'online';
+        onlineHtml = '<span class="cm-msg-online" data-online="' +
+          (isOnline ? '1' : '0') + '">' + esc(lbl) + '</span>';
+      }
+    }
     var head = '<div class="cm-msg-head">' +
       '<span class="cm-msg-author">@' + esc(m.username) + '</span>' +
       (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin ? ' cm-msg-prefix-owner' : '') + '">' + esc(prefixText) + '</span>' : '') +
       (m.kind === 'admin_post' ? '<span class="cm-msg-badge">пост</span>' : '') +
+      onlineHtml +
       '<span class="cm-msg-meta-icons">' +
         (m.versions_count > 0 ? '<span title="изменено">' + ICONS.edited + '</span>' : '') +
         (m.pinned ? '<span title="закреплено">' + ICONS.pinDot + '</span>' : '') +
