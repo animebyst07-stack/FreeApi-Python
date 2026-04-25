@@ -71,6 +71,34 @@
            отдельный осознанный шаг через кнопку «Новый ключ».
         ── Статус: ВЫПОЛНЕНО
 
+[X] T8. ИСТИННЫЙ корень бага «вход вроде есть, а юзер — гость»
+        ── Файл: freeapi/repos/users.py
+        ── Симптом из лог-файла logi_(1)_1777151437234.txt:
+              POST /api/auth/login → 500
+              KeyError: 'password_hash' в auth_service.py:22
+              check_password_hash(user['password_hash'], password)
+              после этого: GET /api/keys → 401, юзер остаётся гостем,
+              но JS-обвязка модалки уже закрыла её и переключила
+              view на dashboard → визуально «вошёл, но Гость».
+        ── Корень: в freeapi/repos/users.py было ДВА определения
+                   функции get_user_by_username. Второе (внизу файла,
+                   добавлено вместе с display_prefix) перезатирало
+                   первое и селектило только id, username, display_prefix
+                   — без password_hash. login_user() обращался
+                   к user['password_hash'] и падал с KeyError.
+        ── Решение:
+              • оставлено ОДНО определение get_user_by_username
+                с явным SELECT id, username, password_hash,
+                display_prefix, created_at, last_login_at;
+              • дубликат внизу файла удалён;
+              • get_user_by_id заодно расширен на display_prefix
+                (оставаясь лёгким — без password_hash и avatar).
+        ── Эффект: POST /api/auth/login снова возвращает 200,
+                   ставит session-cookie, /api/auth/me видит юзера,
+                   /api/keys отдаёт 200, сайдбар рисует ник,
+                   а не «Гость / Не авторизован».
+        ── Статус: ВЫПОЛНЕНО
+
 [X] T7. Уведомления об @упоминаниях в раздел уведомлений сайта
         ── Аудит: уже реализовано на бекенде.
               • freeapi/blueprints/community_bp.py::_notify_mentions

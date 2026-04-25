@@ -14,13 +14,31 @@ def create_user(username, password_hash):
 
 
 def get_user_by_username(username):
+    """Найти пользователя по username.
+
+    Селектим явный список колонок (включая password_hash и display_prefix),
+    чтобы login_user мог проверить пароль, а UI получал префикс.
+    Раньше в файле было ДВА определения этой функции — второе (ниже по
+    файлу) перезатирало первое и не возвращало password_hash, из-за чего
+    POST /api/auth/login падал с KeyError: 'password_hash' и сессия
+    никогда не выставлялась («вход вроде есть, а юзер гость»).
+    """
     with db() as conn:
-        return row(conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone())
+        r = conn.execute(
+            'SELECT id, username, password_hash, display_prefix, '
+            'created_at, last_login_at FROM users WHERE username = ?',
+            (username,),
+        ).fetchone()
+        return row(r) if r else None
 
 
 def get_user_by_id(user_id):
     with db() as conn:
-        return row(conn.execute('SELECT id, username, created_at, last_login_at FROM users WHERE id = ?', (user_id,)).fetchone())
+        return row(conn.execute(
+            'SELECT id, username, display_prefix, created_at, last_login_at '
+            'FROM users WHERE id = ?',
+            (user_id,),
+        ).fetchone())
 
 
 def touch_login(user_id):
@@ -137,13 +155,3 @@ def set_display_prefix(user_id, prefix):
             (prefix, user_id),
         )
     return prefix
-
-
-def get_user_by_username(username):
-    """Найти пользователя по username."""
-    with db() as conn:
-        r = conn.execute(
-            'SELECT id, username, display_prefix FROM users WHERE username=?',
-            (username,),
-        ).fetchone()
-        return row(r) if r else None
