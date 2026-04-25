@@ -1,144 +1,166 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  PLAN.TXT — сессия от 25.04.2026
-  Репозиторий: animebyst07-stack/FreeApi-Python
-  Среда выполнения: Termux (Android)
+  СЕССИЯ T9 (26.04.2026): фикс TG-привязки + z-index сайдбара
 ═══════════════════════════════════════════════════════════════════════════════
 
-КОНТЕКСТ ПРОЕКТА (краткий аудит)
-───────────────────────────────────────────────────────────────────────────────
-- Тип: Flask-приложение (Python), запускается через api.py
-- Архитектура:
-    api.py                 — точка входа: загрузка .env, init БД, запуск
-                             фоновых задач, запуск cloudflared-тоннеля,
-                             запуск Flask на 0.0.0.0:$PORT
-    freeapi/app.py         — фабрика Flask app
-    freeapi/database.py    — инициализация SQLite + миграции
-    freeapi/blueprints/*   — модульные роуты (auth, chat, community, keys,
-                             reviews, support, admin, tg, notifications, ...)
-    freeapi/repos/*        — слой работы с БД (репозитории)
-    freeapi/scheduler.py   — фоновые задачи
-    freeapi/tunnel.py      — менеджер cloudflared-тоннеля
-    freeapi/agent.py       — опциональный AI-агент (Favorite)
-    freeapi/tg_notify.py   — Telegram-уведомления о новом URL и упоминаниях
-    static/                — фронт (index.html + JS/CSS модули)
-    freeapi/migrations/    — SQL-миграции (15 файлов)
-- Фронт: static/index.html + static/js/{core,ui,views} + static/css/main.css
-- БД: SQLite, схема через миграции 001..015
-- Подключение «наружу»: cloudflared (trycloudflare.com) + опц. tg-уведомления
+ИСХОДНАЯ КАРТИНА (из лога 26.04 00:18-00:19):
+  • Пользователь b65fd5c9-... жмёт «Открыть в Telegram» → бот ловит
+    /start <token>, привязка проходит:
+        [Scheduler][TG_LINK] uid=... linked chat=8149203573 tg=Python_JS_Java_Rust
+    НО подтверждение «✅ привязан» падает:
+        [TgNotify] Нормализация chat_id: добавлен префикс -100 -> -1008149203573
+        [TgNotify] HTTP 400 sendMessage: Bad Request: chat not found
+  • Все последующие пуши (упоминания, прощальное сообщение при отвязке)
+    тоже летят в несуществующий -1008149203573.
+  • Z-index .overlay = 200, .sidebar = 1000 → при открытии любой модалки
+    (login, регистрация, кадрирование аватарки, настройки TG) сайдбар
+    оказывается ПОВЕРХ модалки, юзер не может ничего нажать.
 
 ═══════════════════════════════════════════════════════════════════════════════
-  ЗАДАЧИ ЭТОЙ СЕССИИ
+  T9.1 — КОРНЕВОЙ ФИКС: _normalize_chat_id ломал личные chat_id
 ═══════════════════════════════════════════════════════════════════════════════
 
-[X] T1. Убрать агрессивную проверку интернета и авто-перезапуск тоннеля
-        ── Файл: freeapi/tunnel.py
-        ── Решение: удалён весь watchdog + ping 8.8.8.8:53,
-                    оставлен однократный запуск cloudflared.
-        ── Статус: ВЫПОЛНЕНО (commit afcc555)
+Файл:    freeapi/tg_notify.py (lines 75-88 → переписаны)
+Причина: эвристика «положительное число длины ≥6 → префикс -100» была
+         задумана для случая, когда админ вводит ID супергруппы/канала
+         в TG_NOTIFY_CHATS без префикса. Но она применялась АБСОЛЮТНО ко
+         всем chat_id, в том числе к личным диалогам бот↔юзер, у которых
+         id всегда положительный 8-10-значный (например 8149203573).
+         После добавления -100 он превращался в -1008149203573 и API
+         Телеграма отвечал «chat not found».
 
-[X] T2. Создать plan.txt в репозитории и в рабочей среде
-        ── Статус: ВЫПОЛНЕНО
+Новая логика:
+  - "@username"     → как есть (паблик-канал/бот);
+  - отрицательное   → как есть (группа/канал, уже корректный формат);
+  - положительное   → возвращаем int БЕЗ -100 (личный диалог);
+  - "supergroup:N"  → принудительно навешиваем -100 (опт-ин для админа,
+                      если хочется явно настроить уведомление в супергруппу
+                      по «голому» id без префикса).
 
-[X] T3. Команда клонирования в Termux на втором телефоне
-        ── Статус: ВЫПОЛНЕНО (выдана + фикс python3.12 → pkg install python)
-
-[X] T4. Запушить tunnel-фикс в origin/main
-        ── Через GitHub Contents/Trees API (git push заблокирован).
-        ── Статус: ВЫПОЛНЕНО (commit afcc555 в main)
-
-[X] T5. Убрать насильную модалку привязки Telegram после входа/регистрации
-        ── Файл: static/js/views/keys.js
-        ── Проблема: функция loadDashboard() автоматически открывала
-                     модалку #setupModal, если у юзера ещё нет ключей.
-                     В итоге сразу после логина/регистрации экран
-                     перекрывался модалкой настройки TG, юзер закрывал
-                     крестиком и UI выглядел «как у гостя» — отсюда
-                     жалоба «вход вроде есть, а юзер гость».
-        ── Решение:
-              • из loadDashboard() удалён блок `if (!hasKeys && ...)
-                _openSetupModalFresh()`. Авто-открытий больше нет.
-              • кнопка «Новый ключ» (#btnNewKey) остаётся видимой ВСЕГДА —
-                юзер сам открывает модалку привязки, когда захочет
-                получить API-ключ.
-              • empty-state списка ключей переписан: теперь явно
-                сообщает, что привязка TG нужна только для API-ключей,
-                остальной функционал доступен без неё.
-        ── Статус: ВЫПОЛНЕНО
-
-[X] T6. Привязка Telegram → опциональна, без принуждения
-        ── Сделано в рамках T5: после логина юзер сразу видит дашборд,
-           сайдбар с собственным ником и аватаром. Привязка TG —
-           отдельный осознанный шаг через кнопку «Новый ключ».
-        ── Статус: ВЫПОЛНЕНО
-
-[X] T8. ИСТИННЫЙ корень бага «вход вроде есть, а юзер — гость»
-        ── Файл: freeapi/repos/users.py
-        ── Симптом из лог-файла logi_(1)_1777151437234.txt:
-              POST /api/auth/login → 500
-              KeyError: 'password_hash' в auth_service.py:22
-              check_password_hash(user['password_hash'], password)
-              после этого: GET /api/keys → 401, юзер остаётся гостем,
-              но JS-обвязка модалки уже закрыла её и переключила
-              view на dashboard → визуально «вошёл, но Гость».
-        ── Корень: в freeapi/repos/users.py было ДВА определения
-                   функции get_user_by_username. Второе (внизу файла,
-                   добавлено вместе с display_prefix) перезатирало
-                   первое и селектило только id, username, display_prefix
-                   — без password_hash. login_user() обращался
-                   к user['password_hash'] и падал с KeyError.
-        ── Решение:
-              • оставлено ОДНО определение get_user_by_username
-                с явным SELECT id, username, password_hash,
-                display_prefix, created_at, last_login_at;
-              • дубликат внизу файла удалён;
-              • get_user_by_id заодно расширен на display_prefix
-                (оставаясь лёгким — без password_hash и avatar).
-        ── Эффект: POST /api/auth/login снова возвращает 200,
-                   ставит session-cookie, /api/auth/me видит юзера,
-                   /api/keys отдаёт 200, сайдбар рисует ник,
-                   а не «Гость / Не авторизован».
-        ── Статус: ВЫПОЛНЕНО
-
-[X] T7. Уведомления об @упоминаниях в раздел уведомлений сайта
-        ── Аудит: уже реализовано на бекенде.
-              • freeapi/blueprints/community_bp.py::_notify_mentions
-                всегда вызывает repo.create_user_notification(...,
-                kind='community', ref_id=message_id) для каждого
-                упомянутого юзера (если у него не включён mute_mentions).
-              • TG-пуш через tg_notify.send_mention_push — отдельная
-                опциональная ветка: если у юзера есть привязанный
-                tg_notify_chat_id и токен бота — пуш уйдёт в личку,
-                иначе тихо пропускается. Внутреннее уведомление
-                в «колоколе» создаётся в любом случае.
-              • Эндпоинты /api/notifications, /api/notifications/read_all,
-                /api/notifications/<id>/read и /api/notifications/<id>
-                уже отдают/правят эти уведомления; фронт-страница
-                view-notifications уже умеет фильтровать по
-                kind=community и показывать unread-счётчик.
-        ── Статус: НИЧЕГО МЕНЯТЬ НЕ НАДО (требование уже выполнено).
+Эффект: после фикса первое же сообщение «✅ @Python_JS_Java_Rust привязан!»
+        придёт в личку юзеру; пуши о @упоминаниях тоже заработают.
 
 ═══════════════════════════════════════════════════════════════════════════════
-  ИЗМЕНЁННЫЕ ФАЙЛЫ В ЭТОЙ СЕССИИ
+  T9.2 — Z-INDEX: модалки больше не под сайдбаром
 ═══════════════════════════════════════════════════════════════════════════════
-  M  freeapi/tunnel.py            — без watchdog (commit afcc555)
-  M  static/js/views/keys.js      — убрано авто-открытие #setupModal,
-                                    обновлён empty-state списка ключей
-  A  plan.txt                     — план сессии (этот файл)
+
+Файл:    static/css/main.css
+Правки:
+  .overlay     z-index: 200  → 1100   (поверх .sidebar=1000)
+  .toast-wrap  z-index: 999  → 1300   (поверх любых модалок)
+
+  .lightbox    оставлен на 9999 — он всегда должен быть выше всего.
+  .sidebar     осталась на 1000 — двигать её было бы опаснее (ломает
+               анимацию выезда).
+
+Эффект:
+  • Модалка кадрирования аватарки больше не перекрывается сайдбаром.
+  • Тосты («Аватарка обновлена», «Ошибка сети») всегда сверху.
+  • Все остальные .overlay-модалки (login, register, custom-confirm,
+    setup-key, tg-modal через .cm-modal-backdrop) поднимаются автоматически.
 
 ═══════════════════════════════════════════════════════════════════════════════
-  ЗАМЕТКИ ПО ПОВЕДЕНИЮ ПОСЛЕ ФИКСА T5
+  T9.3 — UI кнопки «Отвязать TG»
 ═══════════════════════════════════════════════════════════════════════════════
-  - После /api/auth/login или /api/auth/register бутстрап /api/auth/me
-    возвращает {user, authenticated:true, has_tg_account:false,
-    has_keys:false}. updateNav()+updateSidebar() сразу рисуют ник юзера,
-    аватар и роль (Владелец только для username='ReZero', иначе
-    «Пользователь»). Никакой модалки сверху.
-  - Сайдбар-плашка #sbTg: «Telegram не подключён» — это просто статус,
-    не кнопка-блокер; раздел чата/дашборда полностью доступен.
-  - Чтобы получить API-ключ, юзер жмёт «Новый ключ» в карточке
-    «API Ключи» → открывается старая модалка #setupModal с формой
-    подключения по телефону или session-string. Поведение модалки
-    не менялось.
-  - Логин «вход вроде есть, а юзер гость» — это симптом того, что
-    модалка перекрывала всю страницу. После T5 он исчезает.
+
+Проверено: уже есть в community.js:1200 (внутри cmTgModal, появляется
+когда linked=True). Юзер просто не открывал модалку → кажется, что
+кнопки нет. После T9.1 он сможет привязаться корректно и увидит модалку
+«Привязан / Отвязать» в стандартном виде. Дополнительных правок не нужно.
+
 ═══════════════════════════════════════════════════════════════════════════════
+  T10 — БОЛЬШАЯ ЗАДАЧА (ЗАПЛАНИРОВАНО, ОТДЕЛЬНЫЙ КОММИТ)
+  Аватарки фото/GIF/видео≤10с с обрезкой и циклическим воспроизведением
+═══════════════════════════════════════════════════════════════════════════════
+
+Текущая реализация: users.avatar TEXT (data URL JPEG/PNG, лимит 200KB),
+кадрирование в браузере на canvas, отдаётся в /api/auth/me.avatar.
+Рендерится в:
+  • static/js/views/profile_avatar.js (sb-avatar-img, author-avatar-img)
+  • static/js/views/community.js:471  (cm-msg-avatar-img)
+  • static/index.html:1913 + :3454    (renderAuthorChip → отзывы/посты)
+
+ПЛАН:
+
+  T10.1 — миграция 016_user_avatar_v2.sql:
+          ALTER TABLE users ADD COLUMN avatar_kind TEXT;       -- 'image'|'gif'|'video'
+          ALTER TABLE users ADD COLUMN avatar_path TEXT;       -- 'uploads/avatars/<uid>.<ext>'
+          ALTER TABLE users ADD COLUMN avatar_clip_start REAL; -- секунды (для video)
+          ALTER TABLE users ADD COLUMN avatar_clip_end   REAL;
+          (старая колонка avatar TEXT остаётся для обратной совместимости
+           и переходного периода — пока не зачистим, будем читать оба).
+
+  T10.2 — диск-сторадж: создать /home/runner/workspace/uploads/avatars/
+          (или freeapi/uploads/avatars/). Лимиты: image≤500KB, gif≤2MB,
+          video≤5MB после транскода. Файлы детерминированы по uid +
+          расширение по avatar_kind.
+
+  T10.3 — backend (freeapi/blueprints/auth_bp.py):
+          POST /api/auth/avatar/upload  (multipart/form-data)
+            поля: file (бинарник), kind (image|gif|video),
+                  clip_start, clip_end (секунды, опционально).
+            валидация MIME, ffmpeg-проба длительности для video,
+            обрезка длительности до ≤10с (через ffmpeg, если установлен,
+            иначе передаём как есть и обрезаем плеером по #t=).
+          GET  /api/auth/avatar/<uid>?v=<ts>
+            отдача файла с правильным Content-Type, Cache-Control:
+            public, max-age=86400, ETag по uid+mtime.
+          Старые PUT/DELETE /api/auth/avatar — оставить для обратной
+            совместимости (image-only data URL). После полной миграции
+            уберём.
+
+  T10.4 — repos/users.py:
+          set_user_avatar_v2(uid, kind, path, clip_start, clip_end)
+          get_user_avatar_v2(uid) → {url, kind, clip_start, clip_end}
+          сериализатор get_user_by_id и /api/auth/me возвращают avatar_v2.
+
+  T10.5 — repos/community.py + repos/reviews.py:
+          в SELECT добавить u.avatar_kind, u.avatar_path,
+          u.avatar_clip_start, u.avatar_clip_end. В сериализаторе
+          собрать поле avatar_media = {url, kind, clip_start, clip_end}
+          и отдавать в каждом сообщении/отзыве/посте/комменте.
+
+  T10.6 — frontend (profile_avatar.js):
+          • Расширить input accept="image/*,video/mp4,video/webm".
+          • При выборе видео — открыть НОВУЮ модалку avatarVideoTrim:
+            <video> + два ползунка start/end, маркер длительности,
+            подсказка «макс. 10 секунд». «Применить» → multipart upload.
+          • Универсальный рендер renderAvatarMedia(container, media, opts)
+            — возвращает <img> для image/gif или
+              <video src=path#t=start,end autoplay loop muted playsinline
+                     disablepictureinpicture> для video.
+            Для GIF используем <img> (бразуер сам анимирует).
+            Для видео в JS обработчик timeupdate, который перематывает
+            на clip_start при достижении clip_end (фиксит баг, что
+            HTML5 loop игнорирует #t=fragment).
+
+  T10.7 — frontend (заменить рендеры):
+          1) renderSidebarAvatar     → renderAvatarMedia
+          2) renderAuthorChip        → renderAvatarMedia
+          3) cm-msg-avatar (community.js:469-475) → renderAvatarMedia
+
+  T10.8 — CSS:
+          .sb-avatar-video, .author-avatar-video, .cm-msg-avatar-video
+          с тем же object-fit:cover и border-radius:inherit, что и img.
+
+  T10.9 — Системное:
+          • Установить ffmpeg в Termux (если ещё нет): pkg install ffmpeg.
+          • Обновить README/setup-инструкцию.
+          • Гранулярная очистка старых аватарок при загрузке нового файла
+            другого kind (предыдущий файл удаляется с диска).
+
+═══════════════════════════════════════════════════════════════════════════════
+  ИЗМЕНЁННЫЕ ФАЙЛЫ В T9
+═══════════════════════════════════════════════════════════════════════════════
+  M  freeapi/tg_notify.py     — _normalize_chat_id больше не ломает
+                                личные chat_id (корень бага TG-привязки)
+  M  static/css/main.css      — .overlay z-index 200→1100,
+                                .toast-wrap 999→1300
+  M  plan.txt                 — этот план
+
+═══════════════════════════════════════════════════════════════════════════════
+  СТАТУС РАНЕЕ ВЫПОЛНЕННЫХ ЗАДАЧ (для истории)
+═══════════════════════════════════════════════════════════════════════════════
+  T1-T7  — выполнено (tunnel без watchdog, plan.txt, убрано авто-открытие
+           #setupModal).
+  T8     — commit a97ac78: фикс get_user_by_username (дубликат функции,
+           второй переопределял первый без password_hash → 500 на login).

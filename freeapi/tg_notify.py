@@ -73,17 +73,34 @@ def _tg_api(token: str, method: str, data: dict) -> Optional[dict]:
 
 
 def _normalize_chat_id(raw: str):
+    """Привести chat_id к виду, понятному Telegram Bot API.
+
+    ВАЖНО: личные chat_id (диалог бот↔юзер) — это положительные числа
+    (обычно 8-10 цифр). Их НЕЛЬЗЯ префиксовать -100 — это формат для
+    супергрупп/каналов и приведёт к "Bad Request: chat not found".
+
+    Поведение:
+      - "@username" → как есть (паблик-канал/бот);
+      - отрицательное число → как есть (группа/канал, уже в нужном формате);
+      - положительное число → возвращаем как int БЕЗ -100 (личный диалог);
+      - строка вида "supergroup:<id>" → принудительно навешиваем -100
+        (для редкого случая, когда админ задал id канала без префикса).
+    """
     raw = str(raw).strip()
     if not raw:
         return raw
     if raw.startswith('@'):
         return raw
+    if raw.lower().startswith('supergroup:'):
+        try:
+            num = int(raw.split(':', 1)[1])
+            if num > 0:
+                num = int(f'-100{num}')
+            return num
+        except (ValueError, IndexError):
+            return raw
     try:
-        num = int(raw)
-        if num > 0 and len(raw) >= 6:
-            num = int(f'-100{num}')
-            logger.info('[TgNotify] Нормализация chat_id: добавлен префикс -100 -> %s', num)
-        return num
+        return int(raw)
     except ValueError:
         return raw
 
