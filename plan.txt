@@ -785,3 +785,122 @@ M3.5.1 — горячие фиксы по утреннему фидбеку (25 
   * Picker эмодзи — нормальная сетка 8 колонок (или сколько влезет
                     по ширине popup'а).
   * Реакция на пост — мгновенно появляется под постом.
+
+═══════════════════════════════════════════════════════════════════════
+M3.5.2 — финальный полиш чата сообщества (3 пункта от юзера)
+═══════════════════════════════════════════════════════════════════════
+
+[x] M3.5.2-1. Бейдж «пост» оптически ехал ВВЕРХ внутри пузырька.
+            Корень: text-transform:uppercase у такого мелкого размера
+            (9.5px) даёт cap-height сильно выше геометрического центра
+            бокса; line-height 1.15 ещё прибавляет descender-зазор
+            снизу → визуально слово прижато к верху. align-items:center
+            тут не помогает (он центрирует БОКС, а не глифы).
+            Фикс (CSS): line-height:1 + асимметричный padding 3px/2px
+            (на 1px больше сверху, на 1px меньше снизу) + явное
+            justify-content:center на inline-flex контейнере. Применено
+            к .cm-msg-badge и .cm-msg-prefix (для консистентности —
+            «Владелец» теперь тоже идеально по центру). Шрифт ничего
+            не двигает в высоту, head-row остаётся ровным благодаря
+            align-items:flex-end из M3.5.1.
+            Файл: static/css/main.css (.cm-msg-badge, .cm-msg-prefix).
+
+[x] M3.5.2-2. Новые сообщения и посты должны идти СНИЗУ (Telegram-style),
+            а не сверху. Polling каждые 8 сек ломал scroll: полностью
+            перерисовывал DOM и сбрасывал юзера вниз даже когда он
+            читал старое сообщение. Корень-1: бэк отдаёт сообщения
+            `ORDER BY created_at DESC LIMIT 50` (для пагинации
+            `before_id` = older), фронт рендерил «как есть» → новые
+            оказывались сверху. Корень-2: poll-цикл вызывал ту же
+            loadMessages() что и первая загрузка — `innerHTML=''`
+            и полный rerender.
+            Решение:
+              (а) loadMessages() / loadPosts(): `data.messages.slice()
+                  .reverse()` перед рендером — теперь старые сверху,
+                  новые снизу. После рендера requestAnimationFrame →
+                  scrollTop=scrollHeight (RAF дожидается layout, без
+                  него scrollHeight ещё не финальный, особенно с фото).
+              (б) Создан loadMessagesPoll() — НЕ сносит DOM:
+                  - тянет последние 50 (DESC), reverse;
+                  - для уже существующих в STATE.msgsCache id —
+                    обновляет кеш и DOM через cmRerenderMessage()
+                    (replaceChild, scroll НЕ сбивается — ловит
+                    подъезжающие реакции от других юзеров);
+                  - реально новые id append'ит СНИЗУ;
+                  - вычисляет atBottom = scrollHeight-scrollTop-
+                    clientHeight < 80; если true → авто-scroll к низу;
+                    если false → cmShowNewMsgChip(N).
+              (в) В setInterval polling вызов заменён на
+                  loadMessagesPoll(); первая загрузка по-прежнему
+                  loadMessages() (которая сбрасывает chip).
+              (г) cmSendMessage после успеха: принудительно scrollTop=
+                  scrollHeight ДО loadMessagesPoll, чтобы atBottom-
+                  гейт сработал и наше же сообщение проехало без chip'а.
+              (д) Новый chip #cmNewMsgChip — кнопка в .cm-body после
+                  списка, position:absolute, bottom:88px (над composer),
+                  лёгкая анимация opacity+translateY. Класс .shown
+                  включает видимость. Текст «N новых сообщений»
+                  склоняется правильно (1 / 2-4 / 5+).
+              (е) cmJumpToBottom (window-export) — onclick chip'а:
+                  smooth-scroll вниз + cmHideNewMsgChip().
+              (ж) _bindChatScrollListener — один раз привязывает
+                  passive scroll listener к #cmChatList; если юзер сам
+                  доскроллил вниз (within 60px), chip автоматически
+                  гасится.
+              (з) cmSwitchTab дополнительно гасит chip при любом
+                  переключении вкладок (chat ↔ posts), чтобы кнопка
+                  не висела над лентой постов.
+            Файлы: static/index.html (#cmNewMsgChip),
+                   static/css/main.css (.cm-new-msg-chip),
+                   static/js/views/community.js (loadMessages,
+                     loadMessagesPoll, loadPosts, cmSendMessage,
+                     cmShowNewMsgChip, cmHideNewMsgChip, cmJumpToBottom,
+                     _bindChatScrollListener, cmSwitchTab,
+                     setInterval-цикл).
+
+[x] M3.5.2-3. Документация и промпты подтянуты к новой реальности
+            community-чата. Без этого AI-поддержка не знала бы, как
+            отвечать на вопросы по чату/постам/реакциям/упоминаниям.
+            (а) freeapi/blueprints/admin_bp.py — DEFAULT_SUPPORT_PROMPT:
+                добавлен раздел §10 «ЧАТ СООБЩЕСТВА И ПОСТЫ
+                АДМИНИСТРАЦИИ» (≈70 строк): описание двух вкладок,
+                лимиты текста/фото, реакции single-emoji, ответы
+                Telegram-style, упоминания, закреп, история правок,
+                бан с плашкой, TG-уведомления, типичные вопросы и
+                ответы. Прежний §10 «правила работы агента» сдвинут
+                на §11.
+            (б) freeapi/support_docs.py — новый ключ DOCS['community']
+                (полная карточка для doc-режима AI-поддержки) +
+                строка в DOCS_INDEX_LINES. Теперь когда юзер пишет
+                «как работает чат / как поставить реакцию / почему
+                не приходят упоминания» — модель видит тег community
+                в индексе и подгружает раздел.
+            (в) freeapi/agent.py — DEFAULT_MODERATOR_PROMPT проверен,
+                актуален: модератор работает с отзывами, сменa чата
+                его не касается. Менять не пришлось.
+            (г) README.md — в раздел «Возможности» добавлен абзац
+                про community-чат (порядок, polling, chip, реакции,
+                ответы, фото 2.5 MB). В API Endpoints — новая таблица
+                «Чат сообщества (cookie-сессия)» с 11 endpoint'ами
+                /api/community/*.
+            (д) replit.md — раздел «Community Chat (раздел "Чат" в
+                меню) — M3 / M3.5» с архитектурным описанием для
+                будущих агентов (бэк, фронт-стратегия polling,
+                порядок DESC vs reverse, кастомные эмодзи).
+            (е) plan.txt — этот блок M3.5.2.
+            (ж) Mirror-копия plan.txt → /home/runner/workspace/plan.txt
+                (юзер читает оба).
+            Файлы: freeapi/blueprints/admin_bp.py,
+                   freeapi/support_docs.py,
+                   README.md, replit.md, plan.txt.
+
+ИТОГ M3.5.2: 3/3 пунктов закрыты. После git pull + перезапуска api.py
+Termux-юзер увидит:
+  * «пост» / «Владелец» — ровно по оптическому центру пузырька, без
+    смещения вверх.
+  * Новые сообщения и посты появляются СНИЗУ как в Telegram. Если юзер
+    читает старое — приходит chip «↓ N новых сообщений» вместо рывка
+    вниз; клик по chip'у плавно переносит к свежему. Своё сообщение
+    при отправке проезжает к низу автоматически.
+  * AI-поддержка теперь компетентна по разделу «Чат» — отвечает на
+    вопросы про реакции, фото, упоминания, бан, TG-уведомления.

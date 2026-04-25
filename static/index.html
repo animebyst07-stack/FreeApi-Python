@@ -1176,6 +1176,12 @@ request them. Three live endpoints to introspect the environment:
     <div class="cm-body" id="cmChatList" data-pane="chat">
       <div style="color:#666;text-align:center;padding:30px 0">Загрузка…</div>
     </div>
+    <!-- M3.5.2: chip «↓ N новых» — появляется при поллинге, если юзер
+         скроллил вверх и пришли новые сообщения. Клик скроллит вниз. -->
+    <button type="button" class="cm-new-msg-chip" id="cmNewMsgChip" onclick="cmJumpToBottom()">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <span id="cmNewMsgChipText">Новые сообщения</span>
+    </button>
 
     <!-- Посты -->
     <div class="cm-posts-pane" id="cmPostsPane" data-pane="posts" style="display:none">

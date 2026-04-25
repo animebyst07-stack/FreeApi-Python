@@ -1232,11 +1232,16 @@ body:has(#view-dashboard.active){background:#000!important}
 /* M3.5.1: align-items:flex-end — все теги (Владелец, пост, badge) выравниваются
    по нижней границе строки автора. Раньше align:center давал «лесенку» из-за
    разной высоты шрифтов (13/10/9.5px). Префикс теперь flex-сосед, не inline. */
+/* M3.5.2: оптический центр текста в пузырьках. Для uppercase-текста
+   (badge «пост») и mixed-case (prefix «Владелец») cap-height сидит выше
+   геометрического центра → текст казался смещённым вверх. Лекарство —
+   line-height:1 + асимметричный padding (3px сверху, 2px снизу), что даёт
+   ровный оптический центр. */
 .cm-msg-head{display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.2}
 .cm-msg-author{color:#fff;font-weight:600;font-size:13px;line-height:1.15}
 .cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0;line-height:1.15}
-.cm-msg-badge{font-size:9.5px;background:#262540;color:#a8b8ff;padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;line-height:1.15;display:inline-flex;align-items:center}
-.cm-msg-prefix{font-size:10px;background:rgba(255,255,255,.07);color:#9a9a9a;padding:2px 6px;border-radius:4px;font-weight:500;margin-left:0;border:1px solid #252525;letter-spacing:.02em;line-height:1.15;display:inline-flex;align-items:center}
+.cm-msg-badge{font-size:9.5px;background:#262540;color:#a8b8ff;padding:3px 6px 2px;border-radius:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.cm-msg-prefix{font-size:10px;background:rgba(255,255,255,.07);color:#9a9a9a;padding:3px 6px 2px;border-radius:4px;font-weight:500;margin-left:0;border:1px solid #252525;letter-spacing:.02em;line-height:1;display:inline-flex;align-items:center;justify-content:center}
 .cm-msg-body{color:#e6e6e6;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .cm-msg-meta-icons{display:inline-flex;gap:5px;color:#666;align-items:center}
 .cm-msg-meta-icons svg{width:11px;height:11px;display:block}
@@ -1434,6 +1439,28 @@ body:has(#view-dashboard.active){background:#000!important}
   flex:1;overflow-y:auto;padding:14px 12px;
 }
 .cm-posts-pane .container-narrow{max-width:720px;margin:0 auto}
+
+/* M3.5.2: chip «↓ Новые сообщения» — появляется поверх чата (над composer'ом),
+   если poll нашёл новые сообщения, а юзер уже отскроллил вверх. По клику —
+   плавно скроллит вниз. Не сбивает чтение, как Telegram-style. */
+.cm-new-msg-chip{
+  position:absolute;
+  left:50%;bottom:88px;
+  transform:translateX(-50%) translateY(8px);
+  background:#1a2a45;color:#cfe2ff;border:1px solid #2c5b9c;
+  padding:7px 14px 7px 10px;border-radius:20px;
+  font-size:12.5px;font-weight:600;letter-spacing:.01em;
+  cursor:pointer;display:none;z-index:7;
+  box-shadow:0 6px 18px rgba(0,0,0,.55),0 0 0 1px rgba(44,91,156,.25);
+  -webkit-tap-highlight-color:transparent;
+  align-items:center;gap:5px;
+  opacity:0;
+  transition:transform .2s cubic-bezier(.2,.8,.2,1),opacity .18s ease;
+}
+.cm-new-msg-chip.shown{display:inline-flex;opacity:1;transform:translateX(-50%) translateY(0)}
+.cm-new-msg-chip:hover{background:#1f3656}
+.cm-new-msg-chip:active{transform:translateX(-50%) translateY(0) scale(.95)}
+.cm-new-msg-chip svg{display:block}
 
 /* ── Emoji Picker (в action-sheet, вместо SVG-реакций) ────────────── */
 /* M3.5.1: возвращён flex-wrap (вместо grid auto-fill, который схлопывал

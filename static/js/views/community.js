@@ -245,6 +245,9 @@
     var p2 = document.getElementById('cmPostsPane');
     var comp = document.getElementById('cmComposer');
     if (!t1 || !t2 || !p1 || !p2) return;
+    // M3.5.2: chip «↓ новые» относится только к чату — снимаем при любом
+    // переключении вкладок, чтобы не висел над лентой постов.
+    cmHideNewMsgChip();
     if (tab === 'chat') {
       t1.classList.add('active'); t2.classList.remove('active');
       p1.style.display = ''; p2.style.display = 'none';
@@ -294,11 +297,15 @@
   }
 
   // ── Загрузка чата ───────────────────────────────────────────────────
+  // M3.5.2: бэк отдаёт сообщения DESC (новые первые) ради пагинации
+  // (`before_id` = older). Чтобы UI был Telegram-style (старые сверху, новые
+  // снизу), на фронте делаем .slice().reverse(). Также после рендера сразу
+  // скроллим в самый низ.
   function loadMessages() {
     var list = document.getElementById('cmChatList');
     if (!list) return;
     return http('GET', '/api/community/messages?limit=50').then(function (data) {
-      var msgs = data.messages || [];
+      var msgs = (data.messages || []).slice().reverse();
       L('LOAD', 'msgs=' + msgs.length + ' pinned=' + (data.pinned || []).length);
       if (!msgs.length) {
         list.innerHTML = '<div style="color:#666;text-align:center;padding:30px 0">Пока нет сообщений. Будьте первым!</div>';
@@ -312,11 +319,109 @@
         });
       }
       renderPinned(data.pinned || []);
-      list.scrollTop = list.scrollHeight;
+      cmHideNewMsgChip();
+      // requestAnimationFrame: дожидаемся layout перед скроллом — иначе
+      // scrollHeight ещё не финальный (особенно с фото, которые подгружаются).
+      requestAnimationFrame(function () { list.scrollTop = list.scrollHeight; });
     }).catch(function (e) {
       L('LOAD_FAIL', e.message, 'error');
       list.innerHTML = '<div style="color:#a44;padding:14px">Ошибка загрузки: ' + esc(e.message) + '</div>';
     });
+  }
+
+  // M3.5.2: инкрементальный poll-обновлятор. Вместо полного refresh:
+  //   - тянем последние 50 (DESC),
+  //   - находим только реально НОВЫЕ id (которых нет в кеше),
+  //   - синхронизируем УЖЕ существующие в кеше (для подъезжающих реакций
+  //     других юзеров — обновляем элемент на месте, скролл не сбивается),
+  //   - новые добавляем СНИЗУ. Если юзер у низа (within 80px) — авто-скролл,
+  //     иначе показываем chip «↓ N новых сообщений».
+  function loadMessagesPoll() {
+    var list = document.getElementById('cmChatList');
+    if (!list) return loadMessages();
+    return http('GET', '/api/community/messages?limit=50').then(function (data) {
+      var fresh = (data.messages || []).slice().reverse();
+      if (!fresh.length) { renderPinned(data.pinned || []); return; }
+
+      // Если кеш пустой (после переключения вкладок и т.п.) — fallback на full load.
+      if (!Object.keys(STATE.msgsCache).length) {
+        list.innerHTML = '';
+        fresh.forEach(function (m) {
+          STATE.msgsCache[m.id] = m;
+          list.appendChild(renderMessage(m));
+        });
+        renderPinned(data.pinned || []);
+        cmHideNewMsgChip();
+        requestAnimationFrame(function () { list.scrollTop = list.scrollHeight; });
+        return;
+      }
+
+      var newOnes = [];
+      fresh.forEach(function (m) {
+        if (STATE.msgsCache[m.id]) {
+          // Существующее: обновляем кеш и DOM. cmRerenderMessage делает
+          // replaceChild — scrollTop не сбивается.
+          STATE.msgsCache[m.id] = m;
+          cmRerenderMessage(m.id);
+        } else {
+          newOnes.push(m);
+        }
+      });
+
+      renderPinned(data.pinned || []);
+      if (!newOnes.length) return;
+
+      var atBottom = (list.scrollHeight - list.scrollTop - list.clientHeight) < 80;
+      newOnes.forEach(function (m) {
+        STATE.msgsCache[m.id] = m;
+        list.appendChild(renderMessage(m));
+      });
+
+      if (atBottom) {
+        cmHideNewMsgChip();
+        requestAnimationFrame(function () { list.scrollTop = list.scrollHeight; });
+      } else {
+        cmShowNewMsgChip(newOnes.length);
+      }
+    }).catch(function (e) {
+      L('POLL_FAIL', e.message, 'error');
+    });
+  }
+
+  // M3.5.2: chip «↓ Новые сообщения». Подсчёт идёт суммарно с момента
+  // последнего показа — пока юзер не нажмёт chip и не скроллит вниз сам.
+  function cmShowNewMsgChip(addCount) {
+    var chip = document.getElementById('cmNewMsgChip');
+    var txt = document.getElementById('cmNewMsgChipText');
+    if (!chip || !txt) return;
+    STATE.newMsgChipCount = (STATE.newMsgChipCount || 0) + addCount;
+    var n = STATE.newMsgChipCount;
+    txt.textContent = n === 1 ? '1 новое сообщение' :
+      ((n < 5) ? n + ' новых сообщения' : n + ' новых сообщений');
+    chip.classList.add('shown');
+  }
+  function cmHideNewMsgChip() {
+    var chip = document.getElementById('cmNewMsgChip');
+    if (chip) chip.classList.remove('shown');
+    STATE.newMsgChipCount = 0;
+  }
+  // Вызывается из onclick chip'а и при переключении вкладок.
+  window.cmJumpToBottom = function () {
+    var list = document.getElementById('cmChatList');
+    if (!list) return;
+    cmHideNewMsgChip();
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  };
+  // Если юзер сам доскроллил вниз — снимаем chip автоматически.
+  function _bindChatScrollListener() {
+    var list = document.getElementById('cmChatList');
+    if (!list || list._cmScrollBound) return;
+    list._cmScrollBound = true;
+    list.addEventListener('scroll', function () {
+      if (!STATE.newMsgChipCount) return;
+      var atBottom = (list.scrollHeight - list.scrollTop - list.clientHeight) < 60;
+      if (atBottom) cmHideNewMsgChip();
+    }, { passive: true });
   }
 
   function renderPinned(pins) {
@@ -450,12 +555,20 @@
     if (btn) btn.disabled = true;
     var payload = {text: text, images: STATE.images};
     if (replyTo && replyTo.id) payload.reply_to_id = replyTo.id;
+    // M3.5.2: после успеха используем инкрементальный poll вместо полного
+    // refresh — это добавит наше новое сообщение СНИЗУ (через cmShowNewMsgChip
+    // оно не пройдёт, потому что юзер только что был у низа → atBottom=true →
+    // авто-скролл).
     http('POST', '/api/community/messages', payload)
       .then(function () {
         inp.value = ''; STATE.images = []; renderImagesPreview();
         STATE.replyTo = null; cmRenderReplyBar();  // M3.5
         autosizeTextarea(inp);
-        loadMessages();
+        // Принудительно прокрутим к низу ДО poll'а — чтобы atBottom-гейт
+        // в loadMessagesPoll сработал и наше сообщение проехало без chip'а.
+        var list = document.getElementById('cmChatList');
+        if (list) list.scrollTop = list.scrollHeight;
+        loadMessagesPoll();
       })
       .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); })
       .finally(function () { if (btn) btn.disabled = false; });
@@ -910,9 +1023,13 @@
 
   function loadPosts() {
     var list = document.getElementById('cmPostsList');
+    var pane = document.getElementById('cmPostsPane');
     if (!list) return;
     return http('GET', '/api/community/posts?limit=30').then(function (data) {
-      var posts = data.posts || [];
+      // M3.5.2: бэк отдаёт DESC (новые первые) — переворачиваем, чтобы лента
+      // постов шла как чат: старые сверху, новые снизу. После рендера
+      // прокручиваем pane вниз, чтобы юзер сразу видел свежий пост.
+      var posts = (data.posts || []).slice().reverse();
       if (!posts.length) {
         list.innerHTML = '<div style="color:#666;text-align:center;padding:30px 0">Постов пока нет.</div>';
         return;
@@ -922,6 +1039,7 @@
         STATE.msgsCache[m.id] = m;
         list.appendChild(renderMessage(m));
       });
+      if (pane) requestAnimationFrame(function () { pane.scrollTop = pane.scrollHeight; });
     }).catch(function (e) {
       list.innerHTML = '<div style="color:#a44;padding:14px">Ошибка: ' + esc(e.message) + '</div>';
     });
@@ -1124,12 +1242,16 @@
     STATE.pollTimer = setInterval(function () {
       var view = document.getElementById('view-community');
       if (view && view.classList.contains('active')) {
-        if (STATE.tab === 'chat') loadMessages();
+        // M3.5.2: инкрементальный poll — без сноса DOM, без сбоя scroll'а.
+        if (STATE.tab === 'chat') loadMessagesPoll();
       } else {
         clearInterval(STATE.pollTimer); STATE.pollTimer = null;
         stopParticles();
       }
     }, 8000);
+    // M3.5.2: один раз привязываем scroll-listener — он сам гасит chip,
+    // когда юзер сам доскроллил вниз.
+    _bindChatScrollListener();
     STATE.initDone = true;
   };
 

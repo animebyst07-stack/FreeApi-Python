@@ -73,6 +73,35 @@ Flask + SQLite web application for a Telegram-backed AI API platform. The fronte
   are unrelated Replit scaffolding and must NOT be touched. The Termux
   Flask app is started by the user manually on his phone, not by Replit.
 
+## Community Chat (раздел «Чат» в меню) — M3 / M3.5
+
+- Бэк: `freeapi/blueprints/community_bp.py` + репо `freeapi/repos/community.py`.
+  Две доменные сущности: `messages` (общий чат) и `posts` (только админ).
+  Обе используют общий формат хранения, единые реакции (по одному эмодзи
+  на пользователя — Telegram-style), общие endpoints `/api/community/*`.
+- Хранение фото: base64 в JSON-поле `images`. Сервер режет на 2.5 MB на фото
+  ПОСЛЕ клиентского сжатия (max 1280 px / JPEG q=0.85, см. `_compressDataUrl`
+  в `static/js/views/community.js`).
+- Уведомления об @упоминаниях идут в Telegram через привязанный аккаунт
+  юзера (`/api/community/tg_link`). Тумблер «Заглушить упоминания» —
+  персональный, флаг `mute_mentions` на пользователе.
+- Frontend: `static/js/views/community.js` (SPA-view). Polling-стратегия:
+  `loadMessagesPoll()` каждые 8 сек НЕ перезагружает DOM целиком —
+  доливает только новые сообщения снизу, обновляет реакции у уже
+  отрендеренных через `cmRerenderMessage()` (replaceChild, scroll
+  не сбивается). Если юзер скроллил вверх — над composer'ом всплывает
+  chip `#cmNewMsgChip` «↓ N новых сообщений», по клику — smooth scroll
+  к низу.
+- Бэк отдаёт ленту `ORDER BY created_at DESC LIMIT 50` ради корректной
+  пагинации (`before_id` = older). Frontend делает `.slice().reverse()`
+  перед рендером, чтобы UI был Telegram-style: старые сверху, новые снизу.
+- Кастомные эмодзи `:name:` грузит админ через
+  `freeapi/blueprints/admin_bp.py` (раздел эмодзи). Frontend показывает
+  их в picker'е рядом с обычными.
+- Документация для AI-поддержки: doc-тег `community` в
+  `freeapi/support_docs.py` + полный раздел §10 в DEFAULT_SUPPORT_PROMPT
+  (`freeapi/blueprints/admin_bp.py`).
+
 ## Validation Commands
 
 - `PYTHONPATH=FreeApi-Python python -m compileall -q FreeApi-Python/freeapi FreeApi-Python/api.py`
