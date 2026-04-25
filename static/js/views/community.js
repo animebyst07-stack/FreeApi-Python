@@ -853,9 +853,17 @@
   window.cmEditMsg = function (msgId) {
     var m = STATE.msgsCache[msgId];
     if (!m) return;
-    cmPrompt('Редактировать сообщение:', m.text || '', function (v) {
+    // Многострочное редактирование (textarea) — длинные посты/сообщения
+    // в однострочный input не помещались.
+    cmPromptMulti('Редактировать сообщение:', m.text || '', function (v) {
       if (v == null) return;
-      http('PATCH', '/api/community/messages/' + msgId, {text: v})
+      var trimmed = String(v).trim();
+      if (!trimmed && !(m.images && m.images.length)) {
+        if (window.showToast) window.showToast('Сообщение не может быть пустым', 'err');
+        return;
+      }
+      if (trimmed === (m.text || '').trim()) return;
+      http('PATCH', '/api/community/messages/' + msgId, {text: trimmed})
         .then(loadMessages)
         .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
     });
@@ -962,11 +970,39 @@
   };
 
   window.cmShowVersions = function (msgId) {
-    http('GET', '/api/community/messages/' + msgId + '/versions').then(function (d) {
-      var lines = (d.versions || []).map(function (v) {
-        return fmtDate(v.created_at) + ':\n' + (v.text || '[пусто]');
-      }).join('\n\n');
-      cmAlert('История правок', lines || 'Нет версий.');
+    var current = STATE.msgsCache[msgId];
+    // Бэк отдаёт ТОЛЬКО предыдущие версии (то, что было до правок).
+    // Текущий текст лежит в STATE.msgsCache, добавляем его как «v0».
+    http('GET', '/api/community/message/' + msgId + '/versions').then(function (d) {
+      var versions = d.versions || [];
+      var blocks = [];
+      if (current && (current.text || '').length) {
+        blocks.push(
+          '<div class="cm-vh-item cm-vh-current">' +
+            '<div class="cm-vh-meta"><b>Текущая версия</b>' +
+              (current.updated_at ? ' · ' + esc(fmtDate(current.updated_at)) : '') +
+            '</div>' +
+            '<div class="cm-vh-text">' + esc(current.text || '[пусто]') + '</div>' +
+          '</div>'
+        );
+      }
+      versions.slice().reverse().forEach(function (v, idx) {
+        var who = v.edited_by_username ? '@' + v.edited_by_username : 'пользователь';
+        var when = v.edited_at ? fmtDate(v.edited_at) : '';
+        blocks.push(
+          '<div class="cm-vh-item">' +
+            '<div class="cm-vh-meta">Версия ' + (versions.length - idx) +
+              ' · <b>' + esc(who) + '</b>' +
+              (when ? ' · ' + esc(when) : '') +
+            '</div>' +
+            '<div class="cm-vh-text">' + esc(v.text || '[пусто]') + '</div>' +
+          '</div>'
+        );
+      });
+      var html = blocks.length
+        ? '<div class="cm-vh-list">' + blocks.join('') + '</div>'
+        : '<div class="cm-vh-empty">Сообщение не редактировалось.</div>';
+      cmAlertHtml('История правок', html);
     }).catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
   };
 
@@ -1384,13 +1420,14 @@
   // ── Кастомный диалог (замена window.confirm/prompt/alert) ──────────
   function showCmDialog(opts) {
     var ov = document.getElementById('cmDialogOverlay');
+    var box = document.getElementById('cmDialogBox');
     var titleEl = document.getElementById('cmDialogTitle');
     var msgEl   = document.getElementById('cmDialogMsg');
     var inp     = document.getElementById('cmDialogInput');
+    var ta      = document.getElementById('cmDialogTextarea');
     var cancelB = document.getElementById('cmDialogCancel');
     var okB     = document.getElementById('cmDialogOk');
     if (!ov || !titleEl || !msgEl || !inp || !cancelB || !okB) {
-      // fallback: если HTML ещё не загружен
       if (opts.showInput) {
         var v = window.prompt(opts.message, opts.defaultVal || '');
         if (v !== null && opts.onOk) opts.onOk(v);
@@ -1406,13 +1443,33 @@
       return;
     }
     titleEl.textContent = opts.title || '';
-    msgEl.textContent   = opts.message || '';
+    if (opts.html) {
+      msgEl.innerHTML = opts.message || '';
+    } else {
+      msgEl.textContent = opts.message || '';
+    }
+    // Расширяем диалог для длинного контента (история правок).
+    if (box) box.style.maxWidth = opts.wide ? '560px' : '340px';
+
+    var fld = null;
     if (opts.showInput) {
-      inp.style.display = 'block';
-      inp.value = opts.defaultVal || '';
-      setTimeout(function() { inp.focus(); inp.select(); }, 80);
+      if (opts.multiline && ta) {
+        ta.style.display = 'block';
+        ta.value = opts.defaultVal || '';
+        inp.style.display = 'none';
+        fld = ta;
+      } else {
+        inp.style.display = 'block';
+        inp.value = opts.defaultVal || '';
+        if (ta) ta.style.display = 'none';
+        fld = inp;
+      }
+      setTimeout(function() {
+        try { fld.focus(); fld.setSelectionRange(fld.value.length, fld.value.length); } catch (_e) {}
+      }, 80);
     } else {
       inp.style.display = 'none';
+      if (ta) ta.style.display = 'none';
     }
     cancelB.style.display = opts.showCancel ? '' : 'none';
     ov.style.display = 'flex';
@@ -1420,17 +1477,25 @@
     function close() {
       ov.style.display = 'none';
       document.body.style.overflow = '';
+      if (msgEl) msgEl.innerHTML = '';
     }
     cancelB.onclick = function () { close(); if (opts.onCancel) opts.onCancel(); };
     okB.onclick = function () {
-      var val = opts.showInput ? inp.value : null;
+      var val = (opts.showInput && fld) ? fld.value : null;
       close();
       if (opts.onOk) opts.onOk(val);
     };
-    inp.onkeydown = function (e) {
-      if (e.key === 'Enter') { okB.click(); }
-      if (e.key === 'Escape') { cancelB.click(); }
-    };
+    var keyTarget = fld || document;
+    if (fld) {
+      fld.onkeydown = function (e) {
+        // В textarea Enter — это перенос строки; отправлять по Ctrl/Cmd+Enter.
+        if (e.key === 'Enter' && (!opts.multiline || e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          okB.click();
+        }
+        if (e.key === 'Escape') { e.preventDefault(); cancelB.click(); }
+      };
+    }
   }
 
   function cmConfirm(message, onOk, onCancel) {
@@ -1439,8 +1504,21 @@
   function cmPrompt(message, defaultVal, onOk) {
     showCmDialog({title: 'Введите данные', message: message, showInput: true, defaultVal: defaultVal, showCancel: true, onOk: function (v) { if (v !== null) onOk(v); }});
   }
+  function cmPromptMulti(message, defaultVal, onOk) {
+    showCmDialog({
+      title: 'Редактирование', message: message, showInput: true, multiline: true,
+      defaultVal: defaultVal, showCancel: true, wide: true,
+      onOk: function (v) { if (v !== null) onOk(v); },
+    });
+  }
   function cmAlert(title, message, onOk) {
     showCmDialog({title: title, message: message, showInput: false, showCancel: false, onOk: onOk});
+  }
+  function cmAlertHtml(title, htmlMessage, onOk) {
+    showCmDialog({
+      title: title, message: htmlMessage, html: true,
+      showInput: false, showCancel: false, wide: true, onOk: onOk,
+    });
   }
 
   // ── Mute toggle для раздела «Уведомления» ──────────────────────────

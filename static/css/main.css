@@ -626,6 +626,22 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
   .lightbox-counter{bottom:10px;font-size:11px;padding:3px 10px}
 }
 
+/* ─── COMMUNITY: история правок (cmShowVersions) ─── */
+.cm-vh-list{display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;padding-right:4px;text-align:left}
+.cm-vh-list::-webkit-scrollbar{width:6px}
+.cm-vh-list::-webkit-scrollbar-thumb{background:#1c1c1c;border-radius:3px}
+.cm-vh-item{background:#0a0a0a;border:1px solid #1a1a1a;border-radius:10px;padding:10px 12px}
+.cm-vh-item.cm-vh-current{border-color:#2c4570;background:#10131c}
+.cm-vh-meta{font-size:11px;color:#7a7a7a;margin-bottom:6px;letter-spacing:.02em}
+.cm-vh-meta b{color:#cfd6e4;font-weight:600}
+.cm-vh-text{font-size:13.5px;color:#dcdcdc;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.cm-vh-empty{font-size:13px;color:#777;text-align:center;padding:18px 0}
+@media(max-width:520px){
+  .cm-vh-list{max-height:60vh}
+  .cm-vh-item{padding:8px 10px}
+  .cm-vh-text{font-size:13px}
+}
+
 /* ─── ADMIN CHAT COPY BTN ─── */
 #chatAdminCopyBtn{display:none}
 
