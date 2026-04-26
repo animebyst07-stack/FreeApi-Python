@@ -2,6 +2,7 @@ import atexit
 import logging
 import os
 import signal
+import socket
 import sys
 import threading
 from collections import deque
@@ -11,7 +12,12 @@ from freeapi.app import create_app
 from freeapi.database import init_database
 from freeapi.scheduler import start_background_tasks
 from freeapi.tunnel import CloudflareManager
-from freeapi.tg_notify import load_notify_config, notify_new_url, validate_token
+from freeapi.tg_notify import (
+    load_notify_config,
+    notify_new_url,
+    validate_token,
+    _set_env_var,
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -121,6 +127,37 @@ def _warn_if_default_secret():
         )
 
 
+def _is_port_free(host: str, port: int) -> bool:
+    """Проверка занятости порта через bind. True = свободен."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind((host if host != '0.0.0.0' else '', port))
+        return True
+    except OSError:
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
+def _pick_free_port(host: str, preferred: int, attempts: int = 25) -> int:
+    """Подобрать свободный TCP-порт.
+
+    Сначала пробуем preferred; если занят — сканируем preferred+1..+attempts.
+    Если всё подряд занято, отдадим preferred (Flask сам сообщит ошибку).
+    """
+    if _is_port_free(host, preferred):
+        return preferred
+    for offset in range(1, attempts + 1):
+        candidate = preferred + offset
+        if 1024 <= candidate <= 65535 and _is_port_free(host, candidate):
+            return candidate
+    return preferred
+
+
 class GracefulShutdown:
     """
     Перехватывает SIGINT/SIGTERM, завершает cloudflared и сигнализирует
@@ -176,7 +213,20 @@ if __name__ == '__main__':
             tg_token = ''
             tg_chats = []
 
-    port = int(os.environ.get('PORT', '5005'))
+    preferred_port = int(os.environ.get('PORT', '5005'))
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = _pick_free_port(host, preferred_port)
+    if port != preferred_port:
+        logger.warning(
+            '[API] Порт %s занят — переключаюсь на свободный %s '
+            '(значение в .env обновлено).',
+            preferred_port, port,
+        )
+        try:
+            _set_env_var('PORT', str(port))
+            os.environ['PORT'] = str(port)
+        except Exception as _exc:
+            logger.warning('[API] Не удалось обновить PORT в .env: %s', _exc)
 
     def on_tunnel_url(url: str):
         if tg_token and tg_chats:
@@ -196,7 +246,7 @@ if __name__ == '__main__':
 
     flask_thread = threading.Thread(
         target=lambda: app.run(
-            host=os.environ.get('HOST', '0.0.0.0'),
+            host=host,
             port=port,
             threaded=True,
             use_reloader=False,
@@ -206,7 +256,7 @@ if __name__ == '__main__':
     )
     flask_thread.start()
 
-    logger.info('[API] Сервер запущен на порту %s', port)
+    logger.info('[API] Сервер запущен на %s:%s', host, port)
 
     try:
         shutdown.wait()
