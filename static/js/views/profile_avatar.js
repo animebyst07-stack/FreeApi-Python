@@ -47,6 +47,13 @@ var _vidStart = 0;
 var _vidEnd = 0;
 var _vidPreviewEl = null;
 var _vidTimeUpd = null;
+/* Сессия 6, S5: pointer-handlers Telegram-style двойного слайдера.
+   Сохраняем ссылки, чтобы корректно снять document-listener'ы в
+   closeVideoTrimmer (иначе при повторных открытиях накапливаются). */
+var _vidTrackEl = null;
+var _vidPointerDown = null;
+var _vidPointerMove = null;
+var _vidPointerUp = null;
 
 /* ───── Утилиты ───── */
 function $(id){ return document.getElementById(id); }
@@ -343,85 +350,182 @@ function openVideoTrimmer(file){
   });
 }
 
+/* Сессия 6, S5: Telegram-style двойной слайдер.
+   Раньше было два <input type=range> — UX «по-уродски». Теперь единый
+   трек с двумя draggable-хэндлами (start/end) + затемнение за пределами
+   + движущийся playhead-курсор. Поддержка mouse + touch (pointer-event
+   API не используем для совместимости с WebView в Termux). */
 function _setupVideoTrimmerUI(blobUrl){
   var prev = $('videoTrimPreview');
-  var sStart = $('videoTrimStart');
-  var sEnd = $('videoTrimEnd');
+  var range = $('videoTrimRange');
+  var trackEl = range && range.querySelector('.vtr-track');
   var lblStart = $('videoTrimStartLbl');
   var lblEnd = $('videoTrimEndLbl');
   var lblDur = $('videoTrimDurLbl');
   var lblTotal = $('videoTrimTotalLbl');
-  if (!prev || !sStart || !sEnd) return;
+  if (!prev || !trackEl) return;
 
   // Освобождаем старый src, если был
   if (_vidPreviewEl && _vidPreviewEl.src){
     try { URL.revokeObjectURL(_vidPreviewEl.src); } catch(_){}
   }
+  // Снимаем прошлые document-listener'ы, если открывали трим повторно.
+  _detachVideoTrimListeners();
+
   _vidPreviewEl = prev;
+  _vidTrackEl = trackEl;
   prev.src = blobUrl;
   prev.muted = true;
   prev.playsInline = true;
-  prev.loop = false;  // loop делаем через timeupdate — HTML5 loop игнорирует #t
+  prev.loop = false;
   prev.controls = false;
 
-  var step = 0.05;
-  sStart.min = '0';
-  sStart.max = String(_vidDuration);
-  sStart.step = String(step);
-  sStart.value = String(_vidStart);
-  sEnd.min = '0';
-  sEnd.max = String(_vidDuration);
-  sEnd.step = String(step);
-  sEnd.value = String(_vidEnd);
+  var handleStart = trackEl.querySelector('.vtr-handle-start');
+  var handleEnd   = trackEl.querySelector('.vtr-handle-end');
+  var dimLeft     = trackEl.querySelector('.vtr-dim-left');
+  var dimRight    = trackEl.querySelector('.vtr-dim-right');
+  var selectedEl  = trackEl.querySelector('.vtr-selected');
+  var playhead    = trackEl.querySelector('.vtr-playhead');
 
-  function refreshLabels(){
+  function pctOf(sec){
+    if (_vidDuration <= 0) return 0;
+    var p = (sec / _vidDuration) * 100;
+    if (p < 0) p = 0; if (p > 100) p = 100;
+    return p;
+  }
+  function repaint(){
+    var pStart = pctOf(_vidStart);
+    var pEnd   = pctOf(_vidEnd);
+    if (handleStart) handleStart.style.left = pStart + '%';
+    if (handleEnd)   handleEnd.style.left   = pEnd   + '%';
+    if (dimLeft)     dimLeft.style.width    = pStart + '%';
+    if (dimRight)    dimRight.style.width   = (100 - pEnd) + '%';
+    if (selectedEl){
+      selectedEl.style.left  = pStart + '%';
+      selectedEl.style.width = Math.max(0, pEnd - pStart) + '%';
+    }
     if (lblStart) lblStart.textContent = _fmtSec(_vidStart) + ' с';
     if (lblEnd)   lblEnd.textContent   = _fmtSec(_vidEnd)   + ' с';
     if (lblDur)   lblDur.textContent   = _fmtSec(_vidEnd - _vidStart) + ' с';
     if (lblTotal) lblTotal.textContent = _fmtSec(_vidDuration) + ' с';
   }
-  refreshLabels();
+  function updatePlayhead(){
+    if (!playhead) return;
+    playhead.style.left = pctOf(prev.currentTime || 0) + '%';
+  }
 
-  // Обработчик выхода за clip_end → перемотать на clip_start (loop по диапазону).
+  // Loop по диапазону (HTML5 loop игнорирует #t-фрагмент).
   if (_vidTimeUpd) prev.removeEventListener('timeupdate', _vidTimeUpd);
   _vidTimeUpd = function(){
     if (prev.currentTime >= _vidEnd - 0.03 || prev.currentTime < _vidStart - 0.03){
       try { prev.currentTime = _vidStart; } catch(_){}
     }
+    updatePlayhead();
   };
   prev.addEventListener('timeupdate', _vidTimeUpd);
 
   prev.currentTime = _vidStart;
   prev.play().catch(function(){});
 
-  function onStartInput(){
-    var v = parseFloat(sStart.value) || 0;
-    if (v < 0) v = 0;
-    if (v > _vidDuration - 0.1) v = _vidDuration - 0.1;
-    _vidStart = v;
-    if (_vidEnd <= _vidStart + 0.1){
-      _vidEnd = Math.min(_vidDuration, _vidStart + 0.1);
-      sEnd.value = String(_vidEnd);
-    }
-    if (_vidEnd - _vidStart > VIDEO_MAX_DURATION){
-      _vidEnd = Math.min(_vidDuration, _vidStart + VIDEO_MAX_DURATION);
-      sEnd.value = String(_vidEnd);
-    }
-    refreshLabels();
-    try { prev.currentTime = _vidStart; } catch(_){}
+  // ─── Drag-логика двух хэндлов ─────────────────────────────────
+  var dragging = null; // 'start' | 'end' | null
+
+  function clientXToSec(clientX){
+    var rect = trackEl.getBoundingClientRect();
+    var x = clientX - rect.left;
+    if (x < 0) x = 0;
+    if (x > rect.width) x = rect.width;
+    return rect.width > 0 ? (x / rect.width) * _vidDuration : 0;
   }
-  function onEndInput(){
-    var v = parseFloat(sEnd.value) || 0;
-    if (v > _vidDuration) v = _vidDuration;
-    if (v < _vidStart + 0.1) v = _vidStart + 0.1;
-    if (v - _vidStart > VIDEO_MAX_DURATION){
-      v = _vidStart + VIDEO_MAX_DURATION;
-    }
-    _vidEnd = v;
-    refreshLabels();
+
+  function _evClientX(e){
+    if (e.touches && e.touches.length) return e.touches[0].clientX;
+    if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0].clientX;
+    return e.clientX;
   }
-  sStart.oninput = onStartInput;
-  sEnd.oninput = onEndInput;
+
+  function onPointerDown(e){
+    var t = e.target.closest && e.target.closest('.vtr-handle');
+    if (t){
+      dragging = t.dataset.handle;
+    } else {
+      // Тап по треку — двигаем ближайший хэндл к точке клика.
+      var sec = clientXToSec(_evClientX(e));
+      var distStart = Math.abs(sec - _vidStart);
+      var distEnd   = Math.abs(sec - _vidEnd);
+      dragging = (distStart <= distEnd) ? 'start' : 'end';
+      // Сразу подтягиваем выбранный хэндл к месту клика.
+      _applyDragSec(sec);
+    }
+    if (e.cancelable) e.preventDefault();
+  }
+  function _applyDragSec(sec){
+    if (dragging === 'start'){
+      if (sec < 0) sec = 0;
+      if (sec > _vidEnd - 0.1) sec = Math.max(0, _vidEnd - 0.1);
+      _vidStart = sec;
+      if (_vidEnd - _vidStart > VIDEO_MAX_DURATION){
+        _vidEnd = Math.min(_vidDuration, _vidStart + VIDEO_MAX_DURATION);
+      }
+      try { prev.currentTime = _vidStart; } catch(_){}
+    } else if (dragging === 'end'){
+      if (sec > _vidDuration) sec = _vidDuration;
+      if (sec < _vidStart + 0.1) sec = _vidStart + 0.1;
+      if (sec - _vidStart > VIDEO_MAX_DURATION){
+        sec = _vidStart + VIDEO_MAX_DURATION;
+      }
+      _vidEnd = sec;
+      // Подвинули правый край — превью прыгает к концу, чтобы юзер
+      // увидел, где именно отрезок заканчивается.
+      try { prev.currentTime = Math.max(_vidStart, _vidEnd - 0.5); } catch(_){}
+    }
+    repaint();
+  }
+  function onPointerMove(e){
+    if (!dragging) return;
+    if (e.cancelable) e.preventDefault();
+    _applyDragSec(clientXToSec(_evClientX(e)));
+  }
+  function onPointerUp(){
+    if (!dragging) return;
+    dragging = null;
+    try { prev.currentTime = _vidStart; prev.play().catch(function(){}); } catch(_){}
+  }
+
+  trackEl.addEventListener('mousedown',  onPointerDown);
+  trackEl.addEventListener('touchstart', onPointerDown, { passive: false });
+  document.addEventListener('mousemove', onPointerMove);
+  document.addEventListener('touchmove', onPointerMove, { passive: false });
+  document.addEventListener('mouseup',   onPointerUp);
+  document.addEventListener('touchend',  onPointerUp);
+  document.addEventListener('touchcancel', onPointerUp);
+
+  _vidPointerDown = onPointerDown;
+  _vidPointerMove = onPointerMove;
+  _vidPointerUp   = onPointerUp;
+
+  repaint();
+  updatePlayhead();
+}
+
+function _detachVideoTrimListeners(){
+  if (_vidTrackEl && _vidPointerDown){
+    try { _vidTrackEl.removeEventListener('mousedown',  _vidPointerDown); } catch(_){}
+    try { _vidTrackEl.removeEventListener('touchstart', _vidPointerDown); } catch(_){}
+  }
+  if (_vidPointerMove){
+    try { document.removeEventListener('mousemove', _vidPointerMove); } catch(_){}
+    try { document.removeEventListener('touchmove', _vidPointerMove); } catch(_){}
+  }
+  if (_vidPointerUp){
+    try { document.removeEventListener('mouseup',   _vidPointerUp); } catch(_){}
+    try { document.removeEventListener('touchend',  _vidPointerUp); } catch(_){}
+    try { document.removeEventListener('touchcancel', _vidPointerUp); } catch(_){}
+  }
+  _vidTrackEl = null;
+  _vidPointerDown = null;
+  _vidPointerMove = null;
+  _vidPointerUp = null;
 }
 
 function closeVideoTrimmer(){
@@ -435,6 +539,9 @@ function closeVideoTrimmer(){
     _vidPreviewEl.removeAttribute('src');
     _vidPreviewEl.load && _vidPreviewEl.load();
   }
+  // Сессия 6, S5: чистим document-listener'ы двойного слайдера,
+  // иначе при повторном открытии модалки они накапливаются.
+  _detachVideoTrimListeners();
   _vidPreviewEl = null;
   _vidTimeUpd = null;
   _vidFile = null;

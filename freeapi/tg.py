@@ -22,7 +22,7 @@ from freeapi import tg_notify
 from freeapi.config import BOT_QUIET_SECONDS, REQUEST_TIMEOUT_SECONDS, SAM_BOT_USERNAME
 from freeapi.memory import detect_limit_error, contains_cyrillic, CONTEXT_WARN_KB
 from freeapi.models import DEFAULT_MODEL_ID, find_model
-from freeapi.progress import update_progress
+from freeapi.progress import clear_cancel, is_cancelled, update_progress
 from freeapi.security import decrypt_text, encrypt_text, generate_api_key
 
 TRANSLATE_TIMEOUT = 90
@@ -345,35 +345,42 @@ class SetupFlow:
                 sponsors = SponsorHandler(tg)
                 await tg.ensure_authorized()
                 bot = await tg.bot()
-                if self.start_step <= 1:
+                # ─── Сессия 6, S2: проверяем cancel-флаг между шагами.
+                # Если юзер нажал «Отмена» — пропускаем все промежуточные
+                # шаги и сразу переходим к шагу 6 (выдача ключа).
+                if self.start_step <= 1 and not is_cancelled(self.setup_id):
                     await self.step(1, 'Проверяем аккаунт...')
                     await check_spambot(tg)
-                if self.start_step <= 2:
+                if self.start_step <= 2 and not is_cancelled(self.setup_id):
                     await self.step(2, 'Запускаем ИИ...')
                     await tg.send_message(bot, '/start')
                     await self.wait_with_progress(2, 'Запуск ИИ-бота', 20, interval=5)
-                if self.start_step <= 3:
+                if self.start_step <= 3 and not is_cancelled(self.setup_id):
                     await self.step(3, 'Обучаем ИИ...')
                     await training_with_progress(tg, sponsors, bot, self.setup_id)
-                if self.start_step <= 4:
+                if self.start_step <= 4 and not is_cancelled(self.setup_id):
                     await self.step(4, 'Настраиваем параметры...')
                     await configure_gpt(tg, bot)
-                if self.start_step <= 5:
+                if self.start_step <= 5 and not is_cancelled(self.setup_id):
                     await self.step(5, 'Настраиваем бесплатный доступ...')
                     promo_message = await open_promos(tg, bot)
                     await PromoActivator(tg).activate(bot, promo_message)
-                if self.start_step <= 6:
-                    await self.step(6, 'Финальная настройка...')
-                    await tg.send_message(bot, '🔄 Сбросить историю')
-                    repo.update_tg_account(self.account_id, is_valid=1, setup_done=1, session_string=encrypt_text(tg.client.session.save()))
-                    key = repo.get_account_key(self.user_id, self.account_id)
-                    if not key:
-                        key = repo.create_api_key(self.user_id, self.account_id, generate_api_key(), 'Мой ключ', DEFAULT_MODEL_ID)
-                    repo.update_setup_session(self.setup_id, status='done', current_step=6, step_label='Готово!', error_msg=None)
-                    update_progress(self.setup_id, step=6, stepLabel='Готово!', done=True, error=None, canRetry=False, apiKey=key['key_value'])
-                    # M5: личное TG-уведомление об успешном завершении
-                    # фоновой настройки (best-effort, всегда после успеха).
-                    self._notify_setup_status(success=True, key_value=key['key_value'])
+                # Шаг 6 выполняется ВСЕГДА — в т. ч. если пришла отмена
+                # на одном из промежуточных шагов (skip-to-key flow).
+                cancelled_skip = is_cancelled(self.setup_id) and self.start_step < 6
+                final_label = 'Завершение без обучения...' if cancelled_skip else 'Финальная настройка...'
+                done_label = 'Готово (без обучения)!' if cancelled_skip else 'Готово!'
+                await self.step(6, final_label)
+                await tg.send_message(bot, '🔄 Сбросить историю')
+                repo.update_tg_account(self.account_id, is_valid=1, setup_done=1, session_string=encrypt_text(tg.client.session.save()))
+                key = repo.get_account_key(self.user_id, self.account_id)
+                if not key:
+                    key = repo.create_api_key(self.user_id, self.account_id, generate_api_key(), 'Мой ключ', DEFAULT_MODEL_ID)
+                repo.update_setup_session(self.setup_id, status='done', current_step=6, step_label=done_label, error_msg=None)
+                update_progress(self.setup_id, step=6, stepLabel=done_label, done=True, error=None, canRetry=False, apiKey=key['key_value'])
+                # M5: личное TG-уведомление об успешном завершении
+                # фоновой настройки (best-effort, всегда после успеха).
+                self._notify_setup_status(success=True, key_value=key['key_value'])
         except (UserBlockedError, YouBlockedUserError):
             msg = 'Бот заблокирован в вашем Telegram. Зайдите в Telegram, разблокируйте @' + SAM_BOT_USERNAME + ' и нажмите "Повторить".'
             repo.update_setup_session(self.setup_id, status='error', error_msg=msg)
@@ -383,6 +390,8 @@ class SetupFlow:
             repo.update_setup_session(self.setup_id, status='error', error_msg=str(error))
             update_progress(self.setup_id, done=True, error='SETUP_FAIL_604: ' + str(error), canRetry=True)
             self._notify_setup_status(success=False, error='SETUP_FAIL_604: ' + str(error))
+        finally:
+            clear_cancel(self.setup_id)
 
     # ─── M5: личное TG-уведомление о результате фоновой настройки ────
     # Юзер просил, чтобы не приходилось «залипать на дашборде» в
@@ -440,6 +449,11 @@ class SetupFlow:
     async def wait_with_progress(self, step, title, seconds, interval=10):
         remaining = seconds
         while remaining > 0:
+            # Сессия 6, S2: прерываем долгое ожидание, если юзер
+            # нажал «Отмена» — иначе он будет ждать ещё 20-180 сек
+            # после клика, прежде чем фоновый поток выйдет к шагу 6.
+            if is_cancelled(self.setup_id):
+                return
             label = f'{title}: осталось {remaining} сек'
             repo.update_setup_session(self.setup_id, current_step=step, step_label=label)
             update_progress(self.setup_id, step=step, stepLabel=label, done=False, error=None)
@@ -489,17 +503,48 @@ async def training(tg, sponsors, bot):
     await training_with_progress(tg, sponsors, bot, None)
 
 
+def _has_button(msg, data):
+    """Сессия 6, S1: проверка наличия inline-кнопки с заданным callback_data.
+    Используется в training_with_progress, чтобы понять —
+    бот ждёт подтверждения старта обучения (есть кнопка
+    confirm_training_start), или уже отдал «Дополнительно»-меню
+    (Профиль / Настройки GPT / История диалогов / ...) — значит
+    обучение пройдено в прошлый раз и стартовать его не нужно.
+    """
+    if not msg or not getattr(msg, 'buttons', None):
+        return False
+    for row in msg.buttons:
+        for btn in row:
+            if getattr(btn, 'data', None) == data:
+                return True
+    return False
+
+
 async def training_with_progress(tg, sponsors, bot, setup_id=None, total_seconds=180, interval=10):
     await tg.send_message(bot, '🧰 Дополнительно')
     await asyncio.sleep(2)
     msg = await last_message(tg, bot)
     await sponsors.handle(msg)
+    # После handle сообщение могло поменяться (спонсор-проверка
+    # отправляет ещё одно сообщение). Перечитываем последнее.
+    msg = await last_message(tg, bot)
+    # Сессия 6, S1: если confirm_training_start кнопки нет —
+    # пользователь уже проходил обучение, бот сразу выдал
+    # «Дополнительно»-меню. Тогда тренировку пропускаем целиком
+    # и не ждём 180 сек.
+    if not _has_button(msg, b'confirm_training_start'):
+        if setup_id is not None:
+            update_progress(setup_id, step=3, stepLabel='Обучение уже пройдено, пропускаем', done=False, error=None)
+        return
     try:
         await tg.click(msg, data=b'confirm_training_start')
     except Exception as error:
         raise RuntimeError('TRAINING_START_FAILED') from error
     remaining = total_seconds
     while remaining > 0:
+        # Сессия 6, S2: реакция на отмену внутри 180-секундного ожидания.
+        if setup_id is not None and is_cancelled(setup_id):
+            return
         label = f'Обучение: осталось {remaining} сек'
         if setup_id is not None:
             repo.update_setup_session(setup_id, current_step=3, step_label=label)

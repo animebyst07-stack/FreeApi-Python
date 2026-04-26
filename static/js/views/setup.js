@@ -179,9 +179,16 @@
     });
   }
 
-  /* ───────────── PROGRESS (SSE + polling) ───────────── */
+  /* ───────────── PROGRESS (SSE + parallel polling) ─────────────
+     Сессия 6, S3: запускаем polling ПАРАЛЛЕЛЬНО с SSE, а не как
+     fallback. Через Cloudflare-туннель SSE-поток часто буферизуется
+     и события не приходят, при этом EventSource считает соединение
+     живым и onerror не зовёт. Polling страхует — раз в 3 сек тянет
+     актуальный прогресс из /api/tg/setup/<id>/status и applyProgress
+     отрабатывает идемпотентно. */
   function trackProgress(sid){
-    if (window.sseSource) window.sseSource.close();
+    if (window.sseSource) { try { window.sseSource.close(); } catch(_){} }
+    if (window._pollTimer) { clearTimeout(window._pollTimer); window._pollTimer = null; }
     _consoleLogs = [];
     var body = _q('logConsoleBody'); if (body) body.innerHTML = '';
     logToConsole('SSE: подключение к /api/tg/setup/' + sid + '/status', 'info');
@@ -195,26 +202,33 @@
         } catch (e) { logToConsole('SSE parse error: ' + e.message, 'error'); }
       };
       window.sseSource.onerror = function(){
-        logToConsole('SSE: соединение потеряно, переход на polling', 'error');
-        window.sseSource.close(); window.sseSource = null; pollProgress(sid);
+        logToConsole('SSE: соединение потеряно (polling продолжит работать)', 'error');
+        try { window.sseSource.close(); } catch(_){}
+        window.sseSource = null;
       };
     } catch (e) {
-      logToConsole('SSE: не удалось подключиться, polling', 'error');
-      pollProgress(sid);
+      logToConsole('SSE: не удалось подключиться, остаёмся на polling', 'error');
     }
+    // Параллельный polling — страховка на случай буферизации SSE.
+    pollProgress(sid);
   }
 
   function pollProgress(sid){
+    // Если setup уже сменился (юзер запустил новую настройку) — стоп.
+    if (sid !== window.setupId && !window._setupBackgrounded) return;
     window.api('/api/tg/setup/' + sid + '/status').then(function(d){
       logToConsole('POLL << step=' + d.step + ' | ' + (d.stepLabel || '') + (d.error ? ' | ERR: ' + d.error : '') + (d.done ? ' | DONE' : ''));
       applyProgress(d);
-      // Фикс: было 3600000 ms (раз в час) — UI казался «зависшим».
-      // Теперь честный live-polling раз в 3 секунды, как и должно быть
-      // для фолбека с SSE.
-      if (!d.done) setTimeout(function(){ pollProgress(sid); }, 3000);
+      if (!d.done && (sid === window.setupId || window._setupBackgrounded)) {
+        window._pollTimer = setTimeout(function(){ pollProgress(sid); }, 3000);
+      } else {
+        window._pollTimer = null;
+      }
     }).catch(function(){
       logToConsole('POLL: retry in 3s', 'error');
-      setTimeout(function(){ pollProgress(sid); }, 3000);
+      if (sid === window.setupId || window._setupBackgrounded) {
+        window._pollTimer = setTimeout(function(){ pollProgress(sid); }, 3000);
+      }
     });
   }
 
@@ -436,16 +450,32 @@
 
   function cancelSetup(){
     if (!window.setupId) return;
-    window.customConfirm('Отмена настройки', 'Отменить настройку Telegram?').then(function(ok){
+    // Сессия 6, S2: «отмена» теперь = «бот уже настроен, выдай ключ»
+    // (если аккаунт авторизован). Пересмотренный confirm-текст
+    // отражает новое поведение, чтобы юзер понимал, что не теряет
+    // прогресс.
+    window.customConfirm('Прервать настройку',
+      'Прервать обучение и сразу получить API-ключ? ' +
+      'Если бот уже авторизован, ключ будет выдан без полной настройки. ' +
+      'Если ещё нет — настройка просто отменится.').then(function(ok){
       if (!ok) return;
       var sid = window.setupId;
-      window.api('/api/tg/setup/' + sid + '/cancel', 'POST').then(function(){
+      window.api('/api/tg/setup/' + sid + '/cancel', 'POST').then(function(r){
+        if (r && r.skipToKey) {
+          // Сервер запустил skip-to-key flow — фоновый поток сам
+          // выдаст apiKey через update_progress, а applyProgress на
+          // фронте поймает done=true+apiKey и покажет rawKeyModal.
+          // НЕ закрываем модалку настройки — пусть юзер увидит, как
+          // финализируется шаг 6 и появляется ключ.
+          if (window.showToast) window.showToast('Завершаем без обучения, ждите ключ...', 'ok');
+          return;
+        }
+        // Обычная отмена (аккаунт не был авторизован) — возврат в форму.
         _q('setupProgressCard').style.display = 'none';
         _q('setupFormCard').style.display = '';
         _q('btnSetup').disabled = false; _q('btnSetup').textContent = 'Запустить настройку';
-        // M4: сбрасываем все маркеры активной настройки, иначе guard
-        // на ✕ ещё раз спросит «прервать или в фон» уже после отмены.
-        if (window.sseSource) { window.sseSource.close(); window.sseSource = null; }
+        if (window.sseSource) { try { window.sseSource.close(); } catch(_){} window.sseSource = null; }
+        if (window._pollTimer) { clearTimeout(window._pollTimer); window._pollTimer = null; }
         window.setupId = null;
         window._setupCompleted = false;
         window._setupBackgrounded = false;

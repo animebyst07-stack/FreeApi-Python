@@ -1293,6 +1293,62 @@ body:has(#view-dashboard.active){background:#000!important}
 .video-trim-row{margin-top:14px;display:flex;flex-direction:column;gap:6px}
 .video-trim-val{float:right;color:#bdc1c6;font-weight:600}
 .video-trim-meta{margin-top:10px;font-size:12px;color:#9aa0a6;text-align:center}
+
+/* Сессия 6, S5: Telegram-style дорожка обрезки видео-аватарки.
+   Раньше было два независимых <input type=range> сверху-снизу — UX был
+   неинтуитивным. Теперь единая дорожка vtr-track с двумя хэндлами
+   (start/end), подсветкой выбранного отрезка vtr-selected, затемнением
+   за пределами vtr-dim и движущимся playhead vtr-playhead. */
+.video-trim-range{
+  margin-top:18px;
+  user-select:none;-webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.video-trim-range .vtr-track{
+  position:relative;height:42px;border-radius:10px;
+  background:#0d0d0d;border:1px solid #1f1f1f;
+  overflow:visible;touch-action:none;cursor:pointer;
+}
+.video-trim-range .vtr-dim{
+  position:absolute;top:0;bottom:0;background:rgba(0,0,0,.55);
+  pointer-events:none;border-radius:9px;z-index:1;
+}
+.video-trim-range .vtr-dim-left{left:0;width:0%}
+.video-trim-range .vtr-dim-right{right:0;width:0%}
+.video-trim-range .vtr-selected{
+  position:absolute;top:0;bottom:0;
+  background:rgba(255,255,255,.06);
+  border-top:2px solid #fff;border-bottom:2px solid #fff;
+  pointer-events:none;z-index:2;
+  box-sizing:border-box;
+}
+.video-trim-range .vtr-playhead{
+  position:absolute;top:-3px;bottom:-3px;width:2px;
+  background:#fff;pointer-events:none;
+  box-shadow:0 0 6px rgba(255,255,255,.7);
+  z-index:3;left:0;
+}
+.video-trim-range .vtr-handle{
+  position:absolute;top:-5px;bottom:-5px;width:18px;
+  margin-left:-9px;
+  background:#fff;border-radius:6px;
+  cursor:ew-resize;touch-action:none;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.55);
+  z-index:4;
+}
+.video-trim-range .vtr-handle:active{background:#e8e8e8}
+.video-trim-range .vtr-handle span{
+  display:block;width:2px;height:18px;background:#0a0a0a;border-radius:1px;
+}
+.video-trim-range .vtr-times{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-top:10px;font-size:11.5px;color:#9aa0a6;
+  font-variant-numeric:tabular-nums;
+}
+.video-trim-range .vtr-times .vtr-dur{
+  color:#fff;font-weight:600;font-size:12.5px;
+}
 .cm-msg-avatar-letter{}
 .cm-msg-content{
   flex:1 1 auto;
@@ -1312,7 +1368,16 @@ body:has(#view-dashboard.active){background:#000!important}
    ровный оптический центр. */
 .cm-msg-head{display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.2}
 .cm-msg-author{color:#fff;font-weight:600;font-size:13px;line-height:1.15}
-.cm-msg-time{color:#666;font-size:11px;margin-left:auto;flex-shrink:0;line-height:1.15}
+/* Сессия 6, S4: cm-msg-time больше не «летает» сам по себе с
+   margin-left:auto — теперь он сидит вместе с meta-icons (✎/📌)
+   внутри cm-msg-meta-right. Карандаш редакции больше не ломает
+   шапку: правая группа цельная и не разрывается переносом строки. */
+.cm-msg-time{color:#666;font-size:11px;flex-shrink:0;line-height:1.15}
+.cm-msg-meta-right{
+  display:inline-flex;align-items:center;gap:6px;
+  margin-left:auto;flex-shrink:0;line-height:1.15;
+}
+.cm-msg-meta-right .cm-msg-meta-ico{display:inline-flex;align-items:center}
 /* M3.6: бейдж «пост» — серо-белое переливание (как .cm-msg-prefix-owner,
    но в монохромной палитре). Padding/font-size синхронизированы с
    .cm-msg-prefix-owner, чтобы все три элемента (@ник, ВЛАДЕЛЕЦ, пост)

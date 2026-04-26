@@ -531,16 +531,25 @@
           (isOnline ? '1' : '0') + '">' + esc(lbl) + '</span>';
       }
     }
+    // Сессия 6, S4: правую группу (✎-индикатор, 📌-индикатор, время)
+    // оборачиваем в общий контейнер cm-msg-meta-right с
+    // margin-left:auto и flex-shrink:0 — раньше cm-msg-time
+    // прижимался автоотступом, а meta-icons отдельно «болтался»
+    // и при появлении карандаша всё лезло на новую строку.
+    var hasMetaIcons = (m.versions_count > 0) || m.pinned;
     var head = '<div class="cm-msg-head">' +
       '<span class="cm-msg-author">@' + esc(m.username) + '</span>' +
       (prefixText ? '<span class="cm-msg-prefix' + (m.is_admin ? ' cm-msg-prefix-owner' : '') + '">' + esc(prefixText) + '</span>' : '') +
       (m.kind === 'admin_post' ? '<span class="cm-msg-badge">пост</span>' : '') +
       onlineHtml +
-      '<span class="cm-msg-meta-icons">' +
-        (m.versions_count > 0 ? '<span title="изменено">' + ICONS.edited + '</span>' : '') +
-        (m.pinned ? '<span title="закреплено">' + ICONS.pinDot + '</span>' : '') +
+      '<span class="cm-msg-meta-right">' +
+        (hasMetaIcons ?
+          '<span class="cm-msg-meta-icons">' +
+            (m.versions_count > 0 ? '<span class="cm-msg-meta-ico" title="изменено">' + ICONS.edited + '</span>' : '') +
+            (m.pinned ? '<span class="cm-msg-meta-ico" title="закреплено">' + ICONS.pinDot + '</span>' : '') +
+          '</span>' : '') +
+        '<span class="cm-msg-time">' + esc(fmtDate(m.created_at)) + '</span>' +
       '</span>' +
-      '<span class="cm-msg-time">' + esc(fmtDate(m.created_at)) + '</span>' +
       '</div>';
     // M3.5: Telegram-style цитата ответа над телом сообщения. Клик
     // по цитате скроллит к оригиналу (если он ещё в DOM).

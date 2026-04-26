@@ -6,16 +6,42 @@ from queue import Empty
 _progress = {}
 _queues = {}
 _pending_auth = {}
+_cancel_flags = set()
 _lock = threading.RLock()
 
 
 def update_progress(setup_id, **data):
     with _lock:
         current = _progress.get(setup_id, {'setupId': setup_id, 'step': 0, 'stepLabel': '', 'done': False, 'error': None})
+        # Защита: если setup уже финализирован (done=True) — игнорируем
+        # последующие апдейты, чтобы фоновый поток не затирал результат
+        # отмены (skip-to-key) повторными step=N/done=False сообщениями.
+        if current.get('done') and not data.get('done'):
+            return
         current.update(data)
         _progress[setup_id] = current
         for stream in _queues.get(setup_id, set()):
             stream.put(current.copy())
+
+
+# ─── Cancel-механизм (см. plan.txt сессии 6, шаг S2) ─────────────────
+# Frontend жмёт «Отмена настройки» → /api/tg/setup/<id>/cancel
+# вызывает request_cancel(setup_id). Фоновый SetupFlow проверяет
+# is_cancelled() между шагами и в долгих ожиданиях (training/wait)
+# и при выставленном флаге сразу прыгает на шаг 6 (выдача ключа).
+def request_cancel(setup_id):
+    with _lock:
+        _cancel_flags.add(setup_id)
+
+
+def is_cancelled(setup_id):
+    with _lock:
+        return setup_id in _cancel_flags
+
+
+def clear_cancel(setup_id):
+    with _lock:
+        _cancel_flags.discard(setup_id)
 
 
 def get_progress(setup_id):

@@ -18,7 +18,7 @@ from freeapi.memory import (
     CONTEXT_WARN_KB, CONTEXT_LIMIT_KB,
 )
 from freeapi.models import AI_MODELS, DEFAULT_MODEL_ID, is_valid_model_id
-from freeapi.progress import clear_pending_auth, event_stream, get_pending_auth, get_progress, set_pending_auth, update_progress
+from freeapi.progress import clear_pending_auth, event_stream, get_pending_auth, get_progress, request_cancel, set_pending_auth, update_progress
 from freeapi.security import encrypt_text, generate_api_key, mask_key
 from freeapi.tg import run_chat, run_control, run_dual_chat, run_setup_background, send_code_request, sign_in_with_code, switch_model_background
 
@@ -150,6 +150,24 @@ def tg_setup_cancel(setup_id):
     blocked = require_user()
     if blocked:
         return blocked
+    setup = repo.get_setup_session(setup_id)
+    if not setup or setup.get('user_id') != current_user_id():
+        # Сессии нет или чужая — старая логика (молчаливая отмена).
+        update_progress(setup_id, done=True, error='SETUP_ABORT_605: Настройка отменена пользователем')
+        clear_pending_auth(setup_id)
+        return jsonify({'ok': True, 'log_code': 'SETUP_ABORT_605'})
+    account = repo.get_tg_account(setup.get('tg_account_id')) or {}
+    is_authed = bool(account.get('is_valid')) and bool(account.get('session_string'))
+    if is_authed:
+        # Сессия 6, S2: «отмена» = «бот уже настроен» — сразу к ключу.
+        # Выставляем cancel-флаг; фоновый SetupFlow подхватит его в
+        # ближайшей точке проверки и спрыгнет к шагу 6 (выдача ключа).
+        # Frontend дождётся apiKey через SSE/polling и покажет успех.
+        request_cancel(setup_id)
+        clear_pending_auth(setup_id)
+        return jsonify({'ok': True, 'log_code': 'SETUP_SKIP_TO_KEY', 'skipToKey': True})
+    # Аккаунт ещё не авторизован (юзер отменил на этапе ввода кода) —
+    # классическая отмена с возвратом в форму.
     repo.update_setup_session(setup_id, status='cancelled', error_msg='SETUP_ABORT_605')
     update_progress(setup_id, done=True, error='SETUP_ABORT_605: Настройка отменена пользователем')
     clear_pending_auth(setup_id)
