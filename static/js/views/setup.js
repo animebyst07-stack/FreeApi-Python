@@ -140,6 +140,11 @@
     window.api('/api/tg/setup', 'POST', body).then(function(d){
       if (d.error) { err.textContent = d.message || 'Ошибка'; btn.disabled = false; btn.textContent = 'Запустить настройку'; return; }
       window.setupId = d.setupId;
+      // M4: новый старт — сбрасываем флаги фоновой настройки и завершения,
+      // иначе после повторного «Новый ключ» guard ошибочно подумает, что
+      // ничего не идёт, и закроет модалку без вопроса.
+      window._setupCompleted = false;
+      window._setupBackgrounded = false;
       _q('setupFormCard').style.display = 'none';
       _q('setupProgressCard').style.display = '';
       if (d.status === 'awaiting_code') _q('codeInputWrap').style.display = '';
@@ -203,10 +208,13 @@
     window.api('/api/tg/setup/' + sid + '/status').then(function(d){
       logToConsole('POLL << step=' + d.step + ' | ' + (d.stepLabel || '') + (d.error ? ' | ERR: ' + d.error : '') + (d.done ? ' | DONE' : ''));
       applyProgress(d);
-      if (!d.done) setTimeout(function(){ pollProgress(sid); }, 3600000);
+      // Фикс: было 3600000 ms (раз в час) — UI казался «зависшим».
+      // Теперь честный live-polling раз в 3 секунды, как и должно быть
+      // для фолбека с SSE.
+      if (!d.done) setTimeout(function(){ pollProgress(sid); }, 3000);
     }).catch(function(){
-      logToConsole('POLL: retry in 3600s', 'error');
-      setTimeout(function(){ pollProgress(sid); }, 3600000);
+      logToConsole('POLL: retry in 3s', 'error');
+      setTimeout(function(){ pollProgress(sid); }, 3000);
     });
   }
 
@@ -263,19 +271,185 @@
       logToConsole('SETUP COMPLETE');
       if (window.sseSource) { window.sseSource.close(); window.sseSource = null; }
       window._forceSetupFlowVisible = false;
+      window._setupCompleted = true;
       if (window.loadDashboard) window.loadDashboard();
     }
     if (d.status === 'awaiting_code') _q('codeInputWrap').style.display = '';
+    // M4: синхронно обновляем мини-виджет (если он сейчас отрисован).
+    _updateMiniWidget(d);
+  }
+
+  /* ───────────── M4: МИНИ-ВИДЖЕТ + ЗАКРЫТИЕ С ПОДТВЕРЖДЕНИЕМ ────────────
+     Когда юзер жмёт ✕ на модалке настройки, мы НЕ закрываем её сразу —
+     сначала спрашиваем «Прервать или продолжить в фоне?». При выборе «в
+     фоне» закрываем модалку, но оставляем SSE/poll живыми, и на дашборде
+     появляется мини-виджет с прогрессом. Клик по виджету заново открывает
+     полноценную модалку. После завершения настройки мини сам исчезает,
+     ключ автоматически подгружается через loadDashboard. */
+
+  function _isSetupActive(){
+    return !!(window.setupId && !window._setupCompleted);
+  }
+
+  function _updateMiniWidget(d){
+    var card = _q('setupMiniCard');
+    if (!card) return;
+    // обновляем DOM мини, даже если он сейчас скрыт — чтобы при показе
+    // (например при клике юзера, или при рефреше дашборда) данные были
+    // уже актуальные, а не «прыгали» с дефолта.
+    var step = d.step || 0, total = 6;
+    var pct = Math.max(2, Math.round(step / total * 100));
+    var bar = _q('setupMiniBar'); if (bar) bar.style.width = pct + '%';
+    var lbl = _q('setupMiniStepLabel'); if (lbl && d.stepLabel) lbl.textContent = d.stepLabel;
+    var num = _q('setupMiniStepNum'); if (num) num.textContent = step + '/' + total;
+    if (card.style.display === 'none') return;
+    if (d.error) {
+      card.classList.remove('is-done');
+      card.classList.add('is-error');
+      var typE = _q('setupMiniTyp'); if (typE) typE.textContent = 'Ошибка настройки';
+      if (lbl) lbl.textContent = d.error;
+    } else if (d.done) {
+      card.classList.remove('is-error');
+      card.classList.add('is-done');
+      var typD = _q('setupMiniTyp'); if (typD) typD.textContent = 'Готово!';
+      if (lbl) lbl.textContent = 'Ключ создан и добавлен в дашборд';
+      if (num) num.textContent = '6/6';
+      // Прячем виджет с задержкой, чтобы успела проиграться зелёная
+      // подсветка и юзер увидел «успех». loadDashboard уже вызван выше
+      // и подтянет новый ключ.
+      setTimeout(function(){
+        var c = _q('setupMiniCard');
+        if (c) {
+          c.style.display = 'none';
+          c.classList.remove('is-done', 'is-error');
+        }
+        window._setupBackgrounded = false;
+        window.setupId = null;
+      }, 2500);
+    }
+  }
+
+  function showSetupMini(meta){
+    var card = _q('setupMiniCard');
+    if (!card) return;
+    card.classList.remove('is-done', 'is-error');
+    var typ = _q('setupMiniTyp'); if (typ) typ.textContent = 'Настройка';
+    if (meta) {
+      var u = _q('setupMiniUser');
+      if (u) u.textContent = meta.user || '—';
+      var a = _q('setupMiniAcct');
+      if (a) a.textContent = meta.account || '—';
+    }
+    card.style.display = '';
+  }
+
+  function hideSetupMini(){
+    var card = _q('setupMiniCard');
+    if (!card) return;
+    card.style.display = 'none';
+    card.classList.remove('is-done', 'is-error');
+  }
+
+  /* Перехват закрытия #setupModal. Возвращает true, если модалка
+     закрыта (или будет закрыта); false — если показан confirm и нужно
+     прервать дефолтное закрытие. */
+  function setupModalCloseGuard(){
+    if (_isSetupActive()) {
+      if (window.openModal) window.openModal('closeSetupConfirmModal');
+      return false;
+    }
+    // нет активной настройки — закрываем как обычно
+    window._setupModalDismissed = true;
+    window._forceSetupFlowVisible = false;
+    if (window.closeModal) window.closeModal('setupModal');
+    return true;
+  }
+
+  /* Заменяем стандартный overlayClick для #setupModal — чтобы клик
+     по фону тоже триггерил наш guard, а не закрывал модалку молча. */
+  function setupOverlayClick(e, el){
+    if (!e || !el || e.target !== el) return;
+    setupModalCloseGuard();
+  }
+
+  /* «Прервать» в confirm-модалке */
+  function setupConfirmAbort(){
+    if (window.closeModal) window.closeModal('closeSetupConfirmModal');
+    var sid = window.setupId;
+    if (sid) {
+      window.api('/api/tg/setup/' + sid + '/cancel', 'POST').catch(function(){});
+    }
+    if (window.sseSource) { window.sseSource.close(); window.sseSource = null; }
+    window.setupId = null;
+    window._setupCompleted = false;
+    window._setupBackgrounded = false;
+    window._forceSetupFlowVisible = false;
+    hideSetupMini();
+    if (window.closeModal) window.closeModal('setupModal');
+    if (window.showToast) window.showToast('Настройка прервана', 'ok');
+  }
+
+  /* «Продолжить в фоне» */
+  function setupConfirmBackground(){
+    if (window.closeModal) window.closeModal('closeSetupConfirmModal');
+    if (window.closeModal) window.closeModal('setupModal');
+    window._setupBackgrounded = true;
+    // Собираем мета-данные о юзере/аккаунте для виджета.
+    var siteUser = (window.accountState && window.accountState.user && window.accountState.user.username) ||
+                   (window.user && window.user.username) || '—';
+    var apiId = (_q('sApiId') && _q('sApiId').value) ? _q('sApiId').value.trim() : '';
+    var phone = (_q('sPhone') && _q('sPhone').value) ? _q('sPhone').value.trim() : '';
+    var account = phone || (apiId ? ('API ID ' + apiId) : '—');
+    showSetupMini({ user: siteUser, account: account });
+    // Сразу подтягиваем актуальное состояние с бэка (на случай, если
+    // мы зашли с пустыми полями формы — например после F5).
+    if (window.api) {
+      window.api('/api/tg/setup/running').then(function(r){
+        if (!r || !r.running) return;
+        var acct = r.tgUsername ? '@' + r.tgUsername
+                  : (r.phone || (r.apiId ? 'API ID ' + r.apiId : account));
+        showSetupMini({ user: siteUser, account: acct });
+        var num = _q('setupMiniStepNum'); if (num) num.textContent = (r.step || 0) + '/6';
+        var lbl = _q('setupMiniStepLabel'); if (lbl) lbl.textContent = r.stepLabel || 'Инициализация...';
+        var bar = _q('setupMiniBar'); if (bar) bar.style.width = Math.max(2, Math.round((r.step || 0) / 6 * 100)) + '%';
+      }).catch(function(){});
+    }
+    if (window.showToast) window.showToast('Настройка свернута — следите за прогрессом на дашборде', 'ok');
+  }
+
+  /* Клик по мини-виджету — снова открыть полноценную модалку с прогрессом. */
+  function reopenSetupFromMini(){
+    if (!window.setupId) {
+      // нет активной настройки — просто открыть форму заново
+      if (window.createKey) window.createKey();
+      return;
+    }
+    window._forceSetupFlowVisible = true;
+    if (_q('setupFormCard'))     _q('setupFormCard').style.display = 'none';
+    if (_q('setupProgressCard')) _q('setupProgressCard').style.display = '';
+    if (window.openModal) window.openModal('setupModal');
+    // Если SSE отвалился (или мы зашли после F5) — переподключиться.
+    if (!window.sseSource) {
+      trackProgress(window.setupId);
+    }
   }
 
   function cancelSetup(){
     if (!window.setupId) return;
     window.customConfirm('Отмена настройки', 'Отменить настройку Telegram?').then(function(ok){
       if (!ok) return;
-      window.api('/api/tg/setup/' + window.setupId + '/cancel', 'POST').then(function(){
+      var sid = window.setupId;
+      window.api('/api/tg/setup/' + sid + '/cancel', 'POST').then(function(){
         _q('setupProgressCard').style.display = 'none';
         _q('setupFormCard').style.display = '';
         _q('btnSetup').disabled = false; _q('btnSetup').textContent = 'Запустить настройку';
+        // M4: сбрасываем все маркеры активной настройки, иначе guard
+        // на ✕ ещё раз спросит «прервать или в фон» уже после отмены.
+        if (window.sseSource) { window.sseSource.close(); window.sseSource = null; }
+        window.setupId = null;
+        window._setupCompleted = false;
+        window._setupBackgrounded = false;
+        if (typeof window.hideSetupMini === 'function') window.hideSetupMini();
       });
     });
   }
@@ -329,6 +503,14 @@
   window.submitCode         = submitCode;
   // Внутренние функции, которые могут понадобиться извне (рефакторинг):
   window.trackProgress      = trackProgress;
+  // M4: API мини-виджета и confirm-закрытия настройки.
+  window.setupOverlayClick      = setupOverlayClick;
+  window.setupModalCloseGuard   = setupModalCloseGuard;
+  window.setupConfirmAbort      = setupConfirmAbort;
+  window.setupConfirmBackground = setupConfirmBackground;
+  window.reopenSetupFromMini    = reopenSetupFromMini;
+  window.showSetupMini          = showSetupMini;
+  window.hideSetupMini          = hideSetupMini;
 })();
 
 export {};

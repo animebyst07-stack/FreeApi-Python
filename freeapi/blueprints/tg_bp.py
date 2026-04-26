@@ -156,6 +156,54 @@ def tg_setup_cancel(setup_id):
     return jsonify({'ok': True, 'log_code': 'SETUP_ABORT_605'})
 
 
+# ─── M4: ENDPOINT ДЛЯ МИНИ-ВИДЖЕТА «НАСТРОЙКА ИДЁТ В ФОНЕ» ─────────
+# Фронт (loadDashboard) дёргает этот эндпоинт, чтобы:
+#   1) узнать, есть ли у юзера активная (running) настройка;
+#   2) восстановить мини-виджет на дашборде даже после F5/закрытия модалки;
+#   3) собрать meta-инфо о tg-аккаунте (username, phone, num.) для виджета.
+# Возвращаем 200 + {running: false}, если ничего активного — это НЕ ошибка.
+@bp.get('/api/tg/setup/running')
+def tg_setup_running():
+    blocked = require_user()
+    if blocked:
+        return blocked
+    uid = current_user_id()
+    setup = repo.get_running_setup(uid)
+    if not setup:
+        return jsonify({'running': False})
+    account = repo.get_tg_account(setup.get('tg_account_id')) or {}
+    progress = get_progress(setup['id']) or {}
+    # Берём последний known step/label либо из in-memory progress, либо из БД.
+    step = progress.get('step') if progress else setup.get('current_step') or 0
+    step_label = (progress.get('stepLabel') if progress else None) \
+        or setup.get('step_label') or 'Инициализация...'
+    # Маскируем номер: +7 999 *** ** 12 — чтобы не светить полностью.
+    raw_phone = account.get('phone') or ''
+    masked_phone = _mask_phone(raw_phone)
+    return jsonify({
+        'running': True,
+        'setupId': setup['id'],
+        'tgAccountId': account.get('id'),
+        'apiId': account.get('api_id'),
+        'phone': masked_phone,
+        'tgUsername': account.get('tg_username') or '',
+        'tgFirstName': account.get('tg_first_name') or '',
+        'step': step,
+        'stepLabel': step_label,
+        'createdAt': setup.get('created_at'),
+    })
+
+
+def _mask_phone(p):
+    """+79991234567 → +7 999 ***-**-67. Никогда не падает."""
+    if not p:
+        return ''
+    s = str(p).strip()
+    if len(s) < 6:
+        return s
+    return s[:4] + ' ***-**-' + s[-2:]
+
+
 @bp.delete('/api/tg/account')
 def tg_account_delete():
     blocked = require_user()

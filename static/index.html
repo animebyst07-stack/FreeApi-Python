@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/main.css?v=20260422">
+<link rel="stylesheet" href="/css/main.css?v=20260426m4">
 </head>
 <body>
 
@@ -279,6 +279,37 @@
     <div class="dash-main">
       <!-- Setup section полностью переехал в модалку #setupModal (см. секцию MODALS).
            tgStatusBar убран по требованию: статус Telegram-аккаунта виден в сайдбаре. -->
+
+      <!-- M4: мини-виджет «настройка идёт в фоне». Скрыт по умолчанию,
+           заполняется/показывается из keys.js при наличии running setup. -->
+      <div id="setupMiniCard" class="setup-mini" style="display:none" onclick="reopenSetupFromMini()" role="button" tabindex="0">
+        <div class="setup-mini-glow"></div>
+        <div class="setup-mini-spinner">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="10" opacity="0.15"/>
+            <path d="M22 12a10 10 0 0 1-10 10"/>
+          </svg>
+        </div>
+        <div class="setup-mini-body">
+          <div class="setup-mini-title">
+            <span class="setup-mini-typ" id="setupMiniTyp">Настройка</span>
+            <span class="setup-mini-dots"><span></span><span></span><span></span></span>
+          </div>
+          <div class="setup-mini-meta">
+            <span id="setupMiniUser">—</span>
+            <span class="setup-mini-sep">•</span>
+            <span id="setupMiniAcct">—</span>
+          </div>
+          <div class="setup-mini-step">
+            <span class="setup-mini-step-num" id="setupMiniStepNum">0/6</span>
+            <span class="setup-mini-step-label" id="setupMiniStepLabel">Инициализация...</span>
+          </div>
+          <div class="setup-mini-bar"><div class="setup-mini-bar-fill" id="setupMiniBar" style="width:0%"></div></div>
+        </div>
+        <div class="setup-mini-arrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>
 
       <!-- Keys -->
       <div>
@@ -1299,7 +1330,7 @@ request them. Three live endpoints to introspect the environment:
 </div>
 
 <!-- Setup Telegram (модалка вместо inline-блока на дашборде) -->
-<div class="overlay" id="setupModal" onclick="overlayClick(event,this)">
+<div class="overlay" id="setupModal" onclick="setupOverlayClick(event,this)">
 <div class="modal modal-lg">
   <button class="modal-close" onclick="closeSetupModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   <h2>
@@ -1423,6 +1454,28 @@ request them. Three live endpoints to introspect the environment:
         </div>
       </div>
     </div>
+  </div>
+</div>
+</div>
+
+<!-- M4: подтверждение закрытия активной настройки -->
+<div class="overlay" id="closeSetupConfirmModal" onclick="overlayClick(event,this)">
+<div class="modal" style="max-width:440px">
+  <button class="modal-close" onclick="closeModal('closeSetupConfirmModal')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="setup-confirm-icon">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  </div>
+  <h2 style="text-align:center;margin-top:6px">Настройка ещё идёт</h2>
+  <p class="modal-sub" style="text-align:center">Сейчас бот настраивается. Вы можете прервать процесс или свернуть его в фоновый режим — на дашборде появится мини-виджет с прогрессом.</p>
+  <div class="setup-confirm-actions">
+    <button class="btn btn-outline" id="setupConfirmAbort" onclick="setupConfirmAbort()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+      Прервать
+    </button>
+    <button class="btn btn-primary" id="setupConfirmBg" onclick="setupConfirmBackground()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      Продолжить в фоне
+    </button>
   </div>
 </div>
 </div>

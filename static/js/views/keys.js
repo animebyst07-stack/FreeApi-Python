@@ -32,6 +32,57 @@
       // Никаких авто-попапов после входа/регистрации больше нет.
       _q('btnNewKey').style.display = '';
     });
+    // M4: подхватываем активную фоновую настройку (если есть) — это
+    // нужно и при первой загрузке дашборда, и при возврате из других
+    // вкладок, и после F5 во время идущей настройки. Виджет сам решает
+    // показываться или нет.
+    _refreshRunningSetup();
+  }
+
+  /* M4: запросить состояние активной настройки и синхронизировать
+     мини-виджет на дашборде. Если запущенной настройки нет — виджет
+     прячется (если только мы не находимся прямо сейчас в фоновом
+     режиме того же setupId — на случай гонки). */
+  function _refreshRunningSetup(){
+    if (!window.api) return;
+    window.api('/api/tg/setup/running').then(function(r){
+      var card = _q('setupMiniCard');
+      if (!r || !r.running) {
+        // backend говорит — настройки нет. Если мы НЕ висим на
+        // backgrounded состоянии, прячем виджет.
+        if (card && !window._setupBackgrounded) {
+          card.style.display = 'none';
+        }
+        return;
+      }
+      // Активная настройка — собираем мета и показываем виджет.
+      var siteUser =
+        (window.accountState && window.accountState.user && window.accountState.user.username) ||
+        (window.user && window.user.username) || '—';
+      var account = r.tgUsername ? '@' + r.tgUsername
+                  : (r.phone || (r.apiId ? 'API ID ' + r.apiId : '—'));
+      if (window.showSetupMini) {
+        window.showSetupMini({ user: siteUser, account: account });
+      }
+      // Сразу синхронизируем шаг/прогресс-бар (чтобы не было «прыжка»
+      // от 0% до текущего значения когда придёт первый SSE-пакет).
+      var step = r.step || 0;
+      var num = _q('setupMiniStepNum'); if (num) num.textContent = step + '/6';
+      var lbl = _q('setupMiniStepLabel'); if (lbl) lbl.textContent = r.stepLabel || 'Инициализация...';
+      var bar = _q('setupMiniBar');
+      if (bar) bar.style.width = Math.max(2, Math.round(step / 6 * 100)) + '%';
+      // Если у нас не подключён tracker для этого setupId — подключаем.
+      // Это случай F5: на странице нет ни SSE, ни setupId, но бэк всё
+      // ещё гонит настройку.
+      if (window.setupId !== r.setupId || !window.sseSource) {
+        window.setupId = r.setupId;
+        window._setupBackgrounded = true;
+        window._setupCompleted = false;
+        if (window.trackProgress) window.trackProgress(r.setupId);
+      }
+    }).catch(function(){
+      /* сеть упала — оставляем виджет как есть */
+    });
   }
 
   function _isSetupModalOpen(){
@@ -168,8 +219,20 @@
 
   /* Закрытие модалки. Если в этой сессии у юзера уже есть ключи — просто
      закрываем; если ключей нет, ставим флаг _setupModalDismissed, чтобы
-     loadDashboard() её не открывал заново автоматически до перезагрузки. */
+     loadDashboard() её не открывал заново автоматически до перезагрузки.
+
+     M4: если прямо сейчас идёт активная настройка (есть window.setupId
+     и она не завершена), вместо тихого закрытия показываем confirm
+     «Прервать или продолжить в фоне». Делегируем эту проверку
+     setupModalCloseGuard() из setup.js — там же живёт сам диалог
+     и логика фонового виджета. */
   function closeSetupModal(){
+    if (typeof window.setupModalCloseGuard === 'function') {
+      window.setupModalCloseGuard();
+      return;
+    }
+    // Фолбек на случай, если setup.js ещё не загрузился (теоретически
+    // невозможно — он импортируется до keys.js — но пусть будет).
     window._setupModalDismissed = true;
     window._forceSetupFlowVisible = false;
     if (window.closeModal) window.closeModal('setupModal');

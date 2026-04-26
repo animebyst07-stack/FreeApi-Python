@@ -567,17 +567,29 @@ def community_tg_link_unlink():
     uid = current_user_id()
     state = users_repo.get_user_tg_notify(uid) or {}
     old_chat = state.get('chat_id')
+    # Достаём ник сайта ДО clear_tg_notify, чтобы вшить его
+    # в прощальное сообщение и юзер видел, с какой стороны порвалась связь.
+    site_user = users_repo.get_user_by_id(uid) or {}
+    site_username = (site_user.get('username') or '').strip() or '—'
     users_repo.clear_tg_notify(uid)
     # Прощальное сообщение (best-effort, ошибки игнорируем).
+    # Текст сделан так, чтобы у юзера не возникло сомнений, какой
+    # именно сайт-аккаунт инициировал отвязку (на одном TG-аккаунте
+    # может быть привязано несколько сайт-аккаунтов в разное время).
     token = _tg_notify_token()
     if token and old_chat:
         try:
+            safe_name = tg_notify._escape_html(site_username)
             tg_notify.send_html_to_user(
                 token, old_chat,
-                '👋 Привязка с FavoriteAPI отключена. Уведомления о '
-                'упоминаниях больше приходить не будут.',
+                f'👋 <b>Уведомления отвязаны</b> от аккаунта '
+                f'<b>{safe_name}</b> на FavoriteAPI.\n\n'
+                f'Сюда больше не будут приходить пуши об '
+                f'@упоминаниях. Если это сделали не вы — заходите '
+                f'на сайт и снова привяжите Telegram в настройках.',
             )
         except Exception:
             pass
-    logger.info('[COMMUNITY][TG_LINK] uid=%s unlinked old_chat=%s', uid, old_chat)
+    logger.info('[COMMUNITY][TG_LINK] uid=%s (%s) unlinked old_chat=%s',
+                uid, site_username, old_chat)
     return jsonify(_tg_link_status_payload(uid))
