@@ -114,10 +114,10 @@ def check_env(report):
         elif key == 'PORT':
             try:
                 port = int(value)
-                if port == 5000:
-                    report.ok(f'.env: {key}', '5000')
+                if port == 5005:
+                    report.ok(f'.env: {key}', '5005')
                 else:
-                    report.warn(f'.env: {key}', f'сейчас {port}; для Termux рекомендуется 5000')
+                    report.warn(f'.env: {key}', f'сейчас {port}; для Termux рекомендуется 5005')
             except ValueError:
                 report.fail(f'.env: {key}', f'должен быть числом, сейчас: {value}')
         else:
@@ -162,7 +162,7 @@ def check_flask(report):
 
 
 def check_port(report):
-    port_raw = os.environ.get('PORT', '5000')
+    port_raw = os.environ.get('PORT', '5005')
     try:
         port = int(port_raw)
     except ValueError:

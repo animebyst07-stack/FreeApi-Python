@@ -64,7 +64,7 @@ python check_env.py
 ```
 
 Скрипт проверит Python-библиотеки, `.env`, SQLite-базу, Flask health-check,
-порт `5000` и доступность Telegram через Telethon. Если есть `[X]`,
+порт `5005` и доступность Telegram через Telethon. Если есть `[X]`,
 исправьте указанную проблему и запустите проверку снова.
 
 ### Запуск
@@ -73,7 +73,7 @@ python check_env.py
 python api.py
 ```
 
-Сервер запустится на `http://0.0.0.0:5000` (или порт из `.env`).
+Сервер запустится на `http://0.0.0.0:5005` (или порт из `.env`).
 
 ## API Endpoints
 
@@ -180,7 +180,7 @@ python api.py
 ## Пример запроса
 
 ```bash
-curl -X POST "http://127.0.0.1:5000/api/v1/chat" \
+curl -X POST "http://127.0.0.1:5005/api/v1/chat" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{

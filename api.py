@@ -176,7 +176,7 @@ if __name__ == '__main__':
             tg_token = ''
             tg_chats = []
 
-    port = int(os.environ.get('PORT', '5000'))
+    port = int(os.environ.get('PORT', '5005'))
 
     def on_tunnel_url(url: str):
         if tg_token and tg_chats:
