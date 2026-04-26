@@ -809,9 +809,15 @@
     }
     if (isMine) {
       rows.push(actionRow(ICONS.trash, 'Удалить у себя', 'cmDeleteMsg(\'' + esc(msgId) + '\',false)', true));
-    } else if (STATE.isAdmin) {
+    }
+    if (STATE.isAdmin) {
+      // Админу всегда показываем «Удалить (модерация)» — даже на своём
+      // сообщении (полное удаление с записью в журнал модерации).
+      // «Забанить» — только для чужих сообщений (себя не банят).
       rows.push(actionRow(ICONS.trash, 'Удалить (модерация)', 'cmDeleteMsg(\'' + esc(msgId) + '\',true)', true));
-      rows.push(actionRow(ICONS.ban, 'Забанить @' + m.username, 'cmBanUser(\'' + esc(m.username) + '\')', true));
+      if (!isMine) {
+        rows.push(actionRow(ICONS.ban, 'Забанить @' + m.username, 'cmBanUser(\'' + esc(m.username) + '\')', true));
+      }
     }
     actions.innerHTML = rows.join('');
 
@@ -879,7 +885,10 @@
   // Стилистически совпадает с cmDialogOverlay (темная подложка + карточка),
   // но отдельный DOM-узел, чтобы не ломать остальные вызовы showCmDialog.
   function showCmEditDialog(msg, onSave) {
-    var workImages = (msg.images || []).slice();
+    var origImages = (msg.images || []).slice();
+    var origSet = {};
+    origImages.forEach(function (s) { origSet[s] = true; });
+    var workImages = origImages.slice();
     var ov = document.createElement('div');
     ov.style.cssText =
       'position:fixed;inset:0;z-index:9991;background:rgba(0,0,0,.75);' +
@@ -939,23 +948,55 @@
 
     ta.value = msg.text || '';
 
+    var sumEl = document.createElement('div');
+    sumEl.style.cssText =
+      'font-size:11.5px;color:#7a7a7a;margin:-4px 0 10px;line-height:1.4';
+    imgsBox.parentNode.insertBefore(sumEl, imgsBox.nextSibling);
+
     function renderImgs() {
       cntEl.textContent = workImages.length + ' / ' + CM_MAX_IMAGES;
       addBtn.disabled = workImages.length >= CM_MAX_IMAGES;
       addBtn.style.opacity = addBtn.disabled ? '.5' : '';
       addBtn.style.cursor = addBtn.disabled ? 'not-allowed' : 'pointer';
+
+      // Сводка изменений: было N · сейчас M · добавлено A · удалено D.
+      var workSet = {};
+      workImages.forEach(function (s) { workSet[s] = true; });
+      var added = workImages.filter(function (s) { return !origSet[s]; }).length;
+      var removed = origImages.filter(function (s) { return !workSet[s]; }).length;
+      var changed = (added + removed) > 0;
+      sumEl.innerHTML =
+        'Было: <b style="color:#aaa">' + origImages.length + '</b>' +
+        ' · сейчас: <b style="color:#aaa">' + workImages.length + '</b>' +
+        (added   ? ' · <span style="color:#69d08a">+' + added + ' добавлено</span>' : '') +
+        (removed ? ' · <span style="color:#e57373">−' + removed + ' удалено</span>' : '') +
+        (!changed ? ' · <span style="color:#666">без изменений</span>' : '');
+
       if (!workImages.length) {
         imgsBox.innerHTML =
           '<div style="color:#666;font-size:12.5px;padding:6px 2px">' +
-          'Нет прикреплённых фото</div>';
+          (origImages.length
+            ? 'Все фото будут удалены при сохранении'
+            : 'Нет прикреплённых фото') +
+          '</div>';
         return;
       }
       imgsBox.innerHTML = workImages.map(function (src, i) {
+        var isNew = !origSet[src];
+        var border = isNew ? '#69d08a' : '#2a2a2a';
+        var shadow = isNew ? 'box-shadow:0 0 0 2px rgba(105,208,138,.18);' : '';
         return '<div class="cm-composer-img-item" ' +
           'style="position:relative;width:84px;height:84px;border-radius:10px;' +
-          'overflow:hidden;background:#1a1a1a;border:1px solid #2a2a2a">' +
+          'overflow:hidden;background:#1a1a1a;border:1px solid ' + border + ';' +
+          shadow + '">' +
           '<img src="' + esc(src) + '" alt="" ' +
             'style="width:100%;height:100%;object-fit:cover;display:block">' +
+          (isNew
+            ? '<span style="position:absolute;left:4px;bottom:4px;' +
+              'background:#1f7a3a;color:#fff;font-size:9.5px;font-weight:700;' +
+              'padding:2px 6px;border-radius:6px;letter-spacing:.04em;' +
+              'text-transform:uppercase">новое</span>'
+            : '') +
           '<button data-rm="' + i + '" type="button" ' +
             'title="Удалить" ' +
             'style="position:absolute;top:4px;right:4px;width:22px;height:22px;' +
@@ -1135,20 +1176,59 @@
     // Текущий текст лежит в STATE.msgsCache, добавляем его как «v0».
     http('GET', '/api/community/message/' + msgId + '/versions').then(function (d) {
       var versions = d.versions || [];
+      // Пул всех ранее существовавших картинок — для подсветки «новое»
+      // в текущей версии (то, чего раньше точно не было).
+      var prevImgsPool = {};
+      versions.forEach(function (v) {
+        (v.images || []).forEach(function (src) { prevImgsPool[src] = true; });
+      });
+
+      function imgsHtml(images, basePool, key) {
+        if (!images || !images.length) return '';
+        // basePool — словарь src→true: «то, что считается ранее
+        // существовавшим». Картинки не из pool помечаем как «новое».
+        var galKey = 'cmVhGal_' + key;
+        var srcs = images.slice();
+        window[galKey] = srcs;
+        return '<div class="cm-vh-imgs">' + srcs.map(function (src, i) {
+          var isNew = basePool && !basePool[src];
+          return '<div class="cm-vh-img' + (isNew ? ' is-new' : '') + '">' +
+            '<img src="' + esc(src) + '" alt="" ' +
+              'onclick="openLightbox(window.' + galKey + ',' + i + ')">' +
+            (isNew ? '<span class="cm-vh-img-badge">новое</span>' : '') +
+          '</div>';
+        }).join('') + '</div>';
+      }
+
       var blocks = [];
-      if (current && (current.text || '').length) {
-        blocks.push(
-          '<div class="cm-vh-item cm-vh-current">' +
-            '<div class="cm-vh-meta"><b>Текущая версия</b>' +
-              (current.updated_at ? ' · ' + esc(fmtDate(current.updated_at)) : '') +
-            '</div>' +
-            '<div class="cm-vh-text">' + esc(current.text || '[пусто]') + '</div>' +
-          '</div>'
-        );
+      if (current) {
+        var hasText = !!(current.text && current.text.length);
+        var hasImgs = !!(current.images && current.images.length);
+        if (hasText || hasImgs) {
+          blocks.push(
+            '<div class="cm-vh-item cm-vh-current">' +
+              '<div class="cm-vh-meta"><b>Текущая версия</b>' +
+                (current.updated_at ? ' · ' + esc(fmtDate(current.updated_at)) : '') +
+              '</div>' +
+              (hasText
+                ? '<div class="cm-vh-text">' + esc(current.text) + '</div>'
+                : '<div class="cm-vh-text cm-vh-empty-line">[без текста]</div>') +
+              imgsHtml(current.images, prevImgsPool, 'cur') +
+            '</div>'
+          );
+        }
       }
       versions.slice().reverse().forEach(function (v, idx) {
         var who = v.edited_by_username ? '@' + v.edited_by_username : 'пользователь';
         var when = v.edited_at ? fmtDate(v.edited_at) : '';
+        // Для прошлых версий «новое» считаем относительно ещё более ранних:
+        // строим pool из всех версий ДО этой (по edited_at).
+        var olderPool = {};
+        versions.forEach(function (vv) {
+          if (vv.edited_at < v.edited_at) {
+            (vv.images || []).forEach(function (s) { olderPool[s] = true; });
+          }
+        });
         blocks.push(
           '<div class="cm-vh-item">' +
             '<div class="cm-vh-meta">Версия ' + (versions.length - idx) +
@@ -1156,6 +1236,7 @@
               (when ? ' · ' + esc(when) : '') +
             '</div>' +
             '<div class="cm-vh-text">' + esc(v.text || '[пусто]') + '</div>' +
+            imgsHtml(v.images, olderPool, 'v' + idx) +
           '</div>'
         );
       });

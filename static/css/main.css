@@ -635,11 +635,18 @@ footer .container{display:flex;align-items:center;justify-content:space-between;
 .cm-vh-meta{font-size:11px;color:#7a7a7a;margin-bottom:6px;letter-spacing:.02em}
 .cm-vh-meta b{color:#cfd6e4;font-weight:600}
 .cm-vh-text{font-size:13.5px;color:#dcdcdc;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.cm-vh-text.cm-vh-empty-line{color:#666;font-style:italic}
 .cm-vh-empty{font-size:13px;color:#777;text-align:center;padding:18px 0}
+.cm-vh-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cm-vh-img{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#1a1a1a;border:1px solid #2a2a2a}
+.cm-vh-img img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
+.cm-vh-img.is-new{border-color:#69d08a;box-shadow:0 0 0 2px rgba(105,208,138,.18)}
+.cm-vh-img-badge{position:absolute;left:3px;bottom:3px;background:#1f7a3a;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase;pointer-events:none}
 @media(max-width:520px){
   .cm-vh-list{max-height:60vh}
   .cm-vh-item{padding:8px 10px}
   .cm-vh-text{font-size:13px}
+  .cm-vh-img{width:64px;height:64px}
 }
 
 /* ─── ADMIN CHAT COPY BTN ─── */

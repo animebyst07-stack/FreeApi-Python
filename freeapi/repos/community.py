@@ -458,13 +458,25 @@ def soft_delete(message_id, deleted_by):
 
 def get_message_versions(message_id):
     with db() as conn:
-        return rows(conn.execute(
+        items = rows(conn.execute(
             'SELECT v.*, u.username AS edited_by_username '
             'FROM community_message_versions v '
             'LEFT JOIN users u ON u.id = v.edited_by '
             'WHERE v.message_id=? ORDER BY v.edited_at ASC',
             (message_id,),
         ).fetchall())
+    # images_json — JSON-массив data_url снимков СТАРОЙ версии. Распарсим
+    # его в поле images, чтобы фронт мог рисовать миниатюры без знания
+    # внутреннего формата.
+    for it in items:
+        raw = it.get('images_json')
+        try:
+            it['images'] = json.loads(raw) if raw else []
+        except Exception:
+            it['images'] = []
+        if not isinstance(it['images'], list):
+            it['images'] = []
+    return items
 
 
 # ─── PIN/UNPIN ───────────────────────────────────────────────────────
