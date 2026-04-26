@@ -855,21 +855,179 @@
   window.cmEditMsg = function (msgId) {
     var m = STATE.msgsCache[msgId];
     if (!m) return;
-    // Многострочное редактирование (textarea) — длинные посты/сообщения
-    // в однострочный input не помещались.
-    cmPromptMulti('Редактировать сообщение:', m.text || '', function (v) {
-      if (v == null) return;
-      var trimmed = String(v).trim();
-      if (!trimmed && !(m.images && m.images.length)) {
+    // Расширенный редактор: многострочный текст + управление прикреплёнными
+    // фото (удалить уже прикреплённое / добавить новое). PATCH-эндпоинт
+    // /api/community/messages/<id> уже принимает поля text и images.
+    showCmEditDialog(m, function (newText, newImages) {
+      var trimmed = String(newText || '').trim();
+      var origText = (m.text || '').trim();
+      var origImgs = JSON.stringify(m.images || []);
+      var nextImgs = JSON.stringify(newImages || []);
+      if (!trimmed && !(newImages && newImages.length)) {
         if (window.showToast) window.showToast('Сообщение не может быть пустым', 'err');
         return;
       }
-      if (trimmed === (m.text || '').trim()) return;
-      http('PATCH', '/api/community/messages/' + msgId, {text: trimmed})
+      if (trimmed === origText && origImgs === nextImgs) return;
+      http('PATCH', '/api/community/messages/' + msgId,
+           {text: trimmed, images: newImages || []})
         .then(loadMessages)
         .catch(function (e) { if (window.showToast) window.showToast(e.message, 'err'); });
     });
   };
+
+  // Кастомный модальный редактор сообщения с превью фото.
+  // Стилистически совпадает с cmDialogOverlay (темная подложка + карточка),
+  // но отдельный DOM-узел, чтобы не ломать остальные вызовы showCmDialog.
+  function showCmEditDialog(msg, onSave) {
+    var workImages = (msg.images || []).slice();
+    var ov = document.createElement('div');
+    ov.style.cssText =
+      'position:fixed;inset:0;z-index:9991;background:rgba(0,0,0,.75);' +
+      'backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
+      'display:flex;align-items:center;justify-content:center;padding:24px';
+    var box = document.createElement('div');
+    box.style.cssText =
+      'background:#0f0f0f;border:1px solid #252525;border-radius:18px;' +
+      'padding:24px;max-width:560px;width:100%;' +
+      'box-shadow:0 24px 64px rgba(0,0,0,.9);' +
+      'max-height:90vh;display:flex;flex-direction:column';
+    box.innerHTML =
+      '<div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:14px">' +
+        'Редактирование сообщения</div>' +
+      '<textarea id="cmEditTa" rows="5" placeholder="Текст сообщения" ' +
+        'style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;' +
+        'border-radius:10px;color:#eee;padding:10px 13px;font:inherit;' +
+        'font-size:14px;box-sizing:border-box;outline:none;resize:vertical;' +
+        'min-height:96px;max-height:38vh;margin-bottom:12px"></textarea>' +
+      '<div style="font-size:12px;color:#888;margin-bottom:8px;' +
+        'display:flex;justify-content:space-between;align-items:center">' +
+        '<span>Прикреплённые фото</span>' +
+        '<span id="cmEditCnt" style="color:#666"></span></div>' +
+      '<div id="cmEditImgs" class="cm-composer-images" ' +
+        'style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;' +
+        'max-height:30vh;overflow:auto"></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:18px">' +
+        '<button id="cmEditAddBtn" type="button" ' +
+          'style="padding:8px 14px;border-radius:10px;border:1px dashed #3a3a3a;' +
+          'background:#161616;color:#bbb;font:inherit;font-size:13px;' +
+          'cursor:pointer">+ Добавить фото</button>' +
+        '<input id="cmEditFile" type="file" ' +
+          'accept="image/jpeg,image/png,image/webp" multiple ' +
+          'style="display:none">' +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:10px">' +
+        '<button id="cmEditCancel" type="button" ' +
+          'style="padding:9px 18px;border-radius:10px;border:1px solid #2a2a2a;' +
+          'background:#1a1a1a;color:#aaa;font:inherit;font-size:13.5px;' +
+          'cursor:pointer">Отмена</button>' +
+        '<button id="cmEditSave" type="button" ' +
+          'style="padding:9px 18px;border-radius:10px;border:none;' +
+          'background:#fff;color:#000;font:inherit;font-size:13.5px;' +
+          'font-weight:600;cursor:pointer">Сохранить</button>' +
+      '</div>';
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    document.body.style.overflow = 'hidden';
+
+    var ta = box.querySelector('#cmEditTa');
+    var imgsBox = box.querySelector('#cmEditImgs');
+    var cntEl = box.querySelector('#cmEditCnt');
+    var addBtn = box.querySelector('#cmEditAddBtn');
+    var fileInp = box.querySelector('#cmEditFile');
+    var cancelB = box.querySelector('#cmEditCancel');
+    var saveB = box.querySelector('#cmEditSave');
+
+    ta.value = msg.text || '';
+
+    function renderImgs() {
+      cntEl.textContent = workImages.length + ' / ' + CM_MAX_IMAGES;
+      addBtn.disabled = workImages.length >= CM_MAX_IMAGES;
+      addBtn.style.opacity = addBtn.disabled ? '.5' : '';
+      addBtn.style.cursor = addBtn.disabled ? 'not-allowed' : 'pointer';
+      if (!workImages.length) {
+        imgsBox.innerHTML =
+          '<div style="color:#666;font-size:12.5px;padding:6px 2px">' +
+          'Нет прикреплённых фото</div>';
+        return;
+      }
+      imgsBox.innerHTML = workImages.map(function (src, i) {
+        return '<div class="cm-composer-img-item" ' +
+          'style="position:relative;width:84px;height:84px;border-radius:10px;' +
+          'overflow:hidden;background:#1a1a1a;border:1px solid #2a2a2a">' +
+          '<img src="' + esc(src) + '" alt="" ' +
+            'style="width:100%;height:100%;object-fit:cover;display:block">' +
+          '<button data-rm="' + i + '" type="button" ' +
+            'title="Удалить" ' +
+            'style="position:absolute;top:4px;right:4px;width:22px;height:22px;' +
+            'border-radius:50%;border:none;background:rgba(0,0,0,.7);' +
+            'color:#fff;font:inherit;font-size:14px;line-height:20px;' +
+            'cursor:pointer;padding:0">×</button>' +
+          '</div>';
+      }).join('');
+      Array.prototype.forEach.call(
+        imgsBox.querySelectorAll('button[data-rm]'),
+        function (btn) {
+          btn.onclick = function () {
+            var i = parseInt(btn.getAttribute('data-rm'), 10);
+            if (!isNaN(i)) { workImages.splice(i, 1); renderImgs(); }
+          };
+        }
+      );
+    }
+    renderImgs();
+
+    addBtn.onclick = function () {
+      if (addBtn.disabled) return;
+      fileInp.click();
+    };
+    fileInp.onchange = function (ev) {
+      var files = ev.target.files;
+      if (!files || !files.length) return;
+      var remaining = CM_MAX_IMAGES - workImages.length;
+      if (remaining <= 0) {
+        if (window.showToast) {
+          window.showToast('Максимум ' + CM_MAX_IMAGES + ' фото', 'err');
+        }
+        ev.target.value = '';
+        return;
+      }
+      addBtn.disabled = true;
+      _readFilesAsDataUrls(files, remaining).then(function (urls) {
+        urls.forEach(function (u) {
+          if (workImages.length < CM_MAX_IMAGES) workImages.push(u);
+        });
+        renderImgs();
+      }).catch(function (e) {
+        L('EDIT_FILES_FAIL', e.message, 'error');
+        if (window.showToast) window.showToast('Не удалось загрузить фото', 'err');
+      }).finally(function () {
+        addBtn.disabled = workImages.length >= CM_MAX_IMAGES;
+        ev.target.value = '';
+      });
+    };
+
+    function close() {
+      document.body.style.overflow = '';
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+    }
+    cancelB.onclick = close;
+    saveB.onclick = function () {
+      var v = ta.value;
+      close();
+      onSave(v, workImages);
+    };
+    ta.onkeydown = function (e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault(); saveB.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault(); cancelB.click();
+      }
+    };
+    setTimeout(function () {
+      try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+      catch (_e) {}
+    }, 80);
+  }
 
   // M3.5: оптимистичное удаление — DOM убираем сразу, при ошибке загружаем заново.
   window.cmDeleteMsg = function (msgId, asAdmin) {
