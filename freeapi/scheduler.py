@@ -65,7 +65,7 @@ def _tg_link_poll_worker():
         user = users_repo.find_user_by_tg_link_token(link_token)
         if not user:
             return False
-        users_repo.set_tg_notify_chat_id(user['id'], chat_id)
+        users_repo.set_tg_notify_chat_id(user['id'], chat_id, tg_username)
         logger.info('[Scheduler][TG_LINK] uid=%s linked chat=%s tg=%s',
                     user['id'], chat_id, tg_username)
         return True

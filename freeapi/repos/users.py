@@ -179,7 +179,8 @@ def get_user_tg_notify(user_id):
     """Полный объект состояния привязки (для UI)."""
     with db() as conn:
         r = conn.execute(
-            'SELECT tg_notify_chat_id, tg_notify_link_token, tg_notify_linked_at '
+            'SELECT tg_notify_chat_id, tg_notify_link_token, tg_notify_linked_at, '
+            'tg_notify_username '
             'FROM users WHERE id = ?', (user_id,)
         ).fetchone()
         if not r:
@@ -188,6 +189,7 @@ def get_user_tg_notify(user_id):
             'chat_id': r['tg_notify_chat_id'],
             'link_token': r['tg_notify_link_token'],
             'linked_at': r['tg_notify_linked_at'],
+            'tg_username': r['tg_notify_username'],
         }
 
 
@@ -199,14 +201,21 @@ def get_tg_notify_chat_id(user_id):
         return r['tg_notify_chat_id'] if r and r['tg_notify_chat_id'] else None
 
 
-def set_tg_notify_chat_id(user_id, chat_id):
-    """Привязать chat_id и сбросить link_token (одноразовый)."""
+def set_tg_notify_chat_id(user_id, chat_id, tg_username=None):
+    """Привязать chat_id и сбросить link_token (одноразовый).
+
+    Если передан tg_username (из getUpdates: msg.from.username) — сохраняем,
+    чтобы UI показывал «Уведомления привязаны к @user» вместо chat_id.
+    При ручной привязке (юзер ввёл chat_id руками) tg_username=None и
+    остаётся NULL — UI покажет fallback.
+    """
     now = msk_now()
+    uname = (tg_username or '').strip() or None
     with db() as conn:
         conn.execute(
             'UPDATE users SET tg_notify_chat_id=?, tg_notify_link_token=NULL, '
-            'tg_notify_linked_at=? WHERE id=?',
-            (str(chat_id), now, user_id),
+            'tg_notify_linked_at=?, tg_notify_username=? WHERE id=?',
+            (str(chat_id), now, uname, user_id),
         )
 
 

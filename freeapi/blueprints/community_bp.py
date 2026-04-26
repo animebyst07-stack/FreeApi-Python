@@ -112,11 +112,22 @@ def _notify_mentions(message_id):
 
 @bp.get('/api/community/state')
 def community_state():
-    """Состояние раздела для текущего юзера: бан/админ/мьют."""
+    """Состояние раздела для текущего юзера: бан/админ/мьют.
+
+    Дополнительно отдаём username — фронту нужен fallback для отображения
+    «Уведомления привязаны к <ник>», если у TG-аккаунта нет публичного
+    @username (не сохранён при /start).
+    """
     uid = current_user_id()
+    uname = None
+    if uid:
+        u = users_repo.get_user_by_id(uid)
+        if u:
+            uname = u.get('username')
     payload = {
         'is_authenticated': bool(uid),
         'user_id': uid,
+        'username': uname,
         'is_admin': is_admin(uid) if uid else False,
         'chat_ban': cm.get_chat_ban(uid) if uid else None,
         'mute_mentions': cm.get_mute_mentions(uid) if uid else False,
@@ -471,6 +482,10 @@ def _tg_link_status_payload(user_id):
         'link_url': link_url,
         'link_token': link_token if not chat_id else None,
         'mute_mentions': bool(mute),
+        # @username Telegram-аккаунта, к которому привязали (если он публичный).
+        # Может быть None: либо ручная привязка по chat_id, либо у юзера в TG
+        # нет публичного @username. UI делает fallback на ник сайта/chat_id.
+        'tg_username': state.get('tg_username'),
     }
 
 

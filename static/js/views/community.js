@@ -291,6 +291,7 @@
       STATE.isAdmin = !!s.is_admin;
       STATE.userId = (s.user_id != null) ? s.user_id : null;
       window.__currentUserId = STATE.userId;
+      STATE.username = s.username || null;
       STATE.chatBan = s.chat_ban || null;
       STATE.muteMentions = !!s.mute_mentions;
       L('STATE', JSON.stringify({auth:STATE.isAuth, admin:STATE.isAdmin, uid:STATE.userId, ban:!!STATE.chatBan, mute:STATE.muteMentions}));
@@ -1440,10 +1441,36 @@
   // ── TG-уведомления (модал) ──────────────────────────────────────────
   function loadTgState() {
     return http('GET', '/api/community/tg_link').then(function (s) {
+      // Если только что произошла привязка (был не linked, стало linked) —
+      // показываем toast, чтобы юзер не таращился в модал в ожидании.
+      var wasLinked = !!(STATE.tgState && STATE.tgState.linked);
       STATE.tgState = s;
       renderTgChip(s);
       renderTgModal(s);
+      if (s && s.linked && !wasLinked) {
+        if (window.showToast) window.showToast('Telegram привязан', 'ok');
+        cmStopTgPoll();
+      }
     }).catch(function (e) { L('TG_FAIL', e.message, 'error'); });
+  }
+
+  // Пока модал открыт и привязки ещё нет — каждые 3 сек тянем статус,
+  // чтобы окно само переключилось на «Уведомления привязаны…», как только
+  // юзер нажмёт /start у бота. Без поллинга он бы сидел и не понимал,
+  // нажимать ли «Сгенерировать заново» или закрыть.
+  function cmStartTgPoll() {
+    cmStopTgPoll();
+    STATE.__tgPollId = setInterval(function () {
+      // Если модал закрыли (классы сняли) — останавливаемся.
+      var m = document.getElementById('cmTgModal');
+      if (!m || !m.classList.contains('open')) { cmStopTgPoll(); return; }
+      // Уже привязан — стоп.
+      if (STATE.tgState && STATE.tgState.linked) { cmStopTgPoll(); return; }
+      loadTgState();
+    }, 3000);
+  }
+  function cmStopTgPoll() {
+    if (STATE.__tgPollId) { clearInterval(STATE.__tgPollId); STATE.__tgPollId = null; }
   }
 
   function renderTgChip(s) {
@@ -1483,10 +1510,21 @@
       return;
     }
     if (s.linked) {
-      var when = s.linked_at ? (' · ' + esc(s.linked_at)) : '';
+      // Имя привязанного TG-аккаунта: приоритет — публичный @username из TG,
+      // иначе ник сайта (если знаем), иначе нейтральная подпись «аккаунту».
+      var who;
+      if (s.tg_username) {
+        who = '<a href="https://t.me/' + esc(s.tg_username) + '" target="_blank" rel="noopener" style="color:#9fdf9f;text-decoration:none">@' + esc(s.tg_username) + '</a>';
+      } else if (STATE.username) {
+        who = '<span style="color:#9fdf9f">' + esc(STATE.username) + '</span>';
+      } else {
+        who = '<span style="color:#9fdf9f">аккаунту</span> <code>' + esc(s.chat_id) + '</code>';
+      }
+      var when = s.linked_at ? ('<div style="color:#666;font-size:11.5px;margin-bottom:14px">' + esc(s.linked_at) + '</div>') : '';
       body.innerHTML =
-        '<div style="color:#9fdf9f;margin-bottom:10px">Telegram привязан (chat_id: <code>' + esc(s.chat_id) + '</code>' + when + ').</div>' +
-        '<div style="color:#aaa;margin-bottom:14px">Когда вас упомянут <span class="cm-mention">@ник</span> в общем чате — пуш придёт сюда. Внутреннее уведомление в колоколе создаётся всегда.</div>' +
+        '<div style="color:#cfeacf;margin-bottom:6px;font-size:14px">Уведомления успешно привязаны к ' + who + '.</div>' +
+        when +
+        '<div style="color:#aaa;margin-bottom:14px">Когда вас упомянут <span class="cm-mention">@ник</span> в общем чате — пуш придёт в Telegram. Внутреннее уведомление в колоколе создаётся всегда.</div>' +
         '<button class="cm-iconbtn" style="width:auto;padding:0 14px;height:36px;color:#ff8a8a" onclick="cmTgUnlink()" type="button">Отвязать</button>';
     } else {
       var url = s.link_url ? esc(s.link_url) : '';
@@ -1513,11 +1551,16 @@
   window.cmOpenTgModal = function () {
     document.getElementById('cmTgBackdrop').classList.add('open');
     document.getElementById('cmTgModal').classList.add('open');
-    if (!STATE.tgState) loadTgState();
+    // Всегда дёргаем свежий статус: пока модал был закрыт, юзер мог
+    // успеть привязать бота — иначе показали бы устаревший «Подключите…».
+    loadTgState().then(function () {
+      if (!STATE.tgState || !STATE.tgState.linked) cmStartTgPoll();
+    });
   };
   window.cmCloseTgModal = function () {
     document.getElementById('cmTgBackdrop').classList.remove('open');
     document.getElementById('cmTgModal').classList.remove('open');
+    cmStopTgPoll();
   };
   window.cmTgRegen = function () {
     http('POST', '/api/community/tg_link/regenerate').then(function (s) {
