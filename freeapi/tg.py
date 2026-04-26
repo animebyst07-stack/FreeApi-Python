@@ -18,6 +18,7 @@ from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInv
 from telethon.tl.types import MessageEntityCode, MessageEntityTextUrl
 
 from freeapi import repositories as repo
+from freeapi import tg_notify
 from freeapi.config import BOT_QUIET_SECONDS, REQUEST_TIMEOUT_SECONDS, SAM_BOT_USERNAME
 from freeapi.memory import detect_limit_error, contains_cyrillic, CONTEXT_WARN_KB
 from freeapi.models import DEFAULT_MODEL_ID, find_model
@@ -370,13 +371,67 @@ class SetupFlow:
                         key = repo.create_api_key(self.user_id, self.account_id, generate_api_key(), 'Мой ключ', DEFAULT_MODEL_ID)
                     repo.update_setup_session(self.setup_id, status='done', current_step=6, step_label='Готово!', error_msg=None)
                     update_progress(self.setup_id, step=6, stepLabel='Готово!', done=True, error=None, canRetry=False, apiKey=key['key_value'])
+                    # M5: личное TG-уведомление об успешном завершении
+                    # фоновой настройки (best-effort, всегда после успеха).
+                    self._notify_setup_status(success=True, key_value=key['key_value'])
         except (UserBlockedError, YouBlockedUserError):
             msg = 'Бот заблокирован в вашем Telegram. Зайдите в Telegram, разблокируйте @' + SAM_BOT_USERNAME + ' и нажмите "Повторить".'
             repo.update_setup_session(self.setup_id, status='error', error_msg=msg)
             update_progress(self.setup_id, done=True, error=msg, canRetry=True)
+            self._notify_setup_status(success=False, error=msg)
         except Exception as error:
             repo.update_setup_session(self.setup_id, status='error', error_msg=str(error))
             update_progress(self.setup_id, done=True, error='SETUP_FAIL_604: ' + str(error), canRetry=True)
+            self._notify_setup_status(success=False, error='SETUP_FAIL_604: ' + str(error))
+
+    # ─── M5: личное TG-уведомление о результате фоновой настройки ────
+    # Юзер просил, чтобы не приходилось «залипать на дашборде» в
+    # ожидании конца — после успеха/ошибки бот пишет ему в личку
+    # (тот же бот, который шлёт уведомления об упоминаниях). Если у
+    # юзера не привязан TG-аккаунт через /api/community/tg_link, или
+    # нет TG_NOTIFY_TOKEN в env, или запрос упал — молча игнорируем,
+    # это не должно ронять основной поток настройки.
+    def _notify_setup_status(self, success, key_value=None, error=None):
+        try:
+            token = (os.environ.get('TG_NOTIFY_TOKEN') or '').strip()
+            if not token:
+                return
+            chat_id = repo.get_tg_notify_chat_id(self.user_id)
+            if not chat_id:
+                return
+            account = repo.get_tg_account(self.account_id) or {}
+            user = repo.get_user_by_id(self.user_id) or {}
+            site_user = (user.get('username') or '').strip() or '—'
+            tg_label = ('@' + account['tg_username']) if account.get('tg_username') \
+                       else (account.get('phone') or 'аккаунт')
+            safe_site = tg_notify._escape_html(site_user)
+            safe_tg = tg_notify._escape_html(tg_label)
+            if success:
+                safe_key = tg_notify._escape_html(key_value or '')
+                text = (
+                    '✅ <b>Настройка завершена</b>\n\n'
+                    f'Аккаунт сайта: <b>{safe_site}</b>\n'
+                    f'Telegram: <b>{safe_tg}</b>\n\n'
+                    'Ваш API-ключ:\n'
+                    f'<code>{safe_key}</code>\n\n'
+                    'Ключ уже добавлен в дашборд FavoriteAPI — можно сразу '
+                    'идти в чат и пользоваться.'
+                )
+            else:
+                safe_err = tg_notify._escape_html(str(error or 'неизвестная ошибка'))
+                text = (
+                    '⚠️ <b>Настройка не завершилась</b>\n\n'
+                    f'Аккаунт сайта: <b>{safe_site}</b>\n'
+                    f'Telegram: <b>{safe_tg}</b>\n\n'
+                    f'Причина: {safe_err}\n\n'
+                    'Откройте дашборд FavoriteAPI и нажмите '
+                    '«Повторить последний шаг», либо запустите настройку '
+                    'заново.'
+                )
+            tg_notify.send_html_to_user(token, chat_id, text)
+        except Exception as notify_err:  # pragma: no cover — best-effort
+            logger.warning('[SETUP_NOTIFY] failed for user=%s: %s',
+                           self.user_id, notify_err)
 
     async def step(self, number, label):
         repo.update_setup_session(self.setup_id, current_step=number, step_label=label)
