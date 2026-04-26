@@ -289,9 +289,11 @@
     return http('GET', '/api/community/state').then(function (s) {
       STATE.isAuth = !!s.is_authenticated;
       STATE.isAdmin = !!s.is_admin;
+      STATE.userId = (s.user_id != null) ? s.user_id : null;
+      window.__currentUserId = STATE.userId;
       STATE.chatBan = s.chat_ban || null;
       STATE.muteMentions = !!s.mute_mentions;
-      L('STATE', JSON.stringify({auth:STATE.isAuth, admin:STATE.isAdmin, ban:!!STATE.chatBan, mute:STATE.muteMentions}));
+      L('STATE', JSON.stringify({auth:STATE.isAuth, admin:STATE.isAdmin, uid:STATE.userId, ban:!!STATE.chatBan, mute:STATE.muteMentions}));
 
       var plate = document.getElementById('cmBanPlate');
       var composer = document.getElementById('cmComposer');
@@ -503,7 +505,7 @@
       return el;
     }
 
-    var isMine = window.__currentUserId && m.user_id === window.__currentUserId;
+    var isMine = (STATE.userId != null) && (String(m.user_id) === String(STATE.userId));
     if (isMine) el.classList.add('cm-msg-mine');
     if (m.pinned) el.classList.add('cm-msg-pinned');
     if (m.kind === 'admin_post') el.classList.add('cm-msg-post');
@@ -783,7 +785,7 @@
     }
 
     // Действия
-    var isMine = window.__currentUserId && m.user_id === window.__currentUserId;
+    var isMine = (STATE.userId != null) && (String(m.user_id) === String(STATE.userId));
     var rows = [];
     rows.push(actionRow(ICONS.copy, 'Скопировать текст', 'cmCopyMsg(\'' + esc(msgId) + '\')'));
     // M3.5: «Ответить» доступно ВСЕМ, у кого есть право писать в чат

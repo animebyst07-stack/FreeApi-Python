@@ -116,6 +116,7 @@ def community_state():
     uid = current_user_id()
     payload = {
         'is_authenticated': bool(uid),
+        'user_id': uid,
         'is_admin': is_admin(uid) if uid else False,
         'chat_ban': cm.get_chat_ban(uid) if uid else None,
         'mute_mentions': cm.get_mute_mentions(uid) if uid else False,
