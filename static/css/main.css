@@ -1877,29 +1877,25 @@ body:has(#view-dashboard.active){background:#000!important}
 .setup-mini:hover{
   transform:translateY(-1px);
   border-color:#2a2a36;
-  box-shadow:0 6px 28px rgba(99,102,241,.18);
+  box-shadow:0 4px 20px rgba(0,0,0,.6);
 }
 .setup-mini:active{transform:translateY(0)}
 .setup-mini:focus-visible{outline:2px solid #6366f1;outline-offset:2px}
 .setup-mini-glow{
   position:absolute;inset:-40%;pointer-events:none;
-  background:radial-gradient(circle at 20% 50%, rgba(99,102,241,.18), transparent 55%);
-  animation:setup-mini-glow 6s linear infinite;
+  background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.015), transparent 60%);
 }
 @keyframes setup-mini-in{
   from{opacity:0;transform:translateY(-6px)}
   to{opacity:1;transform:translateY(0)}
 }
-@keyframes setup-mini-glow{
-  0%{transform:rotate(0)}
-  100%{transform:rotate(360deg)}
-}
+
 .setup-mini-spinner{
   position:relative;width:38px;height:38px;flex:0 0 38px;
   display:flex;align-items:center;justify-content:center;
   border-radius:12px;
-  background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(139,92,246,.18));
-  color:#a5b4fc;
+  background:#1a1a1a;
+  color:#888;
 }
 .setup-mini-spinner svg{animation:setup-mini-spin 1.1s linear infinite}
 @keyframes setup-mini-spin{to{transform:rotate(360deg)}}
@@ -1909,12 +1905,11 @@ body:has(#view-dashboard.active){background:#000!important}
   font-size:13px;font-weight:600;color:#e7e7ee;letter-spacing:.2px;
 }
 .setup-mini-typ{
-  background:linear-gradient(90deg,#a5b4fc,#c4b5fd);
-  -webkit-background-clip:text;background-clip:text;color:transparent;
+  color:#d0d0d0;
 }
 .setup-mini-dots{display:inline-flex;gap:3px;margin-left:2px}
 .setup-mini-dots span{
-  width:4px;height:4px;border-radius:50%;background:#8b5cf6;opacity:.4;
+  width:4px;height:4px;border-radius:50%;background:#666;opacity:.5;
   animation:setup-mini-dot 1.2s infinite ease-in-out;
 }
 .setup-mini-dots span:nth-child(2){animation-delay:.2s}
@@ -1934,8 +1929,8 @@ body:has(#view-dashboard.active){background:#000!important}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .setup-mini-step-num{
-  flex:0 0 auto;font-weight:700;color:#a5b4fc;
-  background:rgba(99,102,241,.12);padding:2px 7px;border-radius:6px;
+  flex:0 0 auto;font-weight:700;color:#999;
+  background:rgba(255,255,255,.07);padding:2px 7px;border-radius:6px;
   font-size:11px;letter-spacing:.3px;
 }
 .setup-mini-step-label{
@@ -1947,13 +1942,9 @@ body:has(#view-dashboard.active){background:#000!important}
 }
 .setup-mini-bar-fill{
   height:100%;border-radius:3px;
-  background:linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899);
-  background-size:200% 100%;
-  animation:setup-mini-bar-shimmer 2.4s linear infinite;
+  background:#b0b0b0;
   transition:width .5s ease;
 }
-@keyframes setup-mini-bar-shimmer{
-  0%{background-position:0% 0}
   100%{background-position:200% 0}
 }
 .setup-mini-arrow{
@@ -2011,19 +2002,15 @@ body:has(#view-dashboard.active){background:#000!important}
   width:54px;height:54px;margin:6px auto 4px;
   display:flex;align-items:center;justify-content:center;
   border-radius:50%;
-  background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(139,92,246,.18));
-  color:#a5b4fc;
-  animation:setup-confirm-pulse 2.2s ease-in-out infinite;
-}
-@keyframes setup-confirm-pulse{
-  0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.4)}
-  50%{box-shadow:0 0 0 12px rgba(99,102,241,0)}
+  background:#111;
+  border:1px solid #222;
+  color:#888;
 }
 .setup-confirm-actions{
   display:flex;gap:10px;margin-top:18px;
 }
 .setup-confirm-actions .btn{
-  flex:1;height:42px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  flex:1;height:52px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:500;
 }
 @media (max-width:420px){
   .setup-confirm-actions{flex-direction:column-reverse}
