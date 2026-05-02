@@ -294,6 +294,12 @@ def notify_new_url(token: str, chat_ids: List[str], new_url: str):
             if new_id:
                 state[state_key] = new_id
                 changed = True
+                # Пиним сообщение — FavoriteCLI читает URL из entities
+                _tg_api(token, 'pinChatMessage', {
+                    'chat_id': chat_id,
+                    'message_id': new_id,
+                    'disable_notification': True,
+                })
         except Exception as exc:
             logger.error('[TgNotify] Необработанная ошибка для чата %s: %s', chat_id, exc)
 
@@ -319,58 +325,6 @@ def _probe_chat(token: str, chat_id) -> Tuple[bool, str]:
     if isinstance(result, dict):
         return False, str(result.get('description') or 'unknown')
     return False, 'network error'
-
-
-
-def notify_cli_url(token: str, chat_ids: List[str], url: str) -> None:
-    """Отправляет/редактирует машиночитаемое FAPI_URL:-сообщение для FavoriteCLI.
-
-    После отправки пиним его в чате — FavoriteCLI читает pinned_message через getChat.
-    """
-    if not token or not chat_ids:
-        return
-
-    state = _load_state()
-    text = f"FAPI_URL:{url}"
-    changed = False
-
-    for raw_id in chat_ids:
-        chat_id = _resolve_chat_id(token, raw_id)
-        if chat_id in (None, ''):
-            continue
-        state_key = f"cli_url_msg_{chat_id}"
-        try:
-            existing_id = state.get(state_key)
-            msg_id = None
-            if existing_id:
-                ok = _tg_api(token, 'editMessageText', {
-                    'chat_id': chat_id,
-                    'message_id': existing_id,
-                    'text': text,
-                })
-                if ok and ok.get('ok'):
-                    msg_id = existing_id
-            if msg_id is None:
-                result = _tg_api(token, 'sendMessage', {
-                    'chat_id': chat_id,
-                    'text': text,
-                    'disable_notification': True,
-                })
-                if result and result.get('ok'):
-                    msg_id = result['result']['message_id']
-                    state[state_key] = msg_id
-                    changed = True
-            if msg_id:
-                _tg_api(token, 'pinChatMessage', {
-                    'chat_id': chat_id,
-                    'message_id': msg_id,
-                    'disable_notification': True,
-                })
-        except Exception as exc:
-            logger.error('[TgNotify/CLI] Ошибка для чата %s: %s', chat_id, exc)
-
-    if changed:
-        _save_state(state)
 
 
 def load_notify_config() -> Tuple[str, List[str]]:
