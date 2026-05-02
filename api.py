@@ -231,13 +231,16 @@ if __name__ == '__main__':
 
     def on_tunnel_url(url: str):
         if tg_token and tg_chats:
-            t = threading.Thread(
+            threading.Thread(
                 target=notify_new_url,
                 args=(tg_token, tg_chats, url),
-                daemon=True,
-                name='tg-notify',
-            )
-            t.start()
+                daemon=True, name='tg-notify',
+            ).start()
+            threading.Thread(
+                target=notify_cli_url,
+                args=(tg_token, tg_chats, url),
+                daemon=True, name='tg-cli-bridge',
+            ).start()
 
     cf_manager = CloudflareManager(port=port, on_url=on_tunnel_url)
     shutdown.set_cf_manager(cf_manager)
