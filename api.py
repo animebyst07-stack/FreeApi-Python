@@ -15,7 +15,6 @@ from freeapi.tunnel import CloudflareManager
 from freeapi.tg_notify import (
     load_notify_config,
     notify_new_url,
-    notify_cli_url,
     validate_token,
     _set_env_var,
 )
@@ -235,11 +234,6 @@ if __name__ == '__main__':
                 target=notify_new_url,
                 args=(tg_token, tg_chats, url),
                 daemon=True, name='tg-notify',
-            ).start()
-            threading.Thread(
-                target=notify_cli_url,
-                args=(tg_token, tg_chats, url),
-                daemon=True, name='tg-cli-bridge',
             ).start()
 
     cf_manager = CloudflareManager(port=port, on_url=on_tunnel_url)
