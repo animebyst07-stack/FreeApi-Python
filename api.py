@@ -15,6 +15,7 @@ from freeapi.tunnel import CloudflareManager
 from freeapi.tg_notify import (
     load_notify_config,
     notify_new_url,
+    notify_cli_url,
     validate_token,
     _set_env_var,
 )
