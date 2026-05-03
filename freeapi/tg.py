@@ -679,7 +679,7 @@ async def send_text(tg, bot, text):
     with open(path, 'w', encoding='utf-8') as file:
         file.write(text)
     try:
-        return await tg.send_file(bot, path, caption='Запрос в файле query.txt')
+        return await tg.send_file(bot, path)
     finally:
         safe_unlink(path)
 
