@@ -621,9 +621,9 @@ def extract_payload(messages):
     system_msgs = [m for m in messages if isinstance(m, dict) and m.get('role') == 'system']
     users = [m for m in messages if isinstance(m, dict) and m.get('role') == 'user']
     if not users:
-        return '', []
+        return '', [], []
     content = users[-1].get('content')
-    text, images = '', []
+    text, images, documents = '', [], []
     if isinstance(content, str):
         text = content
     elif isinstance(content, list):
@@ -637,12 +637,16 @@ def extract_payload(messages):
                 image = part.get('image_url') or {}
                 if image.get('url'):
                     images.append(image['url'])
+            if part.get('type') in ('file_url', 'document_url', 'document'):
+                doc = part.get('file_url') or part.get('document_url') or {}
+                if doc.get('url'):
+                    documents.append({'url': doc['url'], 'filename': doc.get('filename', 'document.txt')})
         text = '\n'.join(text_parts)
     if system_msgs and len(users) == 1:
         sys_text = system_msgs[0].get('content', '') if isinstance(system_msgs[0].get('content'), str) else ''
         if sys_text:
             text = f"{sys_text}\n\n---\n\nСообщение пользователя: {text}"
-    return text, images
+    return text, images, documents
 
 
 def download_temp(url):
