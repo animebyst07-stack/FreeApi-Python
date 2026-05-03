@@ -674,14 +674,18 @@ def safe_unlink(path):
 async def send_text(tg, bot, text):
     if len(text) <= 4096:
         return await tg.send_message(bot, text)
-    fd, path = tempfile.mkstemp(prefix='query_', suffix='.txt')
-    os.close(fd)
+    tmpdir = tempfile.mkdtemp()
+    path = os.path.join(tmpdir, 'Запрос.txt')
     with open(path, 'w', encoding='utf-8') as file:
         file.write(text)
     try:
         return await tg.send_file(bot, path)
     finally:
         safe_unlink(path)
+        try:
+            os.rmdir(tmpdir)
+        except Exception:
+            pass
 
 
 async def wait_any(tg, bot, after_id):
