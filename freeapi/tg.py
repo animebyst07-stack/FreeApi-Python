@@ -116,6 +116,11 @@ class TgSession:
             except FloodWaitError as error:
                 await self.rate.flood(error.seconds)
 
+    async def download_document(self, message):
+        if not message or not message.document:
+            return None
+        return await self.client.download_media(message, bytes)
+
     async def click(self, message, data=None, text=None):
         while True:
             try:
@@ -294,7 +299,19 @@ class ChatHandler:
         bot = await self.tg.bot()
         if model != key.get('current_model'):
             await self.switcher.switch(key, model)
-        text, images = extract_payload(messages)
+        text, images, documents = extract_payload(messages)
+        for doc in documents:
+            filename = doc.get('filename', 'document.txt')
+            if filename.endswith('.txt'):
+                logger.info('[INFO] Обработка текстового документа: %s', filename)
+                path = download_temp(doc['url'])
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.read()
+                    text = f"[Содержимое файла {filename}]\n{content}\n\n{text}"
+                finally:
+                    safe_unlink(path)
+
         if images:
             logger.info('[INFO] Получено изображений: %d. Начинаю обработку...', len(images))
         for index, image_url in enumerate(images):
@@ -672,6 +689,16 @@ async def wait_any(tg, bot, after_id):
     while time.monotonic() < deadline:
         msg = await last_message(tg, bot)
         if msg and msg.id > after_id:
+            if msg.document:
+                filename = msg.file.name or 'file.txt'
+                if filename.endswith('.txt'):
+                    content = await tg.download_document(msg)
+                    if content:
+                        try:
+                            text = content.decode('utf-8', errors='replace')
+                            msg.raw_text = f"[Содержимое файла {filename}]\n{text}"
+                        except Exception:
+                            pass
             return msg
         await asyncio.sleep(1)
     raise TimeoutError('timeout waiting for Telegram bot')
@@ -848,7 +875,7 @@ def run_dual_chat(key, model, messages, trace=None):
         key['translator_account_id'] != key['tg_account_id']
     )
 
-    text, _ = extract_payload(messages)
+    text, _, _ = extract_payload(messages)
     is_ru = contains_cyrillic(text) and has_translator
     logger.info('[DUAL] key_id=%s main_account=%s translator_account=%s has_translator=%s cyrillic=%s model=%s', key.get('id'), key.get('tg_account_id'), key.get('translator_account_id'), has_translator, contains_cyrillic(text), model)
 
